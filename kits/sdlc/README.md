@@ -72,7 +72,7 @@ After running `cpt update`, `cpt kit migrate`, or `cpt generate-resources`, the 
 - [Code Quality Checklist](../../.bootstrap/.gen/kits/sdlc/codebase/checklist.md) — code review criteria
 - [CDSL Specification](../../architecture/specs/CDSL.md) — behavior description language for FEATURE artifacts
 - [Prompt Engineering](../../requirements/prompt-engineering.md) — 9-layer methodology
-- [Blueprint Constraints](guides/constraints.md) — heading and ID constraint format
+- [Blueprint Specification](../../architecture/specs/kit/blueprint.md) — blueprint markers, heading and ID constraint format
 
 ## Documentation
 

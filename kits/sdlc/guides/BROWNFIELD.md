@@ -25,17 +25,17 @@ Unlike greenfield projects, **brownfield has no required order**. You can:
 
 Before choosing an adoption scenario, run auto-config to let Cypilot learn your project:
 
-```
-cypilot auto-config
-```
+| Prompt | What happens |
+|--------|--------------|
+| `cypilot auto-config` | Scans project and generates rules, registry entries, and AGENTS.md integration |
 
 **What it does** (6 phases):
 1. **Project Scan** — reads directory structure, entry points, language/framework detection
 2. **Documentation Discovery** — finds existing docs, READMEs, API specs, schemas
 3. **System Detection** — identifies system boundaries, subsystems, components
-4. **Rule Generation** — creates per-system convention rules in `cypilot/config/rules/{slug}.md`
-5. **AGENTS.md Integration** — adds WHEN rules to `cypilot/config/AGENTS.md` so the agent loads the right rules at the right time
-6. **Registry Update** — registers detected systems and codebase paths in `cypilot/config/artifacts.toml`
+4. **Rule Generation** — creates per-system convention rules in `{cypilot_path}/config/rules/{slug}.md`
+5. **AGENTS.md Integration** — adds WHEN rules to `{cypilot_path}/config/AGENTS.md` so the agent loads the right rules at the right time
+6. **Registry Update** — registers detected systems and codebase paths in `{cypilot_path}/config/artifacts.toml`
 
 **When to run**:
 - After `cypilot init` on an existing project
@@ -121,7 +121,7 @@ Later:  cypilot make DESIGN                   → Document architecture
 
 ## What You Will Produce
 
-Cypilot artifacts registered in `cypilot/config/artifacts.toml` ([taxonomy](TAXONOMY.md)):
+Cypilot artifacts registered in `{cypilot_path}/config/artifacts.toml` ([taxonomy](TAXONOMY.md)):
 
 | Artifact | Default Location |
 |----------|------------------|

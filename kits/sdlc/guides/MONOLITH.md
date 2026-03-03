@@ -950,7 +950,7 @@ Context:
 
 ## Configuration
 
-Example `cypilot/config/AGENTS.md` for a modular monolith:
+Example `{cypilot_path}/config/AGENTS.md` for a modular monolith:
 
 ```markdown
 # Project Configuration

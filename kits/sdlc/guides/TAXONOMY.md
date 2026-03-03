@@ -157,7 +157,7 @@ Phase tokens:
 **Validation**:
 - Template structure + ID formats
 - Cross-reference validity for all referenced IDs
-- Code coverage and orphan checks via `validate-code`
+- Code coverage and orphan checks via `validate`
 
 **Files**:
 - Template: [kits/sdlc/artifacts/FEATURE/template.md](../artifacts/FEATURE/template.md)
@@ -176,22 +176,39 @@ Phase tokens:
 - Mark code with Cypilot markers as specified in `{cypilot_path}/.core/requirements/traceability.md`.
 
 **Validation**:
-- Structure and pairing checks + cross-validation + coverage checks via `validate-code`.
+- Structure and pairing checks + cross-validation + coverage checks via `validate`.
 - Semantic code review criteria via SDLC codebase checklist.
 
 **Files**:
 - Rules: [kits/sdlc/codebase/rules.md](../codebase/rules.md)
 - Checklist: [kits/sdlc/codebase/checklist.md](../codebase/checklist.md)
 
-## Validation Commands
+## CLI Commands
+
+### Validation
 
 | Command | What it validates |
 |---------|-------------------|
-| `cypilot validate` | Artifacts against templates + cross-references |
-| `cypilot validate-code` | Code markers — pairing, coverage, orphan checks |
-| `cypilot validate-kits` | Kit package integrity — blueprint markers, constraints |
+| `cpt validate` | Artifacts against templates + cross-references + code markers (pairing, coverage, orphans) |
+| `cpt validate-kits` | Kit package integrity — blueprint markers, constraints |
+| `cpt validate-toc` | Table of contents correctness in markdown files |
+
+> `validate-code` is a legacy alias for `validate` — use `cpt validate` for all validation.
+
+### Traceability & Search
+
+| Command | What it does |
+|---------|--------------|
+| `cpt list-ids` | Lists all IDs defined across artifacts |
+| `cpt where-defined <id>` | Shows where an ID is defined |
+| `cpt where-used <id>` | Shows where an ID is referenced |
+| `cpt spec-coverage` | Measures code coverage by CDSL specification markers |
+| `cpt toc` | Generates/updates table of contents in markdown files |
+| `cpt info` | Shows Cypilot configuration and project context |
 
 Script path (for direct invocation): `python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py <command>`
+
+> All `cypilot ...` prompts in the guides above are **AI skill prompts** typed in the IDE chat. The `cpt` commands above are **CLI commands** run in the terminal.
 
 ## References
 

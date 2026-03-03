@@ -5,7 +5,7 @@ DESCRIPTION: Initialize Cypilot config for a project
 ARGUMENTS:
 
 OPTIONS:
-  --project-root  <path>  Project root directory to create .cypilot-config.json in (default: parent of Cypilot core)
+  --project-root  <path>  Project root directory (default: parent of Cypilot core)
   --cypilot-root  <path>  Explicit Cypilot core root (optional override)
   --project-name  <string>  Project name used in AGENTS.md (default: project root folder name)
   --yes  <boolean>  Do not prompt; accept defaults
@@ -76,7 +76,7 @@ RELATED:
 
 COMMAND validate-kits
 SYNOPSIS: python3 scripts/cypilot.py validate-kits [--kit <id>] [--template <path>] [options]
-DESCRIPTION: Validate Cypilot kit configuration and template files. Checks kit definitions in artifacts.json and validates template frontmatter, paired markers, and valid marker types/attributes. (Legacy alias: validate-rules; legacy flag alias: --rule)
+DESCRIPTION: Validate Cypilot kit configuration and template files. Checks kit definitions in artifacts.toml and validates template frontmatter, paired markers, and valid marker types/attributes. (Legacy alias: validate-rules; legacy flag alias: --rule)
 WORKFLOW: kits
 
 ARGUMENTS:
