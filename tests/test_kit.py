@@ -2565,6 +2565,63 @@ class TestOpenEditorForMarkerEdgeCases(unittest.TestCase):
         self.assertIsNone(result)
 
 
+class TestOpenEditorForMarkerRegressions(unittest.TestCase):
+    """Regression tests for _open_editor_for_marker bug fixes."""
+
+    def test_no_unbound_error_when_tempfile_fails(self):
+        """tmp_path initialised to None prevents UnboundLocalError in finally."""
+        from cypilot.commands.kit import _open_editor_for_marker
+        from unittest.mock import patch
+
+        user_raw = '`@cpt:heading:t`\nOld\n`@/cpt:heading:t`\n'
+        new_raw = '`@cpt:heading:t`\nNew\n`@/cpt:heading:t`\n'
+
+        with patch("cypilot.commands.kit.tempfile.NamedTemporaryFile",
+                   side_effect=OSError("disk full")):
+            with patch("cypilot.commands.kit._get_editor", return_value="vi"):
+                result = _open_editor_for_marker("heading:t", user_raw, new_raw)
+
+        self.assertIsNone(result)
+
+    def test_shlex_split_editor_with_args(self):
+        """Editor strings like 'code --wait' are split into proper argv."""
+        from cypilot.commands.kit import _open_editor_for_marker, _EDITOR_SEPARATOR
+        from unittest.mock import patch
+
+        user_raw = '`@cpt:heading:t`\nOld\n`@/cpt:heading:t`\n'
+        new_raw = '`@cpt:heading:t`\nNew\n`@/cpt:heading:t`\n'
+        captured_args = []
+
+        def fake_editor(args):
+            captured_args.append(list(args))
+            # leave file unchanged
+
+        with patch("cypilot.commands.kit.subprocess.check_call", side_effect=fake_editor):
+            with patch("cypilot.commands.kit._get_editor", return_value="code --wait"):
+                _open_editor_for_marker("heading:t", user_raw, new_raw)
+
+        self.assertEqual(len(captured_args), 1)
+        cmd = captured_args[0]
+        self.assertEqual(cmd[0], "code")
+        self.assertEqual(cmd[1], "--wait")
+        self.assertTrue(cmd[2].endswith(".md"))
+
+    def test_file_not_found_returns_none(self):
+        """FileNotFoundError (missing editor binary) returns None with message."""
+        from cypilot.commands.kit import _open_editor_for_marker
+        from unittest.mock import patch
+
+        user_raw = '`@cpt:heading:t`\nOld\n`@/cpt:heading:t`\n'
+        new_raw = '`@cpt:heading:t`\nNew\n`@/cpt:heading:t`\n'
+
+        with patch("cypilot.commands.kit.subprocess.check_call",
+                   side_effect=FileNotFoundError("No such file: nonexistent-editor")):
+            with patch("cypilot.commands.kit._get_editor", return_value="nonexistent-editor"):
+                result = _open_editor_for_marker("heading:t", user_raw, new_raw)
+
+        self.assertIsNone(result)
+
+
 class TestMigrateKitModify(unittest.TestCase):
     """Interactive migrate_kit with modify (editor) option."""
 
