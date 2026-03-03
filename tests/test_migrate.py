@@ -140,6 +140,20 @@ def _make_cache(cache_dir: Path) -> None:
     (scripts_dir / "helper.py").write_text("# helper\n", encoding="utf-8")
     from cypilot.utils import toml_utils
     toml_utils.dump({"version": 1, "blueprints": {"prd": 1}}, cache_dir / "kits" / "sdlc" / "conf.toml")
+    # Skill source needed by cmd_agents during migration
+    skill_src = cache_dir / "skills" / "cypilot" / "SKILL.md"
+    skill_src.parent.mkdir(parents=True, exist_ok=True)
+    skill_src.write_text(
+        "---\nname: cypilot\ndescription: Cypilot core skill\n---\nSkill content\n",
+        encoding="utf-8",
+    )
+    # Core workflow needed so agent proxies can be generated
+    wf = cache_dir / "workflows" / "analyze.md"
+    wf.parent.mkdir(parents=True, exist_ok=True)
+    wf.write_text(
+        "---\nname: analyze\ndescription: Analyze artifacts\n---\nContent\n",
+        encoding="utf-8",
+    )
 
 
 # ===========================================================================
@@ -1155,16 +1169,29 @@ class TestCleanupEdgeCases(unittest.TestCase):
             self.assertEqual(result["cleaned_type"], INSTALL_TYPE_SUBMODULE)
             self.assertFalse((root / ".git" / "modules" / ".cypilot").exists())
 
-    def test_cleanup_submodule_failure(self):
-        """Submodule cleanup failure returns error."""
-        import subprocess as sp
+    def test_cleanup_submodule_deinit_failure_non_fatal(self):
+        """Submodule deinit failure is non-fatal — cleanup continues."""
         with TemporaryDirectory() as d:
             root = Path(d)
             (root / ".cypilot").mkdir()
-            with patch("subprocess.run", side_effect=sp.CalledProcessError(1, "git", stderr="fail")):
+            (root / ".gitmodules").write_text(
+                '[submodule "core"]\n  path = .cypilot\n  url = https://example.com\n'
+            )
+
+            def _mock_run(cmd, **kwargs):
+                mock_result = unittest.mock.MagicMock()
+                if cmd[:3] == ["git", "submodule", "deinit"]:
+                    mock_result.returncode = 1
+                    mock_result.stderr = "error: pathspec '.cypilot' did not match any file(s) known to git"
+                else:
+                    mock_result.returncode = 0
+                return mock_result
+
+            with patch("subprocess.run", side_effect=_mock_run):
                 result = cleanup_core_path(root, ".cypilot", INSTALL_TYPE_SUBMODULE)
-            self.assertFalse(result["success"])
-            self.assertIn("Submodule", result.get("error", ""))
+            self.assertTrue(result["success"])
+            self.assertEqual(result["cleaned_type"], INSTALL_TYPE_SUBMODULE)
+            self.assertTrue(any("deinit failed" in w for w in result["warnings"]))
 
     def test_cleanup_submodule_deletes_empty_gitmodules(self):
         """When .gitmodules becomes empty after entry removal, delete it."""
@@ -1502,7 +1529,7 @@ class TestRunMigrateEdgeCases(unittest.TestCase):
             _make_cache(cache)
             with patch("cypilot.commands.migrate.CACHE_DIR", cache):
                 with patch("cypilot.commands.init.CACHE_DIR", cache):
-                    with patch("cypilot.commands.agents.cmd_agents",
+                    with patch("cypilot.commands.agents.cmd_generate_agents",
                                side_effect=Exception("agents broke")):
                         result = run_migrate(root, yes=True)
             if result["status"] == "PASS":

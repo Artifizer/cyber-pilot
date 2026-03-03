@@ -21,7 +21,7 @@ codebase = false
 `@cpt:skill`
 ```markdown
 ### PRD Commands
-- `cypilot validate --artifact <PRD.md>` — validate PRD
+- `cpt validate --artifact <PRD.md>` — validate PRD
 ```
 `@/cpt:skill`
 

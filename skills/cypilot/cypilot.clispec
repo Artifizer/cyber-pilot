@@ -25,7 +25,7 @@ EXAMPLE:
 
 RELATED:
   - @CLI.info
-  - @CLI.agents
+  - @CLI.generate-agents
 ---
 
 COMMAND validate
@@ -228,7 +228,7 @@ EXAMPLE:
 
 RELATED:
   - @CLI.init
-  - @CLI.agents
+  - @CLI.generate-agents
 ---
 
 COMMAND where-defined
@@ -283,8 +283,8 @@ RELATED:
   - @CLI.get-content
 ---
 
-COMMAND agents
-SYNOPSIS: python3 scripts/cypilot.py agents --agent <name> [options]
+COMMAND generate-agents
+SYNOPSIS: python3 scripts/cypilot.py generate-agents --agent <name> [options]
 DESCRIPTION: Generate/update agent-specific workflow proxies and skill outputs. Creates unified proxy files for workflows (cypilot-generate, cypilot-analyze) and the cypilot skill entry point. Supports windsurf, cursor, claude, copilot, openai.
 ARGUMENTS:
 
@@ -309,11 +309,11 @@ OUTPUT:
   - errors: List of errors if any
 
 EXAMPLE:
-  $ python3 scripts/cypilot.py agents --agent windsurf
-  $ python3 scripts/cypilot.py agents --agent claude --dry-run
-  $ python3 scripts/cypilot.py agents --agent cursor
-  $ python3 scripts/cypilot.py agents --openai
-  $ python3 scripts/cypilot.py agents
+  $ python3 scripts/cypilot.py generate-agents --agent windsurf
+  $ python3 scripts/cypilot.py generate-agents --agent claude --dry-run
+  $ python3 scripts/cypilot.py generate-agents --agent cursor
+  $ python3 scripts/cypilot.py generate-agents --openai
+  $ python3 scripts/cypilot.py generate-agents
 
 RELATED:
   - @CLI.init

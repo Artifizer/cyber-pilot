@@ -65,7 +65,7 @@ Key assumptions: V2 project has a valid `.cypilot-adapter/` directory with `arti
 
 This feature addresses the need for a seamless upgrade path from Cypilot v2 to v3. It implements the migration strategy defined in the Overall Design (Section 4, "Migration Strategy") and satisfies the project initialization and config directory requirements for existing v2 installations.
 
-- `cpt-cypilot-fr-core-init` — `cypilot init` must detect existing v2 installations and offer migration
+- `cpt-cypilot-fr-core-init` — `cpt init` must detect existing v2 installations and offer migration
 - `cpt-cypilot-fr-core-config` — config directory must be created with proper TOML format and schema versioning
 - `cpt-cypilot-principle-zero-harm` — migration must not impose costs; rollback must restore original state
 - `cpt-cypilot-principle-no-manual-maintenance` — migration runs automatically; no manual file editing required
@@ -74,7 +74,7 @@ This feature addresses the need for a seamless upgrade path from Cypilot v2 to v
 
 | Actor | Role in Feature |
 |-------|-----------------|
-| `cpt-cypilot-actor-user` | Initiates migration via `cypilot migrate` or `cypilot init` in a v2 project |
+| `cpt-cypilot-actor-user` | Initiates migration via `cpt migrate` or `cpt init` in a v2 project |
 | `cpt-cypilot-actor-cypilot-cli` | Executes migration commands, validates results, reports status |
 
 ### 1.4 References
@@ -106,10 +106,10 @@ This feature addresses the need for a seamless upgrade path from Cypilot v2 to v
 - Git clone removal fails (permissions) — abort, suggest manual cleanup
 
 **Steps**:
-1. [x] - `p1` - User runs `cypilot migrate` or `cypilot init` in a project containing `.cypilot-adapter/` — `inst-user-trigger`
+1. [x] - `p1` - User runs `cpt migrate` or `cpt init` in a project containing `.cypilot-adapter/` — `inst-user-trigger`
 2. [x] - `p1` - Detect v2 installation using `cpt-cypilot-algo-v2-v3-migration-detect-v2` — `inst-detect-v2`
 3. [x] - `p1` - **IF** v2 not detected — `inst-check-v2-found`
-   1. [x] - `p1` - **RETURN** error "No v2 installation found. Use `cypilot init` for new projects." — `inst-return-no-v2`
+   1. [x] - `p1` - **RETURN** error "No v2 installation found. Use `cpt init` for new projects." — `inst-return-no-v2`
 4. [x] - `p1` - Display migration plan summary to user (source paths, target paths, systems found, kits found, core install type: submodule/clone/plain) — `inst-show-plan`
 5. [x] - `p1` - **IF** user declines migration — `inst-check-user-confirm`
    1. [x] - `p1` - **RETURN** "Migration cancelled by user." — `inst-return-cancelled`
@@ -142,7 +142,7 @@ This feature addresses the need for a seamless upgrade path from Cypilot v2 to v
 - TOML schema validation failure — keep JSON, report error, skip that file
 
 **Steps**:
-1. [x] - `p1` - User runs `cypilot migrate-config` — `inst-user-trigger-config`
+1. [x] - `p1` - User runs `cpt migrate-config` — `inst-user-trigger-config`
 2. [x] - `p1` - Scan for existing `.json` config files in `config/` and `.cypilot-adapter/` — `inst-scan-json-files`
 3. [x] - `p1` - **FOR EACH** JSON config file found — `inst-iterate-json-files`
    1. [x] - `p1` - Parse JSON content — `inst-parse-json`
@@ -678,7 +678,7 @@ The system **MUST** validate migration completeness by verifying: config files e
 
 - [x] `p1` - **ID**: `cpt-cypilot-dod-v2-v3-migration-json-to-toml`
 
-The system **MUST** provide `cypilot migrate-config` to convert remaining JSON config files to TOML. The migrator **MUST** process files individually — a failure in one file does not block others. Each converted TOML file **MUST** validate against its schema before the original JSON is removed. The migrator **MUST** run automatically during `cypilot update` when upgrading from a JSON-based version.
+The system **MUST** provide `cpt migrate-config` to convert remaining JSON config files to TOML. The migrator **MUST** process files individually — a failure in one file does not block others. Each converted TOML file **MUST** validate against its schema before the original JSON is removed. The migrator **MUST** run automatically during `cpt update` when upgrading from a JSON-based version.
 
 **Implements**:
 - `cpt-cypilot-flow-v2-v3-migration-migrate-config`
@@ -699,15 +699,15 @@ The system **MUST** provide `cypilot migrate-config` to convert remaining JSON c
 
 ## 6. Acceptance Criteria
 
-- [x] `cypilot migrate` converts a v2 project with `.cypilot-adapter/artifacts.json` to v3 `{cypilot_path}/config/artifacts.toml` with all systems and autodetect rules preserved
-- [x] `cypilot migrate` preserves all custom WHEN rules from `.cypilot-adapter/AGENTS.md` in `{cypilot_path}/config/AGENTS.md`
-- [x] `cypilot migrate` creates valid `{cypilot_path}/config/core.toml` that passes schema validation
-- [x] `cypilot migrate` injects `<!-- @cpt:root-agents -->` managed block into root `AGENTS.md` without destroying existing content
-- [x] `cypilot migrate` creates backup that can be manually restored to fully recover v2 state
-- [x] `cypilot migrate` rollback restores v2 state when post-migration validation fails
-- [x] All `cpt-*` IDs from v2 artifact files remain discoverable after migration (verified by `cypilot validate`)
+- [x] `cpt migrate` converts a v2 project with `.cypilot-adapter/artifacts.json` to v3 `{cypilot_path}/config/artifacts.toml` with all systems and autodetect rules preserved
+- [x] `cpt migrate` preserves all custom WHEN rules from `.cypilot-adapter/AGENTS.md` in `{cypilot_path}/config/AGENTS.md`
+- [x] `cpt migrate` creates valid `{cypilot_path}/config/core.toml` that passes schema validation
+- [x] `cpt migrate` injects `<!-- @cpt:root-agents -->` managed block into root `AGENTS.md` without destroying existing content
+- [x] `cpt migrate` creates backup that can be manually restored to fully recover v2 state
+- [x] `cpt migrate` rollback restores v2 state when post-migration validation fails
+- [x] All `cpt-*` IDs from v2 artifact files remain discoverable after migration (verified by `cpt validate`)
 - [x] All v2 artifact files still resolve via v3 autodetect rules (no missing file errors)
-- [x] `cypilot migrate-config` converts all JSON config files to TOML individually, skipping failed files
+- [x] `cpt migrate-config` converts all JSON config files to TOML individually, skipping failed files
 - [x] Complex case: hyperspot project (2 systems, 2 autodetect patterns, 17 ignore rules, custom kit slug `cf-sdlc`) migrates successfully with zero data loss
 - [x] Agent entry points (`.windsurf/`, `.cursor/`, `.claude/`, `.github/`) are regenerated for v3 structure
 - [x] Vanilla SDLC kit (including legacy slug `cf-sdlc`) is fully regenerated from blueprints in v3 structure
@@ -729,7 +729,7 @@ The system **MUST** provide `cypilot migrate-config` to convert remaining JSON c
 ### Maintainability Notes
 
 - The migration is forward-only — v3 projects cannot be downgraded to v2
-- The `cypilot migrate` command reuses existing components: Config Manager for TOML serialization, Kit Manager for kit installation, Skill Engine for agent entry point generation
+- The `cpt migrate` command reuses existing components: Config Manager for TOML serialization, Kit Manager for kit installation, Skill Engine for agent entry point generation
 - Legacy kit slug remapping (e.g., `cf-sdlc` → `sdlc`) uses a configurable alias table, not hard-coded conditions
 - Custom kits are opaque to the migrator — copied verbatim, never regenerated or interpreted; users must manually update custom kits for v3 compatibility if needed
 - The `.cypilot-config.json` file is a v2-only artifact — v3 uses `core.toml` exclusively
@@ -738,7 +738,7 @@ The system **MUST** provide `cypilot migrate-config` to convert remaining JSON c
 ### Testing Approach
 
 - **Unit tests**: Test each conversion algorithm independently with fixture v2 configs (simple case, complex case matching hyperspot structure)
-- **Integration tests**: Run full `cypilot migrate` on fixture v2 projects, verify all validation checks pass
+- **Integration tests**: Run full `cpt migrate` on fixture v2 projects, verify all validation checks pass
 - **Core install type tests**: Three fixture variants — submodule (mock `.gitmodules` + `.git/modules/`), git clone (`.cypilot/.git/` directory), plain directory (no `.git` artifacts)
 - **Submodule cleanup tests**: Verify `git submodule deinit`, `.gitmodules` entry removal, `.git/modules/` cleanup, index removal; verify rollback restores `.gitmodules` and submodule state
 - **Custom kit tests**: Fixture with custom kit slug (not `sdlc`), verify copied as-is to `config/kits/` and `.gen/kits/`, verify warning emitted, verify no regeneration attempted

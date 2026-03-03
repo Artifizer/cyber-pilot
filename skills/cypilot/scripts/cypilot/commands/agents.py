@@ -904,21 +904,24 @@ def _process_single_agent(
 # @cpt-end:cpt-cypilot-algo-agent-integration-generate-shims:p1:inst-create-proxy
 
 
-def cmd_agents(argv: List[str]) -> int:
-    """Unified command to register both workflows and skills for an agent."""
-    # @cpt-begin:cpt-cypilot-flow-agent-integration-generate:p1:inst-user-agents
-    p = argparse.ArgumentParser(prog="agents", description="Generate/update agent-specific workflow proxies and skill outputs")
+def _resolve_agents_context(argv: List[str], prog: str, description: str, *, allow_yes: bool = False) -> Optional[tuple]:
+    """Shared argument parsing and project resolution for agents commands.
+
+    Returns (args, agents_to_process, project_root, cypilot_root, copy_report, cfg_path, cfg)
+    or None if it handled the response itself (error / early exit).
+    """
+    p = argparse.ArgumentParser(prog=prog, description=description)
     agent_group = p.add_mutually_exclusive_group(required=False)
-    agent_group.add_argument("--agent", default=None, help="Agent/IDE key (e.g., windsurf, cursor, claude, copilot, openai). Omit to init all supported agents.")
+    agent_group.add_argument("--agent", default=None, help="Agent/IDE key (e.g., windsurf, cursor, claude, copilot, openai). Omit to target all supported agents.")
     agent_group.add_argument("--openai", action="store_true", help="Shortcut for --agent openai (OpenAI Codex)")
     p.add_argument("--root", default=".", help="Project root directory (default: current directory)")
     p.add_argument("--cypilot-root", default=None, help="Explicit Cypilot core root (optional override)")
     p.add_argument("--config", default=None, help="Path to agents config JSON (optional; defaults are built-in)")
     p.add_argument("--dry-run", action="store_true", help="Compute changes without writing files")
+    if allow_yes:
+        p.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompt")
     args = p.parse_args(argv)
-    # @cpt-end:cpt-cypilot-flow-agent-integration-generate:p1:inst-user-agents
 
-    # @cpt-begin:cpt-cypilot-flow-agent-integration-generate:p1:inst-resolve-project
     # Determine agent list
     if bool(getattr(args, "openai", False)):
         agents_to_process = ["openai"]
@@ -942,17 +945,15 @@ def cmd_agents(argv: List[str]) -> int:
                 ui.blank(),
             ),
         )
-        return 1
+        return None
 
     cypilot_root = Path(args.cypilot_root).resolve() if args.cypilot_root else None
     if cypilot_root is None:
-        # Primary: read cypilot_path from root AGENTS.md (canonical source)
         cypilot_rel = _read_cypilot_var(project_root)
         if cypilot_rel:
             candidate = (project_root / cypilot_rel).resolve()
             if _is_cypilot_root(candidate):
                 cypilot_root = candidate
-        # Fallback: resolve from __file__ (running from cache before first install)
         if cypilot_root is None:
             resolved_file = Path(__file__).resolve()
             for _level in (5, 6, 7):
@@ -963,9 +964,6 @@ def cmd_agents(argv: List[str]) -> int:
             else:
                 cypilot_root = resolved_file.parents[5]
 
-    # @cpt-end:cpt-cypilot-flow-agent-integration-generate:p1:inst-resolve-project
-
-    # @cpt-begin:cpt-cypilot-flow-agent-integration-generate:p1:inst-ensure-local
     cypilot_root, copy_report = _ensure_cypilot_local(cypilot_root, project_root, args.dry_run)
     if copy_report.get("action") == "error":
         _err_msg = f"Failed to copy cypilot into project: {copy_report.get('message', 'unknown')}"
@@ -977,8 +975,7 @@ def cmd_agents(argv: List[str]) -> int:
                 ui.blank(),
             ),
         )
-        return 1
-    # @cpt-end:cpt-cypilot-flow-agent-integration-generate:p1:inst-ensure-local
+        return None
 
     cfg_path: Optional[Path] = Path(args.config).resolve() if args.config else None
     cfg: Optional[dict] = _load_json_file(cfg_path) if cfg_path else None
@@ -990,40 +987,211 @@ def cmd_agents(argv: List[str]) -> int:
         else:
             cfg = {"version": 1, "agents": {a: {"workflows": {}, "skills": {}} for a in agents_to_process}}
 
+    return args, agents_to_process, project_root, cypilot_root, copy_report, cfg_path, cfg
+
+
+def cmd_agents(argv: List[str]) -> int:
+    """Read-only command: list generated agent integration files."""
+    ctx = _resolve_agents_context(argv, prog="agents", description="Show generated agent integration files")
+    if ctx is None:
+        return 1
+    args, agents_to_process, project_root, cypilot_root, copy_report, cfg_path, cfg = ctx
+
+    # Scan for existing agent files (dry-run to see what exists)
+    results: Dict[str, Any] = {}
+    for agent in agents_to_process:
+        result = _process_single_agent(agent, project_root, cypilot_root, cfg, cfg_path, dry_run=True)
+        results[agent] = result
+
+    ui.result(
+        {
+            "status": "OK",
+            "agents": list(agents_to_process),
+            "project_root": project_root.as_posix(),
+            "cypilot_root": cypilot_root.as_posix(),
+            "results": results,
+        },
+        human_fn=lambda d: _human_agents_list(d, agents_to_process, results, project_root),
+    )
+    return 0
+
+
+def cmd_generate_agents(argv: List[str]) -> int:
+    """Generate/update agent-specific workflow proxies and skill outputs."""
+    # @cpt-begin:cpt-cypilot-flow-agent-integration-generate:p1:inst-user-agents
+    ctx = _resolve_agents_context(
+        argv, prog="generate-agents",
+        description="Generate/update agent-specific workflow proxies and skill outputs",
+        allow_yes=True,
+    )
+    if ctx is None:
+        return 1
+    args, agents_to_process, project_root, cypilot_root, copy_report, cfg_path, cfg = ctx
+    # @cpt-end:cpt-cypilot-flow-agent-integration-generate:p1:inst-user-agents
+
+    # @cpt-begin:cpt-cypilot-flow-agent-integration-generate:p1:inst-resolve-project
+    # @cpt-end:cpt-cypilot-flow-agent-integration-generate:p1:inst-resolve-project
+    # @cpt-begin:cpt-cypilot-flow-agent-integration-generate:p1:inst-ensure-local
+    # @cpt-end:cpt-cypilot-flow-agent-integration-generate:p1:inst-ensure-local
+
+    # Step 1: Dry run to preview changes
     # @cpt-begin:cpt-cypilot-flow-agent-integration-generate:p1:inst-for-each-agent
+    preview_results: Dict[str, Any] = {}
+    for agent in agents_to_process:
+        preview_results[agent] = _process_single_agent(agent, project_root, cypilot_root, cfg, cfg_path, dry_run=True)
+
+    # Compute total changes
+    total_create = 0
+    total_update = 0
+    for r in preview_results.values():
+        wf = r.get("workflows", {})
+        sk = r.get("skills", {})
+        total_create += len(wf.get("created", [])) + len(sk.get("created", []))
+        total_update += len(wf.get("updated", [])) + len(sk.get("updated", []))
+
+    if args.dry_run:
+        # Just show the preview and exit
+        agents_result = _build_result(preview_results, agents_to_process, project_root, cypilot_root, cfg_path, copy_report, dry_run=True)
+        ui.result(agents_result, human_fn=lambda d: _human_generate_agents_ok(d, agents_to_process, preview_results, dry_run=True))
+        return 0
+
+    # Step 2: Show preview and ask for confirmation (interactive)
+    if total_create == 0 and total_update == 0:
+        ui.info("No changes needed — agent files are up to date.")
+    else:
+        from ..utils.ui import is_json_mode
+        if not is_json_mode():
+            _human_generate_agents_preview(agents_to_process, preview_results, project_root)
+            auto_approve = getattr(args, "yes", False)
+            if not auto_approve and sys.stdin.isatty():
+                try:
+                    answer = input("  Proceed? [Y/n] ").strip().lower()
+                except (EOFError, KeyboardInterrupt):
+                    answer = "n"
+                if answer and answer not in ("y", "yes"):
+                    ui.result(
+                        {"status": "ABORTED", "message": "Cancelled by user"},
+                        human_fn=lambda d: (ui.warn("Aborted."), ui.blank()),
+                    )
+                    return 1
+
+    # Step 3: Execute the actual write
     has_errors = False
     results: Dict[str, Any] = {}
     for agent in agents_to_process:
-        result = _process_single_agent(agent, project_root, cypilot_root, cfg, cfg_path, args.dry_run)
+        result = _process_single_agent(agent, project_root, cypilot_root, cfg, cfg_path, dry_run=False)
         results[agent] = result
         if result.get("status") != "PASS":
             has_errors = True
     # @cpt-end:cpt-cypilot-flow-agent-integration-generate:p1:inst-for-each-agent
 
     # @cpt-begin:cpt-cypilot-flow-agent-integration-generate:p1:inst-return-report
-    overall_status = "PASS" if not has_errors else "PARTIAL"
-
-    agents_result = {
-        "status": overall_status,
-        "agents": list(agents_to_process),
-        "project_root": project_root.as_posix(),
-        "cypilot_root": cypilot_root.as_posix(),
-        "config_path": cfg_path.as_posix() if cfg_path else None,
-        "dry_run": bool(args.dry_run),
-        "cypilot_copy": copy_report,
-        "results": results,
-    }
-    ui.result(agents_result, human_fn=lambda d: _human_agents_ok(d, agents_to_process, results, args.dry_run))
+    agents_result = _build_result(results, agents_to_process, project_root, cypilot_root, cfg_path, copy_report, dry_run=False)
+    ui.result(agents_result, human_fn=lambda d: _human_generate_agents_ok(d, agents_to_process, results, dry_run=False))
 
     # @cpt-end:cpt-cypilot-flow-agent-integration-generate:p1:inst-return-report
     return 0 if not has_errors else 1
 
 
+def _build_result(
+    results: Dict[str, Any],
+    agents_to_process: List[str],
+    project_root: Path,
+    cypilot_root: Path,
+    cfg_path: Optional[Path],
+    copy_report: dict,
+    dry_run: bool,
+) -> Dict[str, Any]:
+    has_errors = any(r.get("status") != "PASS" for r in results.values())
+    return {
+        "status": "PASS" if not has_errors else "PARTIAL",
+        "agents": list(agents_to_process),
+        "project_root": project_root.as_posix(),
+        "cypilot_root": cypilot_root.as_posix(),
+        "config_path": cfg_path.as_posix() if cfg_path else None,
+        "dry_run": dry_run,
+        "cypilot_copy": copy_report,
+        "results": results,
+    }
+
+
 # ---------------------------------------------------------------------------
-# Human-friendly formatter
+# Human-friendly formatters
 # ---------------------------------------------------------------------------
 
-def _human_agents_ok(
+def _human_agents_list(
+    data: Dict[str, Any],
+    agents_to_process: List[str],
+    results: Dict[str, Any],
+    project_root: Path,
+) -> None:
+    ui.header("Cypilot Agent Integrations")
+
+    any_files = False
+    for agent_name, r in results.items():
+        wf = r.get("workflows", {})
+        sk = r.get("skills", {})
+        existing_wf = wf.get("updated", [])  # in dry-run, "updated" means existing files
+        existing_sk = sk.get("updated", [])
+        created_wf = wf.get("created", [])
+        created_sk = sk.get("created", [])
+
+        total_existing = len(existing_wf) + len(existing_sk)
+        total_missing = len(created_wf) + len(created_sk)
+
+        if total_existing > 0:
+            any_files = True
+            ui.step(f"{agent_name}: {total_existing} file(s) installed")
+            for path in existing_wf + existing_sk:
+                ui.substep(f"  {path}")
+        elif total_missing > 0:
+            ui.step(f"{agent_name}: not configured ({total_missing} file(s) available)")
+        else:
+            ui.step(f"{agent_name}: no files")
+
+    ui.blank()
+    if not any_files:
+        ui.hint("No agent integrations found. Generate them with:")
+        ui.hint("  cpt generate-agents")
+    else:
+        ui.hint("To regenerate agent files:  cpt generate-agents")
+    ui.blank()
+
+
+def _human_generate_agents_preview(
+    agents_to_process: List[str],
+    results: Dict[str, Any],
+    project_root: Path,
+) -> None:
+    agent_label = ", ".join(agents_to_process)
+    ui.header(f"Generate Agent Integration — {agent_label}")
+    ui.blank()
+
+    for agent_name, r in results.items():
+        wf = r.get("workflows", {})
+        sk = r.get("skills", {})
+        created_wf = wf.get("created", [])
+        updated_wf = wf.get("updated", [])
+        created_sk = sk.get("created", [])
+        updated_sk = sk.get("updated", [])
+
+        if not (created_wf or updated_wf or created_sk or updated_sk):
+            ui.step(f"{agent_name}: up to date")
+            continue
+
+        ui.step(f"{agent_name}:")
+        for path in created_wf:
+            ui.file_action(path, "create")
+        for path in updated_wf:
+            ui.file_action(path, "update")
+        for path in created_sk:
+            ui.file_action(path, "create")
+        for path in updated_sk:
+            ui.file_action(path, "update")
+    ui.blank()
+
+
+def _human_generate_agents_ok(
     data: Dict[str, Any],
     agents_to_process: List[str],
     results: Dict[str, Any],

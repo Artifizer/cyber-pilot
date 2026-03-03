@@ -206,7 +206,7 @@ Workflows load project system prompts at specific points:
 |-----------|-------------------------------------------|
 | `cypilot generate PRD` | Prompts matching "working with entities", "writing requirements" |
 | `cypilot generate DESIGN` | Prompts matching "designing components", "choosing technologies" |
-| `cypilot validate` | Prompts matching relevant artifact content |
+| `cpt validate` | Prompts matching relevant artifact content |
 | Code generation/review | `tech-stack.md`, `conventions.md`, `patterns.md` |
 
 ### Loading Algorithm
@@ -233,7 +233,7 @@ If a project system prompt contradicts a kit prompt, the project system prompt t
 For existing projects, Cypilot can auto-discover system prompt candidates:
 
 ```bash
-cypilot init --discover
+cpt init --discover
 ```
 
 **Discovery process**:
@@ -279,7 +279,7 @@ cypilot init --discover
 
 **Validation command**:
 ```bash
-cypilot validate --sysprompts
+cpt validate --sysprompts
 ```
 
 ---
@@ -300,7 +300,7 @@ cypilot validate --sysprompts
 ```
 ⚠️ Project AGENTS.md not found: {cypilot_path}/config/AGENTS.md
 → No project-level system prompts will be loaded
-→ Fix: Run `cypilot init` to create AGENTS.md
+→ Fix: Run `cpt init` to create AGENTS.md
 ```
 **Action**: WARN — workflows proceed with kit-level system prompts only.
 

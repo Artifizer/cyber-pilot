@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cypilot"
-version = "3.0.2-beta"
+version = "3.0.8-beta"
 description = "Cypilot global CLI proxy — deterministic agent tool for structured workflows"
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -14,7 +14,6 @@ dependencies = []
 
 [project.scripts]
 # @cpt-dod:cpt-cypilot-dod-core-infra-global-package:p1 — console entry points
-cypilot = "cypilot_proxy.cli:main"
 cpt = "cypilot_proxy.cli:main"
 
 [tool.setuptools.packages.find]

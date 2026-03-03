@@ -123,10 +123,10 @@ All outputs are generated from user-editable blueprints into `.gen/`:
 ```
 
 **Flow**:
-1. `cypilot init` / `cypilot kit install` saves kit source to `{cypilot_path}/kits/{slug}/` (reference copy)
+1. `cpt init` / `cypilot kit install` saves kit source to `{cypilot_path}/kits/{slug}/` (reference copy)
 2. Blueprints are copied from `{cypilot_path}/kits/{slug}/blueprints/` to `{cypilot_path}/config/kits/{slug}/blueprints/` (user-editable)
 3. Blueprint Processor reads user blueprints and generates outputs into `.gen/kits/{slug}/` (`artifacts/<KIND>/`, `codebase/`, `constraints.toml`, `workflows/`)
-4. Users edit blueprints in `{cypilot_path}/config/kits/{slug}/blueprints/` and run `cypilot generate-resources` to regenerate outputs
+4. Users edit blueprints in `{cypilot_path}/config/kits/{slug}/blueprints/` and run `cpt generate-resources` to regenerate outputs
 
 **Update modes** (see also [blueprint.md § Update Model](blueprint.md#update-model)):
 
@@ -216,7 +216,7 @@ derived from @cpt:id ref.* rules across all blueprints.}
 intro = "PRD defines the product requirements and serves as the primary input for DESIGN."
 ```
 
-**Generation command**: `cypilot generate-resources`
+**Generation command**: `cpt generate-resources`
 
 ---
 

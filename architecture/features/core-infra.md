@@ -56,7 +56,7 @@ Enables users to install Cypilot globally, initialize it in any project with sen
 
 | Actor | Role in Feature |
 |-------|-----------------|
-| `cpt-cypilot-actor-user` | Runs `cypilot init`, `cypilot config show`, `cypilot migrate-config` |
+| `cpt-cypilot-actor-user` | Runs `cpt init`, `cpt config show`, `cpt migrate-config` |
 | `cpt-cypilot-actor-cypilot-cli` | Global proxy that resolves skill target and forwards commands |
 
 ### 4. References
@@ -123,14 +123,14 @@ Enables users to install Cypilot globally, initialize it in any project with sen
 - User initializes with custom directory and agent selection → respects choices
 
 **Error Scenarios**:
-- Cypilot already initialized → abort with suggestion to use `cypilot update`
+- Cypilot already initialized → abort with suggestion to use `cpt update`
 - No cached skill bundle → error with install instructions
 
 **Steps**:
-1. [x] - `p1` - User invokes `cypilot init [--dir DIR] [--agents AGENTS]` - `inst-user-init`
+1. [x] - `p1` - User invokes `cpt init [--dir DIR] [--agents AGENTS]` - `inst-user-init`
 2. [x] - `p1` - Check if `{cypilot_path}/` (or specified dir) already exists - `inst-check-existing`
 3. [x] - `p1` - **IF** already initialized - `inst-if-exists`
-   1. [x] - `p1` - **RETURN** error: "Cypilot already initialized. Use 'cypilot update' to upgrade." (exit 2) - `inst-return-exists`
+   1. [x] - `p1` - **RETURN** error: "Cypilot already initialized. Use 'cpt update' to upgrade." (exit 2) - `inst-return-exists`
 4. [x] - `p1` - **IF** interactive terminal AND no --dir flag - `inst-if-interactive`
    1. [x] - `p1` - Prompt user for installation directory (default: `cypilot`) - `inst-prompt-dir`
    2. [x] - `p2` - Prompt user for agent selection (default: all) - `inst-prompt-agents`
@@ -356,9 +356,9 @@ Enables users to install Cypilot globally, initialize it in any project with sen
 **Initial State**: UNINITIALIZED
 
 **Transitions**:
-1. [x] - `p1` - **FROM** UNINITIALIZED **TO** INITIALIZED **WHEN** `cypilot init` completes successfully - `inst-init-complete`
+1. [x] - `p1` - **FROM** UNINITIALIZED **TO** INITIALIZED **WHEN** `cpt init` completes successfully - `inst-init-complete`
 2. [x] - `p1` - **FROM** INITIALIZED **TO** STALE **WHEN** cached skill version is newer than project skill version - `inst-version-mismatch`
-3. [x] - `p1` - **FROM** STALE **TO** INITIALIZED **WHEN** `cypilot update` completes successfully - `inst-update-complete`
+3. [x] - `p1` - **FROM** STALE **TO** INITIALIZED **WHEN** `cpt update` completes successfully - `inst-update-complete`
 
 ## 5. Definitions of Done
 
@@ -425,7 +425,7 @@ The system **MUST** provide a cache mechanism in the CLI proxy that downloads th
 
 - [x] `p1` - **ID**: `cpt-cypilot-dod-core-infra-init-config`
 
-The system **MUST** provide a `cypilot init` command that copies skill bundle from cache, defines the root system from the project directory name, creates `{cypilot_path}/config/core.toml` with system and kit registrations, creates `{cypilot_path}/config/artifacts.toml` with default SDLC autodetect rules, injects the root `AGENTS.md` managed block, and creates `{cypilot_path}/config/AGENTS.md` with default WHEN rules.
+The system **MUST** provide a `cpt init` command that copies skill bundle from cache, defines the root system from the project directory name, creates `{cypilot_path}/config/core.toml` with system and kit registrations, creates `{cypilot_path}/config/artifacts.toml` with default SDLC autodetect rules, injects the root `AGENTS.md` managed block, and creates `{cypilot_path}/config/AGENTS.md` with default WHEN rules.
 
 **Implements**:
 - `cpt-cypilot-flow-core-infra-project-init`
@@ -480,11 +480,11 @@ The system **MUST** verify the root `AGENTS.md` managed block on every CLI invoc
 
 ## 7. Acceptance Criteria
 
-- [x] `cypilot init` creates `{cypilot_path}/config/core.toml` and `{cypilot_path}/config/artifacts.toml` with correct root system definition
-- [x] `cypilot init` in an already-initialized project returns exit code 2 with helpful message
+- [x] `cpt init` creates `{cypilot_path}/config/core.toml` and `{cypilot_path}/config/artifacts.toml` with correct root system definition
+- [x] `cpt init` in an already-initialized project returns exit code 2 with helpful message
 - [x] `cypilot <command>` from inside a project routes to project skill; from outside routes to cache
 - [x] First `cypilot` invocation after `pipx install` with empty cache automatically downloads skill from GitHub
-- [x] `cypilot update [VERSION|BRANCH]` downloads specified version/branch/SHA into cache
+- [x] `cpt update [VERSION|BRANCH]` downloads specified version/branch/SHA into cache
 - [x] Download failure produces actionable error message with HTTP status
 - [x] All commands output JSON to stdout and use exit codes 0/1/2
 - [x] Root `AGENTS.md` managed block is verified and re-injected on every CLI invocation

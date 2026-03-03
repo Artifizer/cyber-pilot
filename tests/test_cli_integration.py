@@ -338,7 +338,7 @@ class TestCLIInitCommand(unittest.TestCase):
             stdout = io.StringIO()
             with redirect_stdout(stdout):
                 exit_code = main([
-                    "agents",
+                    "generate-agents",
                     "--agent",
                     "windsurf",
                     "--root",
@@ -354,7 +354,7 @@ class TestCLIInitCommand(unittest.TestCase):
             stdout = io.StringIO()
             with redirect_stdout(stdout):
                 exit_code = main([
-                    "agents",
+                    "generate-agents",
                     "--openai",
                     "--root",
                     str(project),
@@ -422,7 +422,7 @@ class TestCLIAgentsCommand(unittest.TestCase):
     def test_agents_empty_agent_raises(self):
         """Test that empty agent argument raises SystemExit."""
         with self.assertRaises(SystemExit):
-            main(["agents", "--agent", " "])
+            main(["generate-agents", "--agent", " "])
 
     def test_agents_project_root_not_found(self):
         """Test agents command when no project root found."""
@@ -430,7 +430,7 @@ class TestCLIAgentsCommand(unittest.TestCase):
             root = Path(tmpdir)
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                code = main(["agents", "--agent", "windsurf", "--root", str(root)])
+                code = main(["generate-agents", "--agent", "windsurf", "--root", str(root)])
             self.assertEqual(code, 1)
             out = json.loads(stdout.getvalue())
             self.assertEqual(out.get("status"), "NOT_FOUND")
@@ -445,7 +445,7 @@ class TestCLIAgentsCommand(unittest.TestCase):
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                exit_code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
+                exit_code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
             self.assertEqual(exit_code, 0)
 
             out = json.loads(stdout.getvalue())
@@ -469,7 +469,7 @@ class TestCLIAgentsCommand(unittest.TestCase):
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                exit_code = main(["agents", "--agent", "claude", "--root", str(root), "--cypilot-root", str(root)])
+                exit_code = main(["generate-agents", "--agent", "claude", "--root", str(root), "--cypilot-root", str(root)])
             self.assertEqual(exit_code, 0)
 
             # One of the generated workflow command proxies should contain quoted description
@@ -488,7 +488,7 @@ class TestCLIAgentsCommand(unittest.TestCase):
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                exit_code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--dry-run"])
+                exit_code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--dry-run"])
             self.assertEqual(exit_code, 0)
 
             out = json.loads(stdout.getvalue())
@@ -507,7 +507,7 @@ class TestCLIAgentsCommand(unittest.TestCase):
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                exit_code = main(["agents", "--agent", "mystery-agent", "--root", str(root), "--cypilot-root", str(root)])
+                exit_code = main(["generate-agents", "--agent", "mystery-agent", "--root", str(root), "--cypilot-root", str(root)])
             self.assertEqual(exit_code, 0)
 
             # No cypilot-agents.json should be created
@@ -528,7 +528,7 @@ class TestCLIAgentsCommand(unittest.TestCase):
             )
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                code = main(["agents", "--agent", "windsurf", "--root", str(root), "--config", str(cfg_path)])
+                code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--config", str(cfg_path)])
             self.assertEqual(code, 1)
             out = json.loads(stdout.getvalue())
             # Outer status is PARTIAL; per-agent result carries CONFIG_ERROR
@@ -557,7 +557,7 @@ class TestCLIAgentsCommand(unittest.TestCase):
             )
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
+                code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
             # Should return partial status due to workflow error
             out = json.loads(stdout.getvalue())
             agent_result = out.get("results", {}).get("windsurf", {})
@@ -588,7 +588,7 @@ class TestCLIAgentsCommand(unittest.TestCase):
             )
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
+                code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
             out = json.loads(stdout.getvalue())
             agent_result = out.get("results", {}).get("windsurf", {})
             self.assertIn("Missing or invalid template", str(agent_result.get("errors", [])))
@@ -615,7 +615,7 @@ class TestCLIAgentsCommand(unittest.TestCase):
             )
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
+                code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
             out = json.loads(stdout.getvalue())
             agent_result = out.get("results", {}).get("windsurf", {})
             self.assertIn("outputs must be an array", str(agent_result.get("errors", [])))
@@ -643,7 +643,7 @@ class TestCLIAgentsCommand(unittest.TestCase):
             )
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
+                code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
             out = json.loads(stdout.getvalue())
             agent_result = out.get("results", {}).get("windsurf", {})
             self.assertIn("missing path", str(agent_result.get("errors", [])))
@@ -671,7 +671,7 @@ class TestCLIAgentsCommand(unittest.TestCase):
             )
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
+                code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
             out = json.loads(stdout.getvalue())
             agent_result = out.get("results", {}).get("windsurf", {})
             self.assertIn("invalid template", str(agent_result.get("errors", [])))
@@ -687,7 +687,7 @@ class TestCLIAgentsCommand(unittest.TestCase):
             # First run - create files
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
+                main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
 
             # Modify a file to trigger update
             wf_dir = root / ".windsurf" / "workflows"
@@ -699,7 +699,7 @@ class TestCLIAgentsCommand(unittest.TestCase):
             # Second run - should update
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                exit_code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
+                exit_code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
             self.assertEqual(exit_code, 0)
             out = json.loads(stdout.getvalue())
             # Should have some updated files
@@ -729,7 +729,7 @@ class TestCLIAgentsCommand(unittest.TestCase):
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
+                code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
             self.assertEqual(code, 0)
             out = json.loads(stdout.getvalue())
             # windsurf should use built-in defaults even when config has only cursor
@@ -771,7 +771,7 @@ class TestCLIAgentsCommand(unittest.TestCase):
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                exit_code = main(["agents", "--agent", "test", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
+                exit_code = main(["generate-agents", "--agent", "test", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
             self.assertEqual(exit_code, 0)
 
             out = json.loads(stdout.getvalue())
@@ -790,7 +790,7 @@ class TestCLIAgentsCommand(unittest.TestCase):
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                exit_code = main(["agents", "--agent", "test", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
+                exit_code = main(["generate-agents", "--agent", "test", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
             self.assertEqual(exit_code, 0)
 
             out = json.loads(stdout.getvalue())
@@ -904,7 +904,7 @@ class TestCLIAgentsEdgeCases(unittest.TestCase):
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                exit_code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
+                exit_code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
             self.assertEqual(exit_code, 0)
 
             out = json.loads(stdout.getvalue())
@@ -930,7 +930,7 @@ class TestCLIAgentsEdgeCases(unittest.TestCase):
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                exit_code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
+                exit_code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
             self.assertEqual(exit_code, 0)
 
             out = json.loads(stdout.getvalue())
@@ -963,7 +963,7 @@ class TestCLIAgentsEdgeCases(unittest.TestCase):
             with unittest.mock.patch.object(Path, "read_text", _rt):
                 stdout = io.StringIO()
                 with redirect_stdout(stdout):
-                    code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
+                    code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
             self.assertEqual(code, 0)
 
     def test_agents_skills_read_error_on_output(self):
@@ -1006,7 +1006,7 @@ class TestCLIAgentsEdgeCases(unittest.TestCase):
             with unittest.mock.patch.object(Path, "read_text", _rt):
                 stdout = io.StringIO()
                 with redirect_stdout(stdout):
-                    code = main(["agents", "--agent", "test", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
+                    code = main(["generate-agents", "--agent", "test", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
             self.assertEqual(code, 0)
 
     def test_agents_delete_stale_unlink_error(self):
@@ -1034,7 +1034,7 @@ class TestCLIAgentsEdgeCases(unittest.TestCase):
             with unittest.mock.patch.object(Path, "unlink", _unlink):
                 stdout = io.StringIO()
                 with redirect_stdout(stdout):
-                    code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
+                    code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
             # Should still succeed (error is silently ignored)
             self.assertEqual(code, 0)
 
@@ -1066,7 +1066,7 @@ class TestCLIAgentsEdgeCases(unittest.TestCase):
             with unittest.mock.patch.object(Path, "read_text", _rt):
                 stdout = io.StringIO()
                 with redirect_stdout(stdout):
-                    code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
+                    code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
             self.assertEqual(code, 0)
 
     def test_agents_rename_skip_non_proxy_files(self):
@@ -1094,7 +1094,7 @@ class TestCLIAgentsEdgeCases(unittest.TestCase):
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
+                code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
             self.assertEqual(code, 0)
 
     def test_agents_rename_conflict_skips(self):
@@ -1121,7 +1121,7 @@ class TestCLIAgentsEdgeCases(unittest.TestCase):
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
+                code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
             self.assertEqual(code, 0)
 
             # Both files should still exist (no rename due to conflict)
@@ -1145,7 +1145,7 @@ class TestCLIAgentsEdgeCases(unittest.TestCase):
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
+                code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
             self.assertEqual(code, 0)
 
             # File should not be deleted (not a workflow proxy)
@@ -1168,7 +1168,7 @@ class TestCLIAgentsEdgeCases(unittest.TestCase):
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
+                code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
             self.assertEqual(code, 0)
 
     def test_agents_delete_stale_read_error(self):
@@ -1200,7 +1200,7 @@ class TestCLIAgentsEdgeCases(unittest.TestCase):
             with unittest.mock.patch.object(Path, "read_text", _rt):
                 stdout = io.StringIO()
                 with redirect_stdout(stdout):
-                    code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
+                    code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
             self.assertEqual(code, 0)
 
     def test_agents_delete_stale_no_regex_match(self):
@@ -1220,7 +1220,7 @@ class TestCLIAgentsEdgeCases(unittest.TestCase):
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
+                code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
             self.assertEqual(code, 0)
 
     def test_agents_unrecognized_agent_added_to_existing_config(self):
@@ -1245,7 +1245,7 @@ class TestCLIAgentsEdgeCases(unittest.TestCase):
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                code = main(["agents", "--agent", "new-mystery-agent", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
+                code = main(["generate-agents", "--agent", "new-mystery-agent", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
             self.assertEqual(code, 0)
             out = json.loads(stdout.getvalue())
             # Should succeed with stub config for unknown agent
@@ -1283,7 +1283,7 @@ class TestCLIAgentsEdgeCases(unittest.TestCase):
             with unittest.mock.patch.object(Path, "read_text", _rt):
                 stdout = io.StringIO()
                 with redirect_stdout(stdout):
-                    code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
+                    code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root)])
             self.assertEqual(code, 0)
 
 
@@ -1307,7 +1307,7 @@ class TestCLIAgentsAtPathFormat(unittest.TestCase):
     def _run_agents(self, agent: str, root: Path, cypilot_root: Path) -> None:
         stdout = io.StringIO()
         with redirect_stdout(stdout):
-            exit_code = main(["agents", "--agent", agent, "--root", str(root), "--cypilot-root", str(cypilot_root)])
+            exit_code = main(["generate-agents", "--agent", agent, "--root", str(root), "--cypilot-root", str(cypilot_root)])
         self.assertEqual(exit_code, 0, f"agents --agent {agent} failed: {stdout.getvalue()}")
 
     def test_workflow_proxy_uses_at_path(self):
@@ -1422,7 +1422,7 @@ class TestCLIAgentsAtPathFormat(unittest.TestCase):
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                exit_code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(cypilot_root)])
+                exit_code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(cypilot_root)])
             self.assertEqual(exit_code, 0)
 
             # cypilot/ must have been created inside the project (default name)
@@ -1469,7 +1469,7 @@ class TestCLIAgentsAtPathFormat(unittest.TestCase):
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                exit_code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(cypilot_root)])
+                exit_code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(cypilot_root)])
             self.assertEqual(exit_code, 0)
 
             out = json.loads(stdout.getvalue())
@@ -1494,7 +1494,7 @@ class TestCLIAgentsAtPathFormat(unittest.TestCase):
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                exit_code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(cypilot_root), "--dry-run"])
+                exit_code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(cypilot_root), "--dry-run"])
             self.assertEqual(exit_code, 0)
 
             out = json.loads(stdout.getvalue())
@@ -1529,7 +1529,7 @@ class TestCLIAgentsAtPathFormat(unittest.TestCase):
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                exit_code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(cypilot_root)])
+                exit_code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(cypilot_root)])
             self.assertEqual(exit_code, 0)
 
             out = json.loads(stdout.getvalue())
@@ -1559,7 +1559,7 @@ class TestCLIAgentsAtPathFormat(unittest.TestCase):
                     stdout = io.StringIO()
                     with redirect_stdout(stdout):
                         exit_code = main([
-                            "agents", "--agent", "windsurf",
+                            "generate-agents", "--agent", "windsurf",
                             "--root", str(root),
                             "--cypilot-root", str(cypilot_inside),
                         ])

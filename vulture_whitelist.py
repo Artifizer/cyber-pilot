@@ -3,4 +3,4 @@
 
 from cypilot.utils.ui import _UI
 
-_UI.is_json  # staticmethod alias exposed on the ui singleton
+is_json = _UI.is_json  # staticmethod alias exposed on the ui singleton

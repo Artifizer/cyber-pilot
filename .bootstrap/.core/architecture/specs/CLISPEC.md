@@ -116,7 +116,7 @@ COMMAND init-spec
 
 **SYNOPSIS**: Command usage pattern
 ```
-SYNOPSIS: cypilot init-spec <slug> [options]
+SYNOPSIS: cpt init-spec <slug> [options]
 ```
 
 **DESCRIPTION**: Brief description (1-2 sentences)
@@ -151,9 +151,9 @@ EXIT CODES:
 **EXAMPLE**: Usage examples (one or more)
 ```
 EXAMPLE:
-  $ cypilot init-spec user-authentication
-  $ cypilot init-spec data-export --template minimal
-  $ cypilot init-spec payment --skip-validation
+  $ cpt init-spec user-authentication
+  $ cpt init-spec data-export --template minimal
+  $ cpt init-spec payment --skip-validation
 ```
 
 ### Optional Sections
@@ -266,7 +266,7 @@ Reference other commands, workflows, or entities:
 
 ```
 COMMAND init-spec
-SYNOPSIS: cypilot init-spec <slug> [options]
+SYNOPSIS: cpt init-spec <slug> [options]
 DESCRIPTION: Initialize a new spec with DESIGN.md template
 WORKFLOW: 05-init-spec
 
@@ -285,9 +285,9 @@ EXIT CODES:
   3  Spec directory already exists
 
 EXAMPLE:
-  $ cypilot init-spec user-authentication
-  $ cypilot init-spec data-export --template minimal
-  $ cypilot init-spec payment --skip-validation
+  $ cpt init-spec user-authentication
+  $ cpt init-spec data-export --template minimal
+  $ cpt init-spec payment --skip-validation
 
 RELATED:
   - @CLI.validate-feature
@@ -389,7 +389,7 @@ Standard location: `skills/cypilot/cypilot.clispec`
 
 ```bash
 # Validate CLISPEC format
-cypilot validate-kits
+cpt validate-kits
 
 # Or custom validator
 your-tool validate-clispec skills/cypilot/cypilot.clispec

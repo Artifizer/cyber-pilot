@@ -308,6 +308,14 @@ def cmd_update(argv: List[str]) -> int:
         actions["root_claude"] = root_claude_action
     # @cpt-end:cpt-cypilot-flow-version-config-update:p1:inst-ensure-scaffold
 
+    # ── Auto-regenerate agent integrations if real changes happened ────
+    if not args.dry_run:
+        agents_regen = _maybe_regenerate_agents(
+            copy_results, kit_results, project_root, cypilot_dir,
+        )
+        if agents_regen:
+            actions["agents_regenerated"] = agents_regen
+
     # @cpt-begin:cpt-cypilot-flow-version-config-update:p1:inst-return-report
     # ── Report ───────────────────────────────────────────────────────────
     status = "PASS" if not errors and not warnings else "WARN"
@@ -381,6 +389,73 @@ def _read_project_name(config_dir: Path) -> Optional[str]:
     except Exception:
         pass
     return None
+
+
+def _maybe_regenerate_agents(
+    copy_results: Dict[str, str],
+    kit_results: Dict[str, Any],
+    project_root: Path,
+    cypilot_dir: Path,
+) -> List[str]:
+    """Auto-regenerate agent integration files when a real update happened.
+
+    Triggers when core dirs were updated/created or any kit was created/migrated.
+    Only regenerates agents whose skill output files already exist on disk.
+    Returns list of agent names that were regenerated.
+    """
+    core_changed = any(v in ("updated", "created") for v in copy_results.values())
+    kits_changed = any(
+        isinstance(kr, dict)
+        and isinstance(kr.get("version"), dict)
+        and kr["version"].get("status") in ("created", "migrated")
+        for kr in kit_results.values()
+    )
+    if not core_changed and not kits_changed:
+        return []
+
+    from .agents import (
+        _ALL_RECOGNIZED_AGENTS,
+        _default_agents_config,
+        _process_single_agent,
+    )
+
+    cfg = _default_agents_config()
+    agents_cfg = cfg.get("agents", {})
+    regenerated: List[str] = []
+
+    for agent in _ALL_RECOGNIZED_AGENTS:
+        agent_cfg = agents_cfg.get(agent, {})
+        skills_cfg = agent_cfg.get("skills", {})
+        outputs = skills_cfg.get("outputs", [])
+        # Only regenerate if at least one skill output file already exists
+        has_existing = any(
+            isinstance(out, dict)
+            and isinstance(out.get("path"), str)
+            and (project_root / out["path"]).is_file()
+            for out in outputs
+        )
+        if not has_existing:
+            continue
+        result = _process_single_agent(
+            agent, project_root, cypilot_dir, cfg, None, dry_run=False,
+        )
+        wf = result.get("workflows", {})
+        sk = result.get("skills", {})
+        n_changed = (
+            len(wf.get("updated", []))
+            + len(wf.get("created", []))
+            + len(sk.get("updated", []))
+            + len(sk.get("created", []))
+        )
+        if n_changed:
+            regenerated.append(agent)
+
+    if regenerated:
+        ui.step("Regenerating agent integrations...")
+        for agent in regenerated:
+            ui.substep(f"{agent}: updated")
+
+    return regenerated
 
 
 # Re-exported from kit.py — tests import it from here

@@ -11,7 +11,7 @@ Deterministic agent tool for structured workflows, artifact validation, traceabi
 | `init` | Initialize Cypilot config directory (`.core/`, `.gen/`, `config/`) and root `AGENTS.md` |
 | `update` | Update `.core/` from cache, regenerate `.gen/` from user blueprints, ensure `config/` scaffold |
 | `info` | Discover Cypilot configuration and show project status |
-| `agents` | Generate agent-specific entry points for supported agents (Windsurf, Cursor, Claude, Copilot, OpenAI) |
+| `generate-agents` | Generate agent-specific entry points for supported agents (Windsurf, Cursor, Claude, Copilot, OpenAI) |
 
 ### Validation
 
@@ -72,7 +72,7 @@ cpt validate
 cpt validate --artifact architecture/PRD.md
 cpt spec-coverage
 cpt kit migrate
-cpt agents --agent windsurf
+cpt generate-agents --agent windsurf
 cpt update
 ```
 

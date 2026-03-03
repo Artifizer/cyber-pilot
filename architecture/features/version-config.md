@@ -44,7 +44,7 @@ Ensures teams can upgrade Cypilot without losing configuration or customizations
 
 | Actor | Role in Feature |
 |-------|-----------------|
-| `cpt-cypilot-actor-user` | Runs `cypilot update`, `cypilot config`, `cypilot migrate-config` |
+| `cpt-cypilot-actor-user` | Runs `cpt update`, `cpt config`, `cpt migrate-config` |
 | `cpt-cypilot-actor-cypilot-cli` | Executes update pipeline, config mutations, migration |
 
 ### 4. References
@@ -62,16 +62,16 @@ Ensures teams can upgrade Cypilot without losing configuration or customizations
 **Actor**: `cpt-cypilot-actor-user`
 
 **Success Scenarios**:
-- User runs `cypilot update` → `.core/` refreshed from cache, `.gen/` regenerated from user blueprints, config scaffold ensured
+- User runs `cpt update` → `.core/` refreshed from cache, `.gen/` regenerated from user blueprints, config scaffold ensured
 - Blueprint versions match → user blueprints untouched
 - Blueprint version higher in cache → warning displayed, user blueprints untouched
 
 **Error Scenarios**:
-- Cypilot not initialized → error with hint to run `cypilot init`
+- Cypilot not initialized → error with hint to run `cpt init`
 - Cache not available → error with hint to check network
 
 **Steps**:
-1. [x] - `p1` - User invokes `cypilot update [--project-root P] [--dry-run]` - `inst-user-update`
+1. [x] - `p1` - User invokes `cpt update [--project-root P] [--dry-run]` - `inst-user-update`
 2. [x] - `p1` - Resolve project root and cypilot directory - `inst-resolve-project`
 3. [x] - `p1` - Replace `.core/` from cache (always force-overwrite) - `inst-replace-core`
 4. [x] - `p1` - For each kit in cache: delegate to `update_kit()` (save .prev, copy ref, first-install/migrate, copy scripts, regen .gen/) - `inst-update-kits`
@@ -86,11 +86,11 @@ Ensures teams can upgrade Cypilot without losing configuration or customizations
 **Actor**: `cpt-cypilot-actor-user`
 
 **Success Scenarios**:
-- User runs `cypilot config show` → displays current core.toml contents
-- User runs `cypilot config system add` → adds system definition with schema validation
+- User runs `cpt config show` → displays current core.toml contents
+- User runs `cpt config system add` → adds system definition with schema validation
 
 **Steps**:
-1. - `p2` - User invokes `cypilot config <subcommand> [args]` - `inst-user-config`
+1. - `p2` - User invokes `cpt config <subcommand> [args]` - `inst-user-config`
 2. - `p2` - Validate change against config schema - `inst-validate-schema`
 3. - `p2` - Apply change to config file - `inst-apply-change`
 4. - `p2` - **RETURN** summary of what was modified - `inst-return-config-summary`
@@ -140,8 +140,8 @@ Ensures teams can upgrade Cypilot without losing configuration or customizations
 
 - [x] `p1` - **ID**: `cpt-cypilot-dod-version-config-update`
 
-- [x] - `p1` - `cypilot update` replaces `.core/` from cache
-- [x] - `p1` - `cypilot update` regenerates `.gen/` from user blueprints
+- [x] - `p1` - `cpt update` replaces `.core/` from cache
+- [x] - `p1` - `cpt update` regenerates `.gen/` from user blueprints
 - [x] - `p1` - User config files in `config/` are NEVER overwritten
 - [x] - `p1` - Blueprint version comparison detects same, migration needed, and missing states
 - [x] - `p1` - `--dry-run` shows what would be done without writing
@@ -150,15 +150,15 @@ Ensures teams can upgrade Cypilot without losing configuration or customizations
 
 - [ ] `p2` - **ID**: `cpt-cypilot-dod-version-config-cli`
 
-- [ ] - `p2` - `cypilot config show` displays current configuration
-- [ ] - `p2` - `cypilot config system add/remove` manages system definitions
+- [ ] - `p2` - `cpt config show` displays current configuration
+- [ ] - `p2` - `cpt config system add/remove` manages system definitions
 - [ ] - `p2` - Schema validation rejects invalid changes before writing
 
 ### Config Migration
 
 - [ ] `p2` - **ID**: `cpt-cypilot-dod-version-config-migration`
 
-- [ ] - `p2` - `cypilot migrate-config` migrates legacy JSON configs to TOML
+- [ ] - `p2` - `cpt migrate-config` migrates legacy JSON configs to TOML
 - [ ] - `p2` - Backup created before any migration
 - [ ] - `p2` - User settings preserved across version upgrades
 
@@ -170,7 +170,7 @@ Ensures teams can upgrade Cypilot without losing configuration or customizations
 
 ## 7. Acceptance Criteria
 
-- [x] `cypilot update` refreshes `.core/` and regenerates `.gen/` without touching user config
+- [x] `cpt update` refreshes `.core/` and regenerates `.gen/` without touching user config
 - [x] Blueprint version comparison correctly identifies same, migration needed, and missing states
-- [ ] `cypilot config show` displays readable config summary
+- [ ] `cpt config show` displays readable config summary
 - [ ] Config migration preserves all user settings with backup

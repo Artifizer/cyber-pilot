@@ -435,13 +435,17 @@ def cleanup_core_path(
     if core_install_type == INSTALL_TYPE_SUBMODULE:
         try:
             # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-cleanup-core-path:p1:inst-submodule-deinit
-            subprocess.run(
+            deinit = subprocess.run(
                 ["git", "submodule", "deinit", "-f", core_path],
                 cwd=str(project_root),
                 capture_output=True,
                 text=True,
-                check=True,
+                check=False,
             )
+            if deinit.returncode != 0:
+                warnings.append(
+                    f"git submodule deinit failed (non-fatal): {deinit.stderr.strip()}"
+                )
             # @cpt-end:cpt-cypilot-algo-v2-v3-migration-cleanup-core-path:p1:inst-submodule-deinit
 
             # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-cleanup-core-path:p1:inst-git-rm-submodule
@@ -503,12 +507,12 @@ def cleanup_core_path(
                 "warnings": warnings,
             }
             # @cpt-end:cpt-cypilot-algo-v2-v3-migration-cleanup-core-path:p1:inst-return-submodule-ok
-        except subprocess.CalledProcessError as e:
+        except OSError as e:
             return {
                 "success": False,
                 "cleaned_type": INSTALL_TYPE_SUBMODULE,
-                "warnings": [],
-                "error": f"Submodule cleanup failed: {e.stderr or e.stdout or str(e)}",
+                "warnings": warnings,
+                "error": f"Submodule cleanup failed: {e}",
             }
     # @cpt-end:cpt-cypilot-algo-v2-v3-migration-cleanup-core-path:p1:inst-cleanup-submodule
 
@@ -1194,6 +1198,8 @@ def run_migrate(
             # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-return-cancelled
     # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-check-user-confirm
 
+    ui.header("V2 → V3 Migration")
+
     # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-create-backup
     # @cpt-begin:cpt-cypilot-state-v2-v3-migration-status:p1:inst-transition-backed-up
     try:
@@ -1207,6 +1213,8 @@ def run_migrate(
             "state": state,
             "message": f"Backup failed: {e}",
         }
+    ui.step("Backup created")
+    ui.detail("backup", str(backup_dir))
     # @cpt-end:cpt-cypilot-state-v2-v3-migration-status:p1:inst-transition-backed-up
     # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-create-backup
 
@@ -1225,6 +1233,9 @@ def run_migrate(
                 f"Core cleanup failed: {cleanup_result.get('error', 'unknown')}"
             )
         all_warnings.extend(cleanup_result.get("warnings", []))
+        cleaned_type = cleanup_result.get("cleaned_type", core_install_type)
+        ui.step(f"Core path cleaned up ({cleaned_type})")
+        ui.detail("removed", core_path)
         # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-cleanup-core
 
         # Step 4: Initialize v3 directory structure using init's _copy_from_cache
@@ -1245,6 +1256,9 @@ def run_migrate(
         (core_dir / "README.md").write_text(_core_readme(), encoding="utf-8")
         (gen_dir / "README.md").write_text(_gen_readme(), encoding="utf-8")
         (config_dir / "README.md").write_text(_config_readme(), encoding="utf-8")
+        ui.step(f"V3 directory structure initialized")
+        ui.detail("target", f"{install_dir}/")
+        ui.detail("layout", f".core/ + .gen/ + config/")
 
         # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-convert-artifacts
         artifacts_json = v2.get("artifacts_json")
@@ -1255,6 +1269,11 @@ def run_migrate(
             )
             all_warnings.extend(reg_result.get("warnings", []))
             kit_slug_map = reg_result.get("kit_slug_map", {})
+            n_sys = len(v2.get("systems", []))
+            kit_names = ", ".join(kit_slug_map.values()) or "none"
+            ui.step("Artifacts registry converted")
+            ui.detail("from", "artifacts.json → config/artifacts.toml")
+            ui.detail("content", f"{n_sys} system(s), {len(kit_slug_map)} kit(s): {kit_names}")
         # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-convert-artifacts
 
         # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-register-kit-dirs
@@ -1278,6 +1297,11 @@ def run_migrate(
                     "Add your project-specific WHEN rules here.\n",
                     encoding="utf-8",
                 )
+            ui.step("AGENTS.md — no v2 rules found, created empty config")
+        else:
+            n_rules = agents_result.get("rules_count", "?")
+            ui.step(f"AGENTS.md migrated ({n_rules} rule(s))")
+            ui.detail("from", f"{adapter_path}/AGENTS.md → config/AGENTS.md")
         # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-convert-agents
 
         # Write config/SKILL.md if not exists
@@ -1296,6 +1320,8 @@ def run_migrate(
             kit_slug_map,
             config_dir,
         )
+        ui.step("Config generated")
+        ui.detail("files", "config/core.toml, config/SKILL.md")
         # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-generate-core-toml
 
         # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-migrate-kits
@@ -1310,6 +1336,14 @@ def run_migrate(
             all_warnings.extend(
                 f"Kit error: {e}" for e in kit_result["errors"]
             )
+        migrated_kits = kit_result.get("migrated", list(v2_kits.keys()))
+        if migrated_kits:
+            ui.step(f"Kits migrated: {', '.join(str(k) for k in migrated_kits)}")
+            bp_count = kit_result.get("blueprint_count", 0)
+            if bp_count:
+                ui.detail("blueprints", f"{bp_count} copied to config/kits/")
+        else:
+            ui.step("No kits to migrate")
         # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-migrate-kits
 
         # Step 8b-pre: Migrate remaining JSON configs from adapter → config/
@@ -1324,9 +1358,11 @@ def run_migrate(
                 primary_slug = kit_slug_map.get(v2_kit, v2_kit) or _PR_REVIEW_DEFAULT_KIT_SLUG
             else:
                 primary_slug = next(iter(kit_slug_map.values()), _PR_REVIEW_DEFAULT_KIT_SLUG)
-            _, json_convert_failed = _migrate_adapter_json_configs(
+            json_converted, json_convert_failed = _migrate_adapter_json_configs(
                 adapter_dir_path, config_dir, kit_slug=primary_slug,
             )
+            if json_converted:
+                ui.step(f"JSON configs converted: {', '.join(json_converted)}")
             if json_convert_failed:
                 all_warnings.extend(
                     f"JSON conversion failed: {f}" for f in json_convert_failed
@@ -1334,24 +1370,32 @@ def run_migrate(
 
         # Step 8b: Clean up adapter directory (already backed up)
         # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-cleanup-adapter
+        removed_v2_files: List[str] = []
         if adapter_dir_path.is_dir():
             if json_convert_failed:
-                sys.stderr.write(
-                    f"WARNING: Preserving adapter dir — {len(json_convert_failed)} "
-                    f"JSON file(s) failed conversion: {json_convert_failed}\n"
+                ui.warn(
+                    f"Preserving adapter dir — {len(json_convert_failed)} "
+                    f"JSON file(s) failed conversion: {json_convert_failed}"
                 )
             else:
                 shutil.rmtree(adapter_dir_path)
+                removed_v2_files.append(f"{adapter_path}/")
         # Also remove v2 root config files
         for v2_root_file in (".cypilot-config.json", "cypilot-agents.json"):
             v2_path = project_root / v2_root_file
             if v2_path.is_file():
                 v2_path.unlink()
+                removed_v2_files.append(v2_root_file)
+        if removed_v2_files:
+            ui.step("V2 artifacts cleaned up")
+            for f in removed_v2_files:
+                ui.detail("removed", f)
         # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-cleanup-adapter
 
         # Step 8c: Regenerate .gen/ from migrated blueprints
         # (must happen before cmd_agents so workflow proxies resolve)
         _regenerate_gen_from_config(config_dir, gen_dir)
+        ui.step(".gen/ regenerated from migrated blueprints")
 
         # Step 8d: Write .gen/AGENTS.md (generated navigation rules)
         # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-write-gen-agents
@@ -1361,17 +1405,20 @@ def run_migrate(
         # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-inject-root-agents
         from .init import _inject_root_agents
         _inject_root_agents(project_root, install_dir)
+        ui.step("Root AGENTS.md updated with managed block")
         # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-inject-root-agents
 
         # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-regen-agent-entries
+        ui.step("Generating agent integrations")
         try:
-            from .agents import cmd_agents as _cmd_agents_fn
-            _cmd_agents_fn([
+            from .agents import cmd_generate_agents as _cmd_gen_agents_fn
+            _cmd_gen_agents_fn([
                 "--root", str(project_root),
                 "--cypilot-root", str(cypilot_dir),
+                "-y",
             ])
         except SystemExit:
-            pass  # cmd_agents may raise SystemExit on success
+            pass  # cmd_generate_agents may raise SystemExit on success
         except Exception as e:
             all_warnings.append(f"Agent entry point regeneration failed: {e}")
         # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-regen-agent-entries
@@ -1421,9 +1468,19 @@ def run_migrate(
 
     # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-check-validation
     if not validation["passed"]:
+        issues = validation.get("issues", [])
+        ui.step(f"Validation failed ({len(issues)} issue(s))")
+        for iss in issues:
+            sev = iss.get("severity", "")
+            msg = iss.get("message", "")
+            if sev in ("CRITICAL", "HIGH"):
+                ui.warn(f"{sev}: {msg}")
+            else:
+                ui.detail(sev, msg)
         # Rollback on validation failure
         # @cpt-begin:cpt-cypilot-state-v2-v3-migration-status:p1:inst-transition-rolled-back
         rollback_result = _rollback(project_root, backup_dir)
+        ui.error("Migration rolled back due to validation failure.")
         if rollback_result.get("success"):
             state = STATE_ROLLED_BACK
             return {
@@ -1756,6 +1813,53 @@ def run_migrate_config(project_root: Path) -> Dict[str, Any]:
 
 
 # ===========================================================================
+# WP6: Human output formatters
+# ===========================================================================
+
+def _human_migrate_result(data: Dict[str, Any]) -> None:
+    """Format the final migration result for human output."""
+    status = data.get("status", "")
+    message = data.get("message", "")
+
+    if status == "PASS":
+        ui.step("Validation passed")
+        warnings = data.get("warnings", [])
+        if warnings:
+            ui.blank()
+            for w in warnings:
+                ui.warn(w)
+        ui.success(f"Done ({status}) — {message}")
+        ui.detail("backup", data.get("backup_dir", ""))
+        cypilot_dir = data.get("cypilot_dir", "")
+        if cypilot_dir:
+            ui.detail("cypilot dir", cypilot_dir)
+        ui.blank()
+    elif status == "DRY_RUN":
+        plan = data.get("plan", {})
+        ui.header("Migration Plan (dry run)")
+        ui.detail("adapter path", plan.get("adapter_path", "?"))
+        ui.detail("core path", f"{plan.get('core_path', '?')} ({plan.get('core_install_type', '?')})")
+        ui.detail("target dir", f"{plan.get('target_dir', '?')}/")
+        ui.detail("systems", str(plan.get("systems_count", 0)))
+        ui.detail("kits", ", ".join(plan.get("kits", [])) or "none")
+        ui.detail("AGENTS.md", "yes" if plan.get("has_agents_md") else "no")
+        ui.blank()
+        ui.info("Run without --dry-run to execute the migration.")
+    elif status == "CANCELLED":
+        ui.info("Migration cancelled.")
+    elif status == "VALIDATION_FAILED":
+        # Validation issues already printed by run_migrate
+        pass
+    elif status in ("ERROR", "CRITICAL_ERROR"):
+        ui.error(f"{status} — {message}")
+        backup_dir = data.get("backup_dir", "")
+        if backup_dir:
+            ui.detail("backup", backup_dir)
+    else:
+        ui.info(f"Status: {status}" + (f" — {message}" if message else ""))
+
+
+# ===========================================================================
 # WP6: CLI Entry Points
 # ===========================================================================
 
@@ -1786,7 +1890,7 @@ def cmd_migrate(argv: List[str]) -> int:
         dry_run=args.dry_run,
     )
 
-    ui.result(result)
+    ui.result(result, human_fn=_human_migrate_result)
 
     if result.get("status") == "PASS":
         return 0

@@ -25,6 +25,11 @@ def _cmd_agents(argv: List[str]) -> int:
     return cmd_agents(argv)
 
 
+def _cmd_generate_agents(argv: List[str]) -> int:
+    from .commands.agents import cmd_generate_agents
+    return cmd_generate_agents(argv)
+
+
 def _cmd_init(argv: List[str]) -> int:
     from .commands.init import cmd_init
     return cmd_init(argv)
@@ -165,6 +170,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "info",
         "self-check",
         "agents",
+        "generate-agents",
     ]
     all_commands = analysis_commands + kit_commands + migration_commands + search_commands + utility_commands + legacy_aliases
 
@@ -180,7 +186,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             "generate-resources": "Regenerate .gen/ outputs from blueprints",
             "init": "Initialize Cypilot in a project",
             "update": "Update .core/ and regenerate .gen/",
-            "agents": "Generate IDE/agent integration files",
+            "agents": "Show generated agent integration status",
+            "generate-agents": "Generate/update IDE agent integration files",
             "list-ids": "List all Cypilot IDs from artifacts",
             "list-id-kinds": "List ID kinds with counts",
             "get-content": "Get content block for a Cypilot ID",
@@ -193,7 +200,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             "migrate-config": "Convert JSON configs to TOML",
         }
         _sections = [
-            ("Setup & Configuration", ["init", "update", "info", "agents"]),
+            ("Setup & Configuration", ["init", "update", "info", "generate-agents", "agents"]),
             ("Validation", ["validate", "validate-kits", "validate-toc", "self-check", "spec-coverage"]),
             ("Search & Navigation", ["list-ids", "list-id-kinds", "get-content", "where-defined", "where-used"]),
             ("Kit Management", ["kit", "generate-resources"]),
@@ -285,6 +292,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _cmd_self_check(rest)
     elif cmd == "agents":
         return _cmd_agents(rest)
+    elif cmd == "generate-agents":
+        return _cmd_generate_agents(rest)
     elif cmd == "kit":
         return _cmd_kit(rest)
     elif cmd == "generate-resources":

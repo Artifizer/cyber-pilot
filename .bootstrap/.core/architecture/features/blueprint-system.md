@@ -79,7 +79,7 @@ Eliminates resource duplication across kit artifacts. Without blueprints, every 
 
 **Success Scenarios**:
 - User installs a kit from a local path → kit source saved to reference directory, blueprints copied to user-editable location, all resources generated, kit registered in `{cypilot_path}/config/core.toml`
-- User installs a kit during `cypilot init` → same as above, triggered automatically for bundled kits
+- User installs a kit during `cpt init` → same as above, triggered automatically for bundled kits
 
 **Error Scenarios**:
 - Kit path does not contain a `blueprints/` directory → error with structural requirements
@@ -152,13 +152,13 @@ Eliminates resource duplication across kit artifacts. Without blueprints, every 
 **Actor**: `cpt-cypilot-actor-user`
 
 **Success Scenarios**:
-- User runs `cypilot generate-resources` → all kit blueprints re-processed, outputs regenerated
+- User runs `cpt generate-resources` → all kit blueprints re-processed, outputs regenerated
 
 **Error Scenarios**:
 - Blueprint has syntax errors → error with marker, line number, and fix suggestion
 
 **Steps**:
-1. [x] - `p1` - User invokes `cypilot generate-resources [--kit SLUG]` - `inst-user-generate`
+1. [x] - `p1` - User invokes `cpt generate-resources [--kit SLUG]` - `inst-user-generate`
 2. [x] - `p1` - Resolve target kits from `{cypilot_path}/config/core.toml` - `inst-resolve-gen-kits`
 3. [x] - `p1` - **FOR EACH** kit in target kits - `inst-foreach-gen-kit`
    1. [x] - `p1` - Process all blueprints using `cpt-cypilot-algo-blueprint-system-process-kit` - `inst-gen-process`
@@ -171,14 +171,14 @@ Eliminates resource duplication across kit artifacts. Without blueprints, every 
 **Actor**: `cpt-cypilot-actor-user`
 
 **Success Scenarios**:
-- User runs `cypilot validate-kits` → all installed kits validated, PASS with coverage report
+- User runs `cpt validate-kits` → all installed kits validated, PASS with coverage report
 
 **Error Scenarios**:
 - Kit missing `blueprints/` directory → FAIL with details
 - Blueprint missing mandatory `@cpt:blueprint` marker → FAIL with details
 
 **Steps**:
-1. [x] - `p1` - User invokes `cypilot validate-kits` - `inst-user-validate-kits`
+1. [x] - `p1` - User invokes `cpt validate-kits` - `inst-user-validate-kits`
 2. [x] - `p1` - Load all registered kits from `{cypilot_path}/config/core.toml` - `inst-load-registered-kits`
 3. [x] - `p1` - **FOR EACH** kit - `inst-foreach-validate-kit`
    1. [x] - `p1` - Verify `blueprints/` directory exists in user-editable path - `inst-verify-blueprints-dir`
@@ -513,7 +513,7 @@ The system **MUST** provide `cypilot kit migrate [--kit SLUG] [--dry-run]` that 
 
 - [x] `p1` - **ID**: `cpt-cypilot-dod-blueprint-system-validate-kits`
 
-The system **MUST** provide `cypilot validate-kits` that validates all installed kits have a `blueprints/` directory, each blueprint has a valid `@cpt:blueprint` identity marker, and marker syntax is correct. Output **MUST** be JSON with PASS/FAIL status and per-kit details.
+The system **MUST** provide `cpt validate-kits` that validates all installed kits have a `blueprints/` directory, each blueprint has a valid `@cpt:blueprint` identity marker, and marker syntax is correct. Output **MUST** be JSON with PASS/FAIL status and per-kit details.
 
 **Implements**:
 - `cpt-cypilot-flow-blueprint-system-validate-kits`
@@ -528,7 +528,7 @@ The system **MUST** provide `cypilot validate-kits` that validates all installed
 
 - [x] `p1` - **ID**: `cpt-cypilot-dod-blueprint-system-regenerate`
 
-The system **MUST** provide `cypilot generate-resources [--kit SLUG]` that re-processes all blueprints for the specified kit (or all kits) and regenerates all output files. This enables users to customize blueprints and see the results without a full kit update cycle.
+The system **MUST** provide `cpt generate-resources [--kit SLUG]` that re-processes all blueprints for the specified kit (or all kits) and regenerates all output files. This enables users to customize blueprints and see the results without a full kit update cycle.
 
 **Implements**:
 - `cpt-cypilot-flow-blueprint-system-generate-resources`
@@ -554,8 +554,8 @@ The system **MUST** provide `cypilot generate-resources [--kit SLUG]` that re-pr
 
 - [ ] `cypilot kit install <path>` installs a kit, generates all outputs, and registers in `{cypilot_path}/config/core.toml`
 - [ ] `cypilot kit update --force` overwrites user blueprints and regenerates all outputs
-- [ ] `cypilot generate-resources` re-processes all blueprints and regenerates outputs from user-edited blueprints
-- [ ] `cypilot validate-kits` reports PASS for structurally valid kits and FAIL with details for invalid ones
+- [ ] `cpt generate-resources` re-processes all blueprints and regenerates outputs from user-edited blueprints
+- [ ] `cpt validate-kits` reports PASS for structurally valid kits and FAIL with details for invalid ones
 - [ ] Blueprint parsing handles all marker types: `@cpt:blueprint`, `@cpt:heading`, `@cpt:id`, `@cpt:rule`, `@cpt:check`, `@cpt:prompt`, `@cpt:example`, `@cpt:rules`, `@cpt:checklist`, `@cpt:skill`, `@cpt:system-prompt`, `@cpt:workflow`
 - [ ] Blueprint parsing supports both named syntax (`` `@cpt:TYPE:ID` ``) and legacy syntax (`` `@cpt:TYPE` ``)
 - [ ] Identity keys are resolved via the chain: explicit syntax ID → TOML-derived key → positional index fallback
@@ -567,4 +567,4 @@ The system **MUST** provide `cypilot generate-resources [--kit SLUG]` that re-pr
 - [ ] Generated `constraints.toml` aggregates ID kinds with `to_code`, `defined_in`, `referenced_in` from all blueprints
 - [ ] Malformed blueprint markers produce actionable error messages with file path and line number
 - [ ] All commands output JSON to stdout and use exit codes 0/1/2
-- [ ] Kit installation during `cypilot init` works identically to explicit `cypilot kit install`
+- [ ] Kit installation during `cpt init` works identically to explicit `cypilot kit install`

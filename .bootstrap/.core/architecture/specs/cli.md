@@ -44,7 +44,7 @@ drivers:
     - [get-content](#get-content)
     - [list-id-kinds](#list-id-kinds)
     - [info](#info)
-    - [agents](#agents)
+    - [generate-agents](#generate-agents)
     - [generate-resources](#generate-resources)
     - [doctor](#doctor)
     - [self-check](#self-check)
@@ -81,7 +81,7 @@ drivers:
 
 ## Overview
 
-Cypilot provides a CLI tool available as `cypilot` (full name) and `cpt` (short alias). The tool follows a two-layer architecture:
+Cypilot provides a CLI tool invoked as `cpt`. The keyword `cypilot` is reserved for agent chat prompts. The tool follows a two-layer architecture:
 
 1. **Global CLI Proxy** — a thin shell installed globally via `pipx`, containing zero business logic. It resolves the correct skill bundle and proxies all commands to it.
 2. **Skill Engine** — the actual command executor, installed either in the project (`{cypilot_path}/`) or in the global cache (`~/.cypilot/cache/`).
@@ -96,7 +96,7 @@ All CLI output is JSON to stdout. Human-readable messages go to stderr. This ena
 pipx install git+https://github.com/cyberfabric/cyber-pilot.git
 ```
 
-After installation, both `cypilot` and `cpt` are available globally.
+After installation, `cpt` is available globally as the CLI command. The `cypilot` keyword is reserved for agent chat prompts.
 
 **Requirements**:
 - Python 3.11+ (requires `tomllib` from stdlib)
@@ -115,11 +115,10 @@ On every invocation, the CLI Proxy executes the following sequence:
 1. **Cache check** — if `~/.cypilot/cache/` does not exist or is empty, download the latest skill bundle from GitHub before proceeding.
 2. **Target resolution** — if the current directory is inside a project with a Cypilot install directory (default: `cypilot/`), proxy to the project-installed skill. Otherwise, proxy to the cached skill.
 3. **Background version check** — start a non-blocking check for newer versions. The check MUST NOT delay the main command. Concurrent checks are prevented via a lock file. A newly available version becomes visible on the next invocation.
-4. **Version notice** — if the cached version is newer than the project-installed version, display a notice to stderr: `Cypilot {cached_version} available (project has {project_version}). Run 'cypilot update' to upgrade.`
+4. **Version notice** — if the cached version is newer than the project-installed version, display a notice to stderr: `Cypilot {cached_version} available (project has {project_version}). Run 'cpt update' to upgrade.`
 5. **Command execution** — forward all arguments to the resolved skill engine.
 
 ```
-cypilot <command> [subcommand] [options] [arguments]
 cpt <command> [subcommand] [options] [arguments]
 ```
 
@@ -161,7 +160,7 @@ cpt <command> [subcommand] [options] [arguments]
 Initialize Cypilot in a project.
 
 ```
-cypilot init [--dir DIR] [--agents AGENTS]
+cpt init [--dir DIR] [--agents AGENTS]
 ```
 
 | Option | Default | Description |
@@ -170,7 +169,7 @@ cypilot init [--dir DIR] [--agents AGENTS]
 | `--agents` | all | Comma-separated agent list: `windsurf,cursor,claude,copilot,openai` |
 
 **Behavior**:
-1. Check if Cypilot is already installed. If yes → abort with message, suggest `cypilot update`.
+1. Check if Cypilot is already installed. If yes → abort with message, suggest `cpt update`.
 2. If interactive terminal → prompt for installation directory and agent selection.
 3. Copy skill bundle from cache into the install directory.
 4. Define the **root system** — derive name and slug from the project directory name (e.g., directory `my-app/` → `name = "MyApp"`, `slug = "my-app"`).
@@ -184,7 +183,7 @@ cypilot init [--dir DIR] [--agents AGENTS]
 8. Generate agent entry points for selected agents.
 9. Inject root `AGENTS.md` entry: insert managed `<!-- @cpt:root-agents -->` block at the beginning of `{project_root}/AGENTS.md` (create file if absent).
 10. Create `{cypilot_path}/config/AGENTS.md` with default WHEN rules for standard system prompts.
-11. Output prompt suggestion: `cypilot on` or `cypilot help`.
+11. Output prompt suggestion: `cypilot on` or `cypilot help` (these are agent chat prompts, not CLI commands).
 
 **Root AGENTS.md integrity**: every CLI invocation (not just `init`) verifies the `<!-- @cpt:root-agents -->` block in root `AGENTS.md` exists and contains the correct path. If missing or stale, the block is silently re-injected. See [sysprompts.md](./sysprompts.md) for full format.
 
@@ -208,7 +207,7 @@ cypilot init [--dir DIR] [--agents AGENTS]
 Update project skill to the cached version.
 
 ```
-cypilot update [--check] [--force]
+cpt update [--check] [--force]
 ```
 
 | Option | Description |
@@ -248,7 +247,7 @@ cypilot update [--check] [--force]
 Validate artifacts.
 
 ```
-cypilot validate [--artifact PATH] [--system SYSTEM] [--kind KIND] [--strict] [--blueprints]
+cpt validate [--artifact PATH] [--system SYSTEM] [--kind KIND] [--strict] [--blueprints]
 ```
 
 | Option | Description |
@@ -316,7 +315,7 @@ cypilot validate [--artifact PATH] [--system SYSTEM] [--kind KIND] [--strict] [-
 List IDs matching criteria.
 
 ```
-cypilot list-ids [--kind KIND] [--pattern PATTERN] [--system SYSTEM] [--format FORMAT]
+cpt list-ids [--kind KIND] [--pattern PATTERN] [--system SYSTEM] [--format FORMAT]
 ```
 
 | Option | Description |
@@ -352,7 +351,7 @@ cypilot list-ids [--kind KIND] [--pattern PATTERN] [--system SYSTEM] [--format F
 Find where an ID is defined.
 
 ```
-cypilot where-defined --id <id>
+cpt where-defined --id <id>
 ```
 
 **Output** (JSON):
@@ -364,7 +363,7 @@ cypilot where-defined --id <id>
     "line": 154,
     "kind": "fr",
     "checked": false,
-    "content_preview": "The system MUST provide an interactive `cypilot init` command..."
+    "content_preview": "The system MUST provide an interactive `cpt init` command..."
   }
 }
 ```
@@ -378,7 +377,7 @@ cypilot where-defined --id <id>
 Find where an ID is referenced.
 
 ```
-cypilot where-used --id <id>
+cpt where-used --id <id>
 ```
 
 **Output** (JSON):
@@ -405,7 +404,7 @@ cypilot where-used --id <id>
 Get content block for an ID definition.
 
 ```
-cypilot get-content --id <id>
+cpt get-content --id <id>
 ```
 
 **Output** (JSON):
@@ -415,7 +414,7 @@ cypilot get-content --id <id>
   "file": "architecture/PRD.md",
   "line_start": 154,
   "line_end": 159,
-  "content": "The system MUST provide an interactive `cypilot init` command..."
+  "content": "The system MUST provide an interactive `cpt init` command..."
 }
 ```
 
@@ -428,7 +427,7 @@ cypilot get-content --id <id>
 List all ID kinds known to the system.
 
 ```
-cypilot list-id-kinds [--system SYSTEM]
+cpt list-id-kinds [--system SYSTEM]
 ```
 
 **Output** (JSON):
@@ -448,10 +447,10 @@ cypilot list-id-kinds [--system SYSTEM]
 
 ### info
 
-Show cypilot status and registry information.
+Show project status and registry information.
 
 ```
-cypilot info
+cpt info
 ```
 
 **Output** (JSON):
@@ -479,12 +478,12 @@ cypilot info
 
 ---
 
-### agents
+### generate-agents
 
 Generate agent entry points.
 
 ```
-cypilot agents [--agent AGENT]
+cpt generate-agents [--agent AGENT]
 ```
 
 | Option | Description |
@@ -518,7 +517,7 @@ cypilot agents [--agent AGENT]
 Generate all kit resources from blueprints.
 
 ```
-cypilot generate-resources [--kit KIT] [--artifact-kind KIND] [--dry-run]
+cpt generate-resources [--kit KIT] [--artifact-kind KIND] [--dry-run]
 ```
 
 | Option | Description |
@@ -555,7 +554,7 @@ cypilot generate-resources [--kit KIT] [--artifact-kind KIND] [--dry-run]
 Environment health check.
 
 ```
-cypilot doctor
+cpt doctor
 ```
 
 **Checks performed**:
@@ -591,7 +590,7 @@ cypilot doctor
 Validate example artifacts against their templates.
 
 ```
-cypilot self-check [--strict] [--kit KIT]
+cpt self-check [--strict] [--kit KIT]
 ```
 
 **Behavior**:
@@ -608,13 +607,13 @@ cypilot self-check [--strict] [--kit KIT]
 Manage project configuration.
 
 ```
-cypilot config <subcommand> [options]
+cpt config <subcommand> [options]
 ```
 
 #### config show
 
 ```
-cypilot config show [--section SECTION]
+cpt config show [--section SECTION]
 ```
 
 Display current core configuration. Optional `--section` to show only a part (systems, kits, ignore).
@@ -622,7 +621,7 @@ Display current core configuration. Optional `--section` to show only a part (sy
 #### config system add
 
 ```
-cypilot config system add --name NAME --slug SLUG --kit KIT
+cpt config system add --name NAME --slug SLUG --kit KIT
 ```
 
 Add a system definition to `{cypilot_path}/config/core.toml`.
@@ -630,7 +629,7 @@ Add a system definition to `{cypilot_path}/config/core.toml`.
 #### config system remove
 
 ```
-cypilot config system remove --slug SLUG
+cpt config system remove --slug SLUG
 ```
 
 Remove a system definition.
@@ -638,13 +637,13 @@ Remove a system definition.
 #### config system rename
 
 ```
-cypilot config system rename --slug SLUG --new-name NAME [--new-slug SLUG]
+cpt config system rename --slug SLUG --new-name NAME [--new-slug SLUG]
 ```
 
 #### config ignore add
 
 ```
-cypilot config ignore add --pattern PATTERN [--reason REASON]
+cpt config ignore add --pattern PATTERN [--reason REASON]
 ```
 
 Add a path pattern to the ignore list.
@@ -652,13 +651,13 @@ Add a path pattern to the ignore list.
 #### config ignore remove
 
 ```
-cypilot config ignore remove --pattern PATTERN
+cpt config ignore remove --pattern PATTERN
 ```
 
 #### config kit install
 
 ```
-cypilot config kit install --slug SLUG --path PATH
+cpt config kit install --slug SLUG --path PATH
 ```
 
 Register and install a kit.
@@ -674,11 +673,11 @@ All config subcommands support `--dry-run` to preview changes without writing.
 Manage git pre-commit hooks.
 
 ```
-cypilot hook install
-cypilot hook uninstall
+cpt hook install
+cpt hook uninstall
 ```
 
-**`install`**: creates a git pre-commit hook that runs `cypilot lint` on changed artifact files. The hook MUST complete in ≤ 5 seconds for typical changes.
+**`install`**: creates a git pre-commit hook that runs `cpt lint` on changed artifact files. The hook MUST complete in ≤ 5 seconds for typical changes.
 
 **`uninstall`**: removes the Cypilot pre-commit hook.
 
@@ -691,7 +690,7 @@ cypilot hook uninstall
 Manage shell completions.
 
 ```
-cypilot completions install [--shell SHELL]
+cpt completions install [--shell SHELL]
 ```
 
 | Option | Default | Description |
@@ -711,7 +710,7 @@ Kit plugins register their own CLI subcommands under the kit's slug namespace.
 #### sdlc autodetect show
 
 ```
-cypilot sdlc autodetect show --system SYSTEM
+cpt sdlc autodetect show --system SYSTEM
 ```
 
 Show autodetect rules (artifact patterns, traceability levels, codebase paths) for a system.
@@ -719,19 +718,19 @@ Show autodetect rules (artifact patterns, traceability levels, codebase paths) f
 #### sdlc autodetect add-artifact
 
 ```
-cypilot sdlc autodetect add-artifact --system SYSTEM --kind KIND --pattern PATTERN [--traceability FULL|DOCS-ONLY] [--required]
+cpt sdlc autodetect add-artifact --system SYSTEM --kind KIND --pattern PATTERN [--traceability FULL|DOCS-ONLY] [--required]
 ```
 
 #### sdlc autodetect add-codebase
 
 ```
-cypilot sdlc autodetect add-codebase --system SYSTEM --name NAME --path PATH --extensions EXTS
+cpt sdlc autodetect add-codebase --system SYSTEM --name NAME --path PATH --extensions EXTS
 ```
 
 #### sdlc pr-review
 
 ```
-cypilot sdlc pr-review <number> [--checklist CHECKLIST] [--prompt PROMPT]
+cpt sdlc pr-review <number> [--checklist CHECKLIST] [--prompt PROMPT]
 ```
 
 Review a GitHub PR. Fetches diffs and metadata via `gh` CLI, analyzes against configured prompts and checklists. Read-only (no local modifications). Always re-fetches on each invocation.
@@ -739,7 +738,7 @@ Review a GitHub PR. Fetches diffs and metadata via `gh` CLI, analyzes against co
 #### sdlc pr-status
 
 ```
-cypilot sdlc pr-status <number>
+cpt sdlc pr-status <number>
 ```
 
 Check PR status: comment severity classification, CI status, merge conflict state, unreplied comment audit.
@@ -878,14 +877,14 @@ CI pipelines should check for exit code 2 to detect validation failures.
 
 | Error Code | Cause | Resolution |
 |------------|-------|------------|
-| `NOT_INITIALIZED` | Command run outside a Cypilot project | Run `cypilot init` |
-| `CONFIG_NOT_FOUND` | `{cypilot_path}/config/core.toml` missing or corrupt | Run `cypilot init` or `cypilot doctor` |
-| `KIT_NOT_REGISTERED` | Referenced kit not in config | Run `cypilot config kit install` |
+| `NOT_INITIALIZED` | Command run outside a Cypilot project | Run `cpt init` |
+| `CONFIG_NOT_FOUND` | `{cypilot_path}/config/core.toml` missing or corrupt | Run `cpt init` or `cpt doctor` |
+| `KIT_NOT_REGISTERED` | Referenced kit not in config | Run `cpt config kit install` |
 | `ARTIFACT_NOT_FOUND` | Specified artifact path does not exist | Check path |
-| `SCHEMA_VALIDATION` | Config file does not match schema | Run `cypilot doctor` for details |
+| `SCHEMA_VALIDATION` | Config file does not match schema | Run `cpt doctor` for details |
 | `GH_CLI_NOT_FOUND` | `gh` CLI not installed (PR commands only) | Install `gh` CLI |
 | `GH_NOT_AUTHENTICATED` | `gh` CLI not authenticated | Run `gh auth login` |
-| `BLUEPRINT_UPDATE_CONFLICT` | User and kit both modified the same section during additive update | Resolve conflicts in `<KIND>.md.conflicts`, then run `cypilot generate-resources` |
+| `BLUEPRINT_UPDATE_CONFLICT` | User and kit both modified the same section during additive update | Resolve conflicts in `<KIND>.md.conflicts`, then run `cpt generate-resources` |
 | `CACHE_EMPTY` | No cached skill and download failed | Check network, retry |
 
 ### Error Output
@@ -906,7 +905,7 @@ Plus a human-readable message to stderr.
 ## Version Negotiation
 
 ```
-cypilot --version
+cpt --version
 ```
 
 **Output** (JSON):

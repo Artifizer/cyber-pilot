@@ -205,7 +205,7 @@ Contains a single ` ```markdown ` block with SKILL.md extension content.
 `@cpt:skill`
 ```markdown
 ### PRD Commands
-- `cypilot validate --artifact <PRD.md>` — validate PRD
+- `cpt validate --artifact <PRD.md>` — validate PRD
 ### PRD Workflows
 - **Generate PRD**: create a new PRD from template with guided prompts
 - **Analyze PRD**: validate structure then semantic quality
@@ -213,7 +213,7 @@ Contains a single ` ```markdown ` block with SKILL.md extension content.
 `@/cpt:skill`
 ````
 
-Content from all blueprints in the kit is aggregated and written to `{cypilot_path}/config/SKILL.md` during `cypilot init` / `cypilot kit install`. The main SKILL.md has a navigation rule (`ALWAYS open and follow {cypilot_path}/config/SKILL.md WHEN it exists`) that ensures AI agents discover kit capabilities automatically.
+Content from all blueprints in the kit is aggregated and written to `{cypilot_path}/config/SKILL.md` during `cpt init` / `cypilot kit install`. The main SKILL.md has a navigation rule (`ALWAYS open and follow {cypilot_path}/config/SKILL.md WHEN it exists`) that ensures AI agents discover kit capabilities automatically.
 
 ---
 
@@ -233,7 +233,7 @@ ALWAYS use observable behavior language (MUST/MUST NOT/SHOULD) WHEN writing func
 `@/cpt:system-prompt`
 ````
 
-Content from all blueprints in the kit is appended to `{cypilot_path}/config/AGENTS.md` during `cypilot init` / `cypilot kit install`. Since `{cypilot_path}/config/AGENTS.md` is loaded via the Protocol Guard, these directives are automatically active when the agent processes the corresponding artifact kind.
+Content from all blueprints in the kit is appended to `{cypilot_path}/config/AGENTS.md` during `cpt init` / `cypilot kit install`. Since `{cypilot_path}/config/AGENTS.md` is loaded via the Protocol Guard, these directives are automatically active when the agent processes the corresponding artifact kind.
 
 ---
 
@@ -241,7 +241,7 @@ Content from all blueprints in the kit is appended to `{cypilot_path}/config/AGE
 
 **Type**: block (zero or more per file)
 
-Contains a ` ```toml ` header block and a ` ```markdown ` content block defining a workflow that agents can execute. The Blueprint Processor generates a workflow `.md` file in the kit's `workflows/` directory; `cypilot agents` then creates agent entry points (e.g., `.windsurf/workflows/`) that reference these generated files.
+Contains a ` ```toml ` header block and a ` ```markdown ` content block defining a workflow that agents can execute. The Blueprint Processor generates a workflow `.md` file in the kit's `workflows/` directory; `cpt generate-agents` then creates agent entry points (e.g., `.windsurf/workflows/`) that reference these generated files.
 
 ````markdown
 `@cpt:workflow`
@@ -274,7 +274,7 @@ description = "Review a GitHub PR against configurable checklists and prompts"
 **Generates**: two outputs per workflow:
 
 1. **Kit workflow file**: `.gen/kits/<slug>/workflows/{name}.md` — the full workflow definition assembled from the ` ```markdown ` content block, with frontmatter metadata.
-2. **Agent entry points**: during `cypilot agents`, each workflow gets an entry point in every agent's native format that references the kit workflow file:
+2. **Agent entry points**: during `cpt generate-agents`, each workflow gets an entry point in every agent's native format that references the kit workflow file:
    - Windsurf: `.windsurf/workflows/cypilot-{name}.md`
    - Cursor: `.cursor/rules/cypilot-{name}.md`
    - Claude: `.claude/commands/cypilot-{name}.md`
@@ -307,7 +307,7 @@ description: Review a GitHub PR against configurable checklists and prompts
 Follow the workflow defined in `{cypilot_path}/.gen/kits/sdlc/workflows/pr-review.md`
 ```
 
-Agent entry points are fully overwritten on every `cypilot agents` run. Kit workflow files are regenerated from blueprints on `cypilot init`.
+Agent entry points are fully overwritten on every `cpt generate-agents` run. Kit workflow files are regenerated from blueprints on `cpt init`.
 
 ---
 
@@ -806,7 +806,7 @@ The **installed kit** in `{cypilot_path}/kits/{slug}/` serves as the reference f
 
 ### Initial Installation
 
-When a kit is installed (`cypilot init` or `cypilot kit install`):
+When a kit is installed (`cpt init` or `cypilot kit install`):
 
 1. The tool saves the kit source to `{cypilot_path}/kits/{slug}/` (reference copy).
 2. Blueprints are copied from `{cypilot_path}/kits/{slug}/blueprints/` to `{cypilot_path}/config/kits/{slug}/blueprints/` (user-editable).
@@ -870,7 +870,7 @@ When conflicts are detected during additive update:
 1. The tool writes a `<KIND>.md.conflicts` file listing all conflicts with both versions.
 2. The tool outputs a warning with conflict count and file path.
 3. The user resolves conflicts manually in the blueprint file.
-4. Running `cypilot generate-resources` regenerates outputs from the resolved blueprint.
+4. Running `cpt generate-resources` regenerates outputs from the resolved blueprint.
 
 ---
 
@@ -898,7 +898,7 @@ When conflicts are detected during additive update:
 | `BLUEPRINT_DUPLICATE_MARKER_ID` | Two markers of the same type with the same explicit ID in a blueprint | Use unique IDs per marker type |
 | `BLUEPRINT_TAG_MISMATCH` | Closing tag TYPE:ID does not match opening tag | Fix closing tag to match opening |
 | `BLUEPRINT_LEGACY_MARKER` | Non-singleton marker without explicit ID (deprecation warning) | Add explicit ID: `` `@cpt:rule:my-id` `` |
-| `BLUEPRINT_UPDATE_CONFLICT` | Both user and kit modified the same section during additive update | Resolve conflicts in `<KIND>.md.conflicts`, then run `cypilot generate-resources` |
+| `BLUEPRINT_UPDATE_CONFLICT` | Both user and kit modified the same section during additive update | Resolve conflicts in `<KIND>.md.conflicts`, then run `cpt generate-resources` |
 
 ---
 

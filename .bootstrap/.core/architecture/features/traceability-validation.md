@@ -75,8 +75,8 @@ Catches structural and traceability issues that AI agents miss or hallucinate �
 **Actor**: `cpt-cypilot-actor-user`
 
 **Success Scenarios**:
-- User runs `cypilot validate` → all registered artifacts validated, cross-references checked, code traceability verified, PASS with coverage report
-- User runs `cypilot validate --artifact <path>` → single artifact validated against its constraints, cross-references checked against all artifacts
+- User runs `cpt validate` → all registered artifacts validated, cross-references checked, code traceability verified, PASS with coverage report
+- User runs `cpt validate --artifact <path>` → single artifact validated against its constraints, cross-references checked against all artifacts
 
 **Error Scenarios**:
 - Artifact not found in registry → ERROR with message
@@ -85,7 +85,7 @@ Catches structural and traceability issues that AI agents miss or hallucinate �
 - Code marker references non-existent artifact ID → FAIL with orphan details
 
 **Steps**:
-1. [x] - `p1` - User invokes `cypilot validate [--artifact <path>] [--skip-code] [--verbose]` - `inst-user-validate`
+1. [x] - `p1` - User invokes `cpt validate [--artifact <path>] [--skip-code] [--verbose]` - `inst-user-validate`
 2. [x] - `p1` - Load project context: cypilot config, registry, systems, kits, constraints - `inst-load-context`
 3. [x] - `p1` - Resolve artifacts to validate: if `--artifact` specified resolve single artifact from registry, otherwise collect all registered Cypilot-format artifacts - `inst-resolve-artifacts`
 4. [x] - `p1` - Run self-check: validate kit examples against templates to ensure kit integrity - `inst-self-check`
@@ -105,10 +105,10 @@ Catches structural and traceability issues that AI agents miss or hallucinate �
 **Actor**: `cpt-cypilot-actor-user`
 
 **Success Scenarios**:
-- User runs `cypilot list-ids` → all ID definitions listed with kind, file, line, checked status
-- User runs `cypilot where-defined --id <id>` → definition location returned with file path and line
-- User runs `cypilot where-used --id <id>` → all reference locations returned across artifacts and code
-- User runs `cypilot get-content --id <id>` → content block under the ID heading returned
+- User runs `cpt list-ids` → all ID definitions listed with kind, file, line, checked status
+- User runs `cpt where-defined --id <id>` → definition location returned with file path and line
+- User runs `cpt where-used --id <id>` → all reference locations returned across artifacts and code
+- User runs `cpt get-content --id <id>` → content block under the ID heading returned
 
 **Error Scenarios**:
 - ID not found in any artifact → empty result with exit code 2
@@ -445,15 +445,15 @@ The system **MUST** scan CDSL instruction markers (`inst-{slug}` suffixes in num
 
 ## 7. Acceptance Criteria
 
-- [ ] `cypilot validate` validates all registered artifacts and produces JSON report with PASS/FAIL status
-- [ ] `cypilot validate --artifact <path>` validates a single artifact against its constraints
+- [ ] `cpt validate` validates all registered artifacts and produces JSON report with PASS/FAIL status
+- [ ] `cpt validate --artifact <path>` validates a single artifact against its constraints
 - [ ] Heading contract validation catches missing required sections and wrong heading levels
 - [ ] ID format validation catches malformed `cpt-*` identifiers with line numbers
 - [ ] Cross-artifact validation catches undefined references, checked/unchecked mismatches, and coverage gaps
 - [ ] Code traceability validation catches orphaned markers, missing `to_code` markers, and unchecked-task markers
 - [ ] CDSL instruction tracking catches missing `@cpt-begin/@cpt-end` blocks and orphaned code blocks
 - [ ] DOCS-ONLY mode prohibits all `@cpt-*` code markers
-- [ ] `cypilot list-ids`, `where-defined`, `where-used`, `get-content` return correct JSON results
+- [ ] `cpt list-ids`, `where-defined`, `where-used`, `get-content` return correct JSON results
 - [ ] Validation of a single artifact completes in ≤ 3 seconds
 - [ ] Full project validation (all artifacts + code) completes in ≤ 10 seconds for typical repositories
 - [ ] All validation errors include file path, line number, and actionable fixing prompt

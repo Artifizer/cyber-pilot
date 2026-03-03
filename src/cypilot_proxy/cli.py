@@ -59,7 +59,7 @@ def _extract_named_param(args: List[str], name: str) -> Optional[str]:
 
 def main(argv: Optional[List[str]] = None) -> int:
     """
-    Main entry point for the cypilot/cpt commands.
+    Main entry point for the cpt command.
     """
     # @cpt-begin:cpt-cypilot-flow-core-infra-cli-invocation:p1:inst-user-invokes
     args = argv if argv is not None else sys.argv[1:]
@@ -176,23 +176,45 @@ def main(argv: Optional[List[str]] = None) -> int:
         # @cpt-begin:cpt-cypilot-flow-core-infra-cli-invocation:p1:inst-auto-download
         from cypilot_proxy.cache import download_and_cache
 
-        sys.stderr.write("Cypilot: No skill found. Downloading from GitHub...\n")
+        sys.stderr.write("\n")
+        sys.stderr.write("  Cypilot skill engine not found.\n")
+        sys.stderr.write("\n")
+        sys.stderr.write("  Cypilot is a two-part tool:\n")
+        sys.stderr.write("    • This CLI proxy (already installed)\n")
+        sys.stderr.write("    • The skill engine (templates, validators, generators)\n")
+        sys.stderr.write("\n")
+        sys.stderr.write("  The skill engine needs to be downloaded once from GitHub\n")
+        sys.stderr.write("  and cached at ~/.cypilot/cache/.\n")
+        sys.stderr.write("\n")
+
+        if sys.stdin.isatty():
+            try:
+                answer = input("  Download now? [Y/n] ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                answer = "n"
+            if answer and answer not in ("y", "yes"):
+                sys.stderr.write("\n  To download later, run: cpt update\n\n")
+                return 1
+        else:
+            sys.stderr.write("  Downloading automatically (non-interactive mode)...\n")
+
+        sys.stderr.write("\n")
         success, message = download_and_cache()
         # @cpt-end:cpt-cypilot-flow-core-infra-cli-invocation:p1:inst-auto-download
         # @cpt-begin:cpt-cypilot-flow-core-infra-cli-invocation:p1:inst-if-download-failed
         if not success:
             # @cpt-begin:cpt-cypilot-flow-core-infra-cli-invocation:p1:inst-return-download-error
-            sys.stderr.write(f"Error: {message}\n")
-            sys.stderr.write("Retry: cypilot update\n")
+            sys.stderr.write(f"  Error: {message}\n")
+            sys.stderr.write("  Retry: cpt update\n\n")
             return 1
             # @cpt-end:cpt-cypilot-flow-core-infra-cli-invocation:p1:inst-return-download-error
         # @cpt-end:cpt-cypilot-flow-core-infra-cli-invocation:p1:inst-if-download-failed
 
-        sys.stderr.write(f"{message}\n")
+        sys.stderr.write(f"  {message}\n\n")
         # @cpt-begin:cpt-cypilot-flow-core-infra-cli-invocation:p1:inst-forward-fresh-cache
         skill_path = find_cached_skill()
         if skill_path is None:
-            sys.stderr.write("Error: Cache populated but skill entry point not found.\n")
+            sys.stderr.write("  Error: Cache populated but skill entry point not found.\n")
             return 1
         source = "cache"
         # @cpt-end:cpt-cypilot-flow-core-infra-cli-invocation:p1:inst-forward-fresh-cache

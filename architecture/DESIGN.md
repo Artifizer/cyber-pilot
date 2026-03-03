@@ -231,7 +231,7 @@ Each kit is a blueprint package: a `blueprints/` directory containing one `.md` 
 
 - [ ] `p2` - `cpt-cypilot-fr-core-vscode-plugin`
 
-**Design Response**: VS Code extension delegates all validation to the installed Cypilot skill (`cypilot validate`). The plugin reads config from the project's install directory, provides ID syntax highlighting, go-to-definition, real-time validation, autocompletion, hover info, CodeLens, traceability tree view, and quick fixes.
+**Design Response**: VS Code extension delegates all validation to the installed Cypilot skill (`cpt validate`). The plugin reads config from the project's install directory, provides ID syntax highlighting, go-to-definition, real-time validation, autocompletion, hover info, CodeLens, traceability tree view, and quick fixes.
 
 ##### Artifact Pipeline
 
@@ -257,13 +257,13 @@ All outputs are **core-defined** — the Blueprint Processor owns all marker typ
 
 **System prompt extensions**: blueprints may contain `@cpt:system-prompt` blocks that are aggregated and appended to `{cypilot_path}/config/AGENTS.md` during init/kit-install. Since `{cypilot_path}/config/AGENTS.md` is loaded via the Protocol Guard, these directives are automatically active for the corresponding artifact kinds.
 
-**Workflow registrations**: blueprints may contain `@cpt:workflow` blocks (TOML header with `name` and `description`, plus Markdown content with workflow steps). The Blueprint Processor generates a workflow `.md` file in `{cypilot_path}/.gen/kits/<slug>/workflows/{name}.md`. During `cypilot agents`, the Agent Generator creates entry points in each agent's native format (e.g., `.windsurf/workflows/cypilot-{name}.md`) that reference the kit workflow file. This allows kits to register workflows discoverable by all supported agents without manual agent-specific configuration.
+**Workflow registrations**: blueprints may contain `@cpt:workflow` blocks (TOML header with `name` and `description`, plus Markdown content with workflow steps). The Blueprint Processor generates a workflow `.md` file in `{cypilot_path}/.gen/kits/<slug>/workflows/{name}.md`. During `cpt generate-agents`, the Agent Generator creates entry points in each agent's native format (e.g., `.windsurf/workflows/cypilot-{name}.md`) that reference the kit workflow file. This allows kits to register workflows discoverable by all supported agents without manual agent-specific configuration.
 
 ##### Cross-Artifact Validation
 
 - [x] `p1` - `cpt-cypilot-fr-sdlc-cross-artifact`
 
-**Design Response**: The Validator component performs cross-artifact checks by loading all registered artifacts for a system and comparing ID definitions against references. Checks include: covered_by reference completeness per constraints.toml rules, checked-ref-implies-checked-def consistency, and ID resolution across artifact boundaries. Cross-artifact validation runs as part of `cypilot validate` (no separate command).
+**Design Response**: The Validator component performs cross-artifact checks by loading all registered artifacts for a system and comparing ID definitions against references. Checks include: covered_by reference completeness per constraints.toml rules, checked-ref-implies-checked-def consistency, and ID resolution across artifact boundaries. Cross-artifact validation runs as part of `cpt validate` (no separate command).
 
 ##### PR Status Workflow
 
@@ -281,7 +281,7 @@ All outputs are **core-defined** — the Blueprint Processor owns all marker typ
 
 - [ ] `p2` - `cpt-cypilot-fr-sdlc-brownfield`
 
-**Design Response**: Brownfield entry uses `cypilot init` with existing code detection. The SDLC kit's autodetect rules scan for existing documentation and code structure. The generate workflow supports reverse-engineering mode: agents analyze existing code and produce artifacts (PRD, DESIGN) that describe the current state. Incremental adoption is supported — start with config, add artifacts gradually.
+**Design Response**: Brownfield entry uses `cpt init` with existing code detection. The SDLC kit's autodetect rules scan for existing documentation and code structure. The generate workflow supports reverse-engineering mode: agents analyze existing code and produce artifacts (PRD, DESIGN) that describe the current state. Incremental adoption is supported — start with config, add artifacts gradually.
 
 ##### Feature Lifecycle Management
 
@@ -895,7 +895,7 @@ No internal module dependencies beyond the component relationships documented in
 
 **Dependency Rules**:
 - `gh` CLI is optional — only required for PR review/status workflows
-- `cypilot doctor` checks `gh` availability and authentication status
+- `cpt doctor` checks `gh` availability and authentication status
 - PR workflows fail gracefully with actionable error message if `gh` is not available
 
 #### Python Runtime
@@ -906,7 +906,7 @@ No internal module dependencies beyond the component relationships documented in
 
 **Dependency Rules**:
 - Core uses stdlib only — no pip dependencies
-- `cypilot doctor` checks Python version compatibility
+- `cpt doctor` checks Python version compatibility
 
 #### pipx (recommended)
 
@@ -916,7 +916,7 @@ No internal module dependencies beyond the component relationships documented in
 
 **Dependency Rules**:
 - pipx is recommended but not required — manual installation is possible
-- `cypilot doctor` checks pipx availability
+- `cpt doctor` checks pipx availability
 
 ### 3.6 Interactions & Sequences
 
@@ -930,11 +930,11 @@ No internal module dependencies beyond the component relationships documented in
 
 ```mermaid
 sequenceDiagram
-    User->>CLI Proxy: cypilot init
+    User->>CLI Proxy: cpt init
     CLI Proxy->>Skill Engine: init command
     Skill Engine->>Skill Engine: detect existing Cypilot install
     alt existing project detected
-        Skill Engine-->>User: "Cypilot already initialized. Use 'cypilot update' to upgrade."
+        Skill Engine-->>User: "Cypilot already initialized. Use 'cpt update' to upgrade."
     else new project
         Skill Engine->>User: "Install directory?" (default: cypilot)
         User-->>Skill Engine: confirms
@@ -980,7 +980,7 @@ The block is inserted at the **beginning** of the file. If the file does not exi
 
 ```mermaid
 sequenceDiagram
-    User->>CLI Proxy: cypilot validate --artifact PRD.md
+    User->>CLI Proxy: cpt validate --artifact PRD.md
     CLI Proxy->>Skill Engine: validate command
     Skill Engine->>Config Manager: resolve system + artifact kind
     Config Manager-->>Skill Engine: system=cypilot, kind=PRD
@@ -1072,7 +1072,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    User->>CLI Proxy: cypilot update
+    User->>CLI Proxy: cpt update
     CLI Proxy->>CLI Proxy: refresh cache if needed
     CLI Proxy->>Skill Engine: update command
     Skill Engine->>Skill Engine: copy cached skill to project
@@ -1097,7 +1097,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    User->>CLI Proxy: cypilot where-defined cpt-cypilot-fr-core-init
+    User->>CLI Proxy: cpt where-defined cpt-cypilot-fr-core-init
     CLI Proxy->>Skill Engine: where-defined command
     Skill Engine->>Traceability Engine: resolve(id)
     Traceability Engine->>Traceability Engine: scan registered artifacts
@@ -1153,7 +1153,7 @@ All configuration and constraint files are migrating from JSON to TOML:
 
 **Rationale**: TOML is human-readable, supports comments, and aligns with the blueprint marker format (which already uses TOML for all `@cpt:` block configurations). JSON remains the CLI output format (stdout).
 
-**Migrator** (`cypilot migrate-config`):
+**Migrator** (`cpt migrate-config`):
 1. Detect existing `.json` config files in `config/` and `.cypilot-adapter/`
    - `.cypilot-adapter/artifacts.toml` migrates to `{cypilot_path}/config/artifacts.toml` (new location)
 2. For each file: parse JSON → serialize as TOML → write `.toml` alongside `.json`
@@ -1161,10 +1161,10 @@ All configuration and constraint files are migrating from JSON to TOML:
 4. If validation passes: remove the `.json` file
 5. If validation fails: keep `.json`, report error, skip that file
 6. Generated files (`constraints.toml`) are re-generated from blueprints — no migration needed
-7. The migrator runs automatically during `cypilot update` when upgrading from a JSON-based version
-8. Manual trigger: `cypilot migrate-config` for explicit migration
+7. The migrator runs automatically during `cpt update` when upgrading from a JSON-based version
+8. Manual trigger: `cpt migrate-config` for explicit migration
 
-**Backward compatibility**: the Config Manager reads `.toml` first; if not found, falls back to `.json` and emits a deprecation warning suggesting `cypilot migrate-config`.
+**Backward compatibility**: the Config Manager reads `.toml` first; if not found, falls back to `.json` and emits a deprecation warning suggesting `cpt migrate-config`.
 
 ### Testing Approach
 

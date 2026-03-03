@@ -57,5 +57,14 @@ details = """\
 - Interactive migration: new 'm' (modify) option opens $VISUAL/$EDITOR for manual marker merge
 - Editor pre-fills user content with commented diff for reference, git-style
 - SKILL.md updated to mandate --json for all agent invocations
-- Top-level help (cpt / cpt --help) shows structured command reference\
+- Top-level help (cpt / cpt --help) shows structured command reference
+- Files-read debug list now appears BEFORE user action prompts (approve/yes/no), not at response end
+- V2→V3 migration: git submodule deinit failure is now non-fatal — cleanup continues with manual fallback steps
+- Renamed `agents` command to `generate-agents` (interactive: preview → confirm → write)
+- Old `agents` command now read-only: shows generated files and suggests `generate-agents`
+- CLI invocation standardized to `cpt` for terminal commands; `cypilot` reserved for chat prompts
+- Humanized proxy installer with interactive download explanation
+- V2→V3 migration: step-by-step human-friendly progress output
+- V2→V3 migration: fixed agent generation — now actually writes agent files (was read-only listing)
+- `cpt update` now auto-regenerates agent configs when core or kits are updated\
 """

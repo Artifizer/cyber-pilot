@@ -43,7 +43,7 @@ Cypilot provides: artifact validation, cross-reference validation, code traceabi
 - [ ] I will read ALL required files BEFORE proceeding
 - [ ] I will follow workflows step-by-step WITHOUT shortcuts
 - [ ] I will NOT create files without user confirmation (operation workflows)
-- [ ] I will end EVERY response with a list of Cypilot files read while producing the response, why each file was read, and which initial instruction triggered opening each file
+- [ ] I will include a list of Cypilot files read while producing the response, why each file was read, and which initial instruction triggered opening each file — ALWAYS placed BEFORE any user action prompt (approve all, yes/no, proceed, modify, etc.) so the user sees context before deciding
 
 **By proceeding with Cypilot work, I acknowledge and accept these requirements.**
 
@@ -160,7 +160,7 @@ ALWAYS SKIP Protocol Guard and workflow loading WHEN user invokes quick commands
 
 ALWAYS run `python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py --json init --yes` directly WHEN user invokes `cypilot init`
 
-ALWAYS run `python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py --json agents --agent <name>` directly WHEN user invokes `cypilot agents <name>`
+ALWAYS run `python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py --json generate-agents --agent <name>` directly WHEN user invokes `cypilot generate-agents <name>`
 
 ALWAYS open and follow `{cypilot_path}/.core/workflows/generate.md` directly WHEN user invokes `cypilot auto-config` or `cypilot configure` — generate.md will trigger the auto-config methodology
 

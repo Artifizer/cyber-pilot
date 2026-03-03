@@ -46,7 +46,7 @@ Without spec coverage, teams have no visibility into which parts of the codebase
 
 | Actor | Role in Feature |
 |-------|-----------------|
-| `cpt-cypilot-actor-user` | Invokes `cypilot spec-coverage` from CLI to generate coverage report |
+| `cpt-cypilot-actor-user` | Invokes `cpt spec-coverage` from CLI to generate coverage report |
 | `cpt-cypilot-actor-ai-agent` | Uses coverage report to identify unspecified code during reverse-engineering |
 | `cpt-cypilot-actor-ci-pipeline` | Runs spec-coverage as a CI gate to enforce minimum coverage thresholds |
 
@@ -65,16 +65,16 @@ Without spec coverage, teams have no visibility into which parts of the codebase
 **Actor**: `cpt-cypilot-actor-user`
 
 **Success Scenarios**:
-- User runs `cypilot spec-coverage` → all registered codebase files scanned, coverage report generated with per-file and summary statistics
-- User runs `cypilot spec-coverage --min-coverage 80` → same as above, exit code 2 if coverage below threshold
-- User runs `cypilot spec-coverage --min-granularity 0.7` → same as above, exit code 2 if granularity below threshold
+- User runs `cpt spec-coverage` → all registered codebase files scanned, coverage report generated with per-file and summary statistics
+- User runs `cpt spec-coverage --min-coverage 80` → same as above, exit code 2 if coverage below threshold
+- User runs `cpt spec-coverage --min-granularity 0.7` → same as above, exit code 2 if granularity below threshold
 
 **Error Scenarios**:
 - No codebase entries registered → ERROR with hint to configure artifacts.toml
 - No code files found → report with 0% coverage
 
 **Steps**:
-1. [x] - `p1` - User invokes `cypilot spec-coverage [--min-coverage N] [--min-granularity N] [--verbose]` - `inst-user-spec-coverage`
+1. [x] - `p1` - User invokes `cpt spec-coverage [--min-coverage N] [--min-granularity N] [--verbose]` - `inst-user-spec-coverage`
 2. [x] - `p1` - Load project context: cypilot config, registry, systems, codebase entries - `inst-load-context`
 3. [x] - `p1` - Resolve all code files from registered codebase entries - `inst-resolve-code-files`
 4. [x] - `p1` - **FOR EACH** code file, scan for `@cpt-*` markers using `cpt-cypilot-algo-spec-coverage-scan` - `inst-foreach-file`
@@ -94,11 +94,11 @@ Without spec coverage, teams have no visibility into which parts of the codebase
 - Agent invokes reverse-engineering workflow → unspecified code identified, CDSL markers placed in code, feature specs generated from code structure
 
 **Steps**:
-1. [ ] - `p2` - Agent runs `cypilot spec-coverage` to identify uncovered code - `inst-re-identify-gaps`
+1. [ ] - `p2` - Agent runs `cpt spec-coverage` to identify uncovered code - `inst-re-identify-gaps`
 2. [ ] - `p2` - Agent analyzes uncovered code to identify logical function groups - `inst-re-analyze-code`
 3. [ ] - `p2` - Agent places `@cpt-begin`/`@cpt-end` markers in code with instruction slugs - `inst-re-place-markers`
 4. [ ] - `p2` - Agent generates FEATURE spec from placed markers, mapping instructions to CDSL steps - `inst-re-generate-spec`
-5. [ ] - `p2` - Agent runs `cypilot validate` to verify consistency between new spec and markers - `inst-re-validate`
+5. [ ] - `p2` - Agent runs `cpt validate` to verify consistency between new spec and markers - `inst-re-validate`
 
 ## 3. Processes / Business Logic (CDSL)
 
@@ -253,7 +253,7 @@ The system **MUST** output a JSON report with: summary (total files, covered fil
 
 ## 7. Acceptance Criteria
 
-- [ ] `cypilot spec-coverage` scans all registered codebase files and produces JSON report
+- [ ] `cpt spec-coverage` scans all registered codebase files and produces JSON report
 - [ ] Coverage percentage correctly identifies lines within `@cpt-begin`/`@cpt-end` blocks
 - [ ] Scope-only files (no block markers) are reported with granularity 0.0
 - [ ] Granularity metric correctly penalizes files with few instructions relative to their size

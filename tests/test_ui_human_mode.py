@@ -913,13 +913,13 @@ class TestReadExistingInstall(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestHumanAgentsOk(_HumanModeBase):
-    """Test _human_agents_ok formatter."""
+    """Test _human_generate_agents_ok formatter."""
 
     def test_pass_with_workflows_and_skills(self):
-        from cypilot.commands.agents import _human_agents_ok
+        from cypilot.commands.agents import _human_generate_agents_ok
         buf = io.StringIO()
         with redirect_stderr(buf):
-            _human_agents_ok(
+            _human_generate_agents_ok(
                 {"status": "PASS"},
                 ["windsurf", "cursor"],
                 {
@@ -957,10 +957,10 @@ class TestHumanAgentsOk(_HumanModeBase):
         self.assertIn("Agent integration complete", out)
 
     def test_dry_run(self):
-        from cypilot.commands.agents import _human_agents_ok
+        from cypilot.commands.agents import _human_generate_agents_ok
         buf = io.StringIO()
         with redirect_stderr(buf):
-            _human_agents_ok(
+            _human_generate_agents_ok(
                 {"status": "PASS"},
                 ["windsurf"],
                 {"windsurf": {
@@ -973,10 +973,10 @@ class TestHumanAgentsOk(_HumanModeBase):
         self.assertIn("Dry run complete", buf.getvalue())
 
     def test_errors_status(self):
-        from cypilot.commands.agents import _human_agents_ok
+        from cypilot.commands.agents import _human_generate_agents_ok
         buf = io.StringIO()
         with redirect_stderr(buf):
-            _human_agents_ok(
+            _human_generate_agents_ok(
                 {"status": "PARTIAL"},
                 ["windsurf"],
                 {"windsurf": {

@@ -804,5 +804,162 @@ class TestCmdUpdateWhatsnew(unittest.TestCase):
                 os.chdir(cwd)
 
 
+# =========================================================================
+# _maybe_regenerate_agents
+# =========================================================================
+
+class TestMaybeRegenerateAgents(unittest.TestCase):
+    """Tests for auto-regeneration of agent files during update."""
+
+    def _make_project_with_agents(self, root: Path, cache: Path) -> Path:
+        """Create a project with init + generate-agents for one agent."""
+        _make_cache(cache)
+        cypilot_dir = _init_project(root, cache)
+
+        # Create a fake .core/skills/cypilot/SKILL.md (needed by agents)
+        skill_src = cypilot_dir / ".core" / "skills" / "cypilot" / "SKILL.md"
+        skill_src.parent.mkdir(parents=True, exist_ok=True)
+        skill_src.write_text(
+            "---\nname: cypilot\ndescription: Test skill\n---\nContent\n",
+            encoding="utf-8",
+        )
+        return cypilot_dir
+
+    def test_no_changes_returns_empty(self):
+        """When copy_results are all 'skipped', no agents are regenerated."""
+        from cypilot.commands.update import _maybe_regenerate_agents
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            root.mkdir()
+            result = _maybe_regenerate_agents(
+                {"architecture": "skipped", "skills": "skipped"},
+                {"sdlc": {"version": {"status": "current"}}},
+                root, root / "cypilot",
+            )
+            self.assertEqual(result, [])
+
+    def test_core_updated_regenerates_existing_agents(self):
+        """When core is updated, agents with existing files are regenerated."""
+        from cypilot.commands.update import _maybe_regenerate_agents
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            root.mkdir()
+            (root / ".git").mkdir()
+            cache = Path(td) / "cache"
+            cypilot_dir = self._make_project_with_agents(root, cache)
+
+            # Create a windsurf skill file (simulates already-installed agent)
+            ws_skill = root / ".windsurf" / "skills" / "cypilot" / "SKILL.md"
+            ws_skill.parent.mkdir(parents=True, exist_ok=True)
+            ws_skill.write_text("old content", encoding="utf-8")
+
+            result = _maybe_regenerate_agents(
+                {"skills": "updated", "architecture": "updated"},
+                {"sdlc": {"version": {"status": "current"}}},
+                root, cypilot_dir,
+            )
+            self.assertIn("windsurf", result)
+            # File should have been updated
+            new_content = ws_skill.read_text(encoding="utf-8")
+            self.assertNotEqual(new_content, "old content")
+
+    def test_kit_migrated_triggers_regen(self):
+        """When a kit is migrated, agents are regenerated."""
+        from cypilot.commands.update import _maybe_regenerate_agents
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            root.mkdir()
+            (root / ".git").mkdir()
+            cache = Path(td) / "cache"
+            cypilot_dir = self._make_project_with_agents(root, cache)
+
+            ws_skill = root / ".windsurf" / "skills" / "cypilot" / "SKILL.md"
+            ws_skill.parent.mkdir(parents=True, exist_ok=True)
+            ws_skill.write_text("old content", encoding="utf-8")
+
+            result = _maybe_regenerate_agents(
+                {"skills": "skipped"},
+                {"sdlc": {"version": {"status": "migrated"}}},
+                root, cypilot_dir,
+            )
+            self.assertIn("windsurf", result)
+
+    def test_no_existing_agent_files_skips(self):
+        """When no agent output files exist on disk, none are regenerated."""
+        from cypilot.commands.update import _maybe_regenerate_agents
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            root.mkdir()
+            (root / ".git").mkdir()
+            cache = Path(td) / "cache"
+            cypilot_dir = self._make_project_with_agents(root, cache)
+
+            # Don't create any agent files — all should be skipped
+            result = _maybe_regenerate_agents(
+                {"skills": "updated"},
+                {},
+                root, cypilot_dir,
+            )
+            self.assertEqual(result, [])
+
+    def test_cmd_update_pipeline_regenerates_agents(self):
+        """Full cmd_update pipeline: agents are regenerated when core updates."""
+        from cypilot.commands.update import cmd_update
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            root.mkdir()
+            (root / ".git").mkdir()
+            cache = Path(td) / "cache"
+            cypilot_dir = self._make_project_with_agents(root, cache)
+
+            # Create windsurf skill file (simulates already-installed agent)
+            ws_skill = root / ".windsurf" / "skills" / "cypilot" / "SKILL.md"
+            ws_skill.parent.mkdir(parents=True, exist_ok=True)
+            ws_skill.write_text("old content", encoding="utf-8")
+
+            cwd = os.getcwd()
+            try:
+                os.chdir(str(root))
+                with patch("cypilot.commands.update.CACHE_DIR", cache):
+                    buf = io.StringIO()
+                    err = io.StringIO()
+                    with redirect_stdout(buf), redirect_stderr(err):
+                        rc = cmd_update([])
+                self.assertEqual(rc, 0)
+                out = json.loads(buf.getvalue())
+                self.assertIn("agents_regenerated", out["actions"])
+                self.assertIn("windsurf", out["actions"]["agents_regenerated"])
+                # Verify file was actually updated
+                new_content = ws_skill.read_text(encoding="utf-8")
+                self.assertNotEqual(new_content, "old content")
+            finally:
+                os.chdir(cwd)
+
+    def test_only_installed_agents_regenerated(self):
+        """Only agents with existing files are regenerated, others skipped."""
+        from cypilot.commands.update import _maybe_regenerate_agents
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            root.mkdir()
+            (root / ".git").mkdir()
+            cache = Path(td) / "cache"
+            cypilot_dir = self._make_project_with_agents(root, cache)
+
+            # Only create cursor agent file
+            cursor_skill = root / ".cursor" / "rules" / "cypilot.mdc"
+            cursor_skill.parent.mkdir(parents=True, exist_ok=True)
+            cursor_skill.write_text("old", encoding="utf-8")
+
+            result = _maybe_regenerate_agents(
+                {"skills": "updated"},
+                {},
+                root, cypilot_dir,
+            )
+            # cursor has existing file → regenerated
+            self.assertIn("cursor", result)
+            # windsurf has no files → not regenerated
+            self.assertNotIn("windsurf", result)
+
+
 if __name__ == "__main__":
     unittest.main()

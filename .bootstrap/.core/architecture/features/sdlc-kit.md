@@ -68,7 +68,7 @@ Without SDLC-specific content, Cypilot is a generic ID system with no domain val
 - Brownfield project: agent starts with reverse-engineering, then generates DESIGN from existing code
 
 **Error Scenarios**:
-- No system registered in `artifacts.toml` → error with hint to run `cypilot init`
+- No system registered in `artifacts.toml` → error with hint to run `cpt init`
 - Kit not installed → error with hint to install SDLC kit
 
 **Steps**:
@@ -88,14 +88,14 @@ Without SDLC-specific content, Cypilot is a generic ID system with no domain val
 **Actor**: `cpt-cypilot-actor-user`
 
 **Success Scenarios**:
-- User runs `cypilot self-check` → all blueprint outputs verified, PASS with coverage report
+- User runs `cpt self-check` → all blueprint outputs verified, PASS with coverage report
 
 **Error Scenarios**:
 - Generated outputs missing or stale → FAIL with list of missing/stale files
 - Blueprint file has invalid markers → FAIL with marker errors and line numbers
 
 **Steps**:
-1. [ ] - `p1` - User invokes `cypilot self-check` - `inst-user-self-check`
+1. [ ] - `p1` - User invokes `cpt self-check` - `inst-user-self-check`
 2. [ ] - `p1` - Load installed kits from `{cypilot_path}/config/core.toml` - `inst-load-kits`
 3. [ ] - `p1` - **FOR EACH** installed kit - `inst-foreach-kit`
    1. [ ] - `p1` - Validate kit completeness using `cpt-cypilot-algo-sdlc-kit-validate-completeness` - `inst-validate-kit`
@@ -216,7 +216,7 @@ All generated outputs (templates, rules, checklists, examples, constraints) **MU
 
 - [ ] `p1` - **ID**: `cpt-cypilot-dod-sdlc-kit-self-check`
 
-The system **MUST** provide `cypilot self-check` that validates all installed kits have complete generated outputs matching their blueprints. Output **MUST** be JSON with PASS/FAIL status, per-kit details, and coverage metrics (kinds verified, files checked). Missing or stale outputs **MUST** be reported with file paths and suggested fix commands.
+The system **MUST** provide `cpt self-check` that validates all installed kits have complete generated outputs matching their blueprints. Output **MUST** be JSON with PASS/FAIL status, per-kit details, and coverage metrics (kinds verified, files checked). Missing or stale outputs **MUST** be reported with file paths and suggested fix commands.
 
 **Implements**:
 - `cpt-cypilot-flow-sdlc-kit-self-check`
@@ -241,8 +241,8 @@ The system **MUST** provide `cypilot self-check` that validates all installed ki
 - [ ] All 5 artifact blueprints (PRD, DESIGN, ADR, DECOMPOSITION, FEATURE) exist in `kits/sdlc/blueprints/` with correct `@cpt:` markers
 - [ ] Codebase blueprint exists and generates `codebase/rules.md` and `codebase/checklist.md`
 - [ ] Each blueprint includes `@cpt:skill` extensions and `@cpt:workflow` definitions
-- [ ] `cypilot self-check` reports PASS for a correctly installed kit with complete outputs
-- [ ] `cypilot self-check` reports FAIL with details when outputs are missing or stale
+- [ ] `cpt self-check` reports PASS for a correctly installed kit with complete outputs
+- [ ] `cpt self-check` reports FAIL with details when outputs are missing or stale
 - [ ] Pipeline guidance correctly identifies greenfield vs brownfield starting points
 - [ ] Each artifact kind is usable independently without requiring prior artifact kinds
 - [ ] Guides exist for greenfield (`GREENFIELD.md`), brownfield (`BROWNFIELD.md`), and monolith (`MONOLITH.md`) scenarios

@@ -67,8 +67,8 @@ drivers:
 
 **Validate**:
 ```bash
-cypilot validate --artifact <path>    # artifact IDs
-cypilot validate-code                 # code markers
+cpt validate --artifact <path>    # artifact IDs
+cpt validate-code                 # code markers
 ```
 
 ---
@@ -303,7 +303,7 @@ Traceability mode is configured per artifact/codebase entry in `{cypilot_path}/c
 
 **Validation command**:
 ```bash
-cypilot validate-code
+cpt validate-code
 ```
 
 Validation performs:

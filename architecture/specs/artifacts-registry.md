@@ -74,7 +74,7 @@ Schema file: `../schemas/artifacts-registry.schema.json`
 
 Notes:
 
-- Version `2.0` uses TOML format. Legacy `1.x` JSON registries are supported via `cypilot migrate-config`.
+- Version `2.0` uses TOML format. Legacy `1.x` JSON registries are supported via `cpt migrate-config`.
 
 ---
 
@@ -714,7 +714,7 @@ template_path = f".gen/kits/{kit.slug}/artifacts/{artifact.kind}/template.md"
 kit = core_config.kits[system.kit]
 if kit.format == "Cypilot":
     # Use CLI validation
-    run("cypilot validate --artifact {path}")
+    run("cpt validate --artifact {path}")
 else:
     # Custom format - LLM-only processing
     process_semantically(artifact)
@@ -730,7 +730,7 @@ else:
 ```
 ⚠️ Registry not found: {cypilot_path}/config/artifacts.toml
 → Registry not initialized
-→ Fix: Run `cypilot init` to create registry
+→ Fix: Run `cpt init` to create registry
 ```
 **Action**: STOP — cannot process artifacts without registry.
 

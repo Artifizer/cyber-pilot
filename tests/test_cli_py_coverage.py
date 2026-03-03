@@ -2000,7 +2000,7 @@ class TestCLIPyCoverageAgentsCommand(unittest.TestCase):
                 os.chdir(root)
                 stdout = io.StringIO()
                 with redirect_stdout(stdout):
-                    exit_code = main(["agents", "--agent", "windsurf", "--dry-run"])
+                    exit_code = main(["generate-agents", "--agent", "windsurf", "--dry-run"])
                 self.assertEqual(exit_code, 0)
                 out = json.loads(stdout.getvalue())
                 self.assertIn(out.get("status"), ["OK", "PASS"])

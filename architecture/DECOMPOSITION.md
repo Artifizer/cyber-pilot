@@ -92,8 +92,8 @@ Cypilot DESIGN is decomposed into 10 features organized around architectural lay
   - [ ] `p1` - `cpt-cypilot-component-config-manager`
 
 - **API**:
-  - `cypilot init [--dir DIR] [--agents AGENTS]`
-  - `cypilot config show`
+  - `cpt init [--dir DIR] [--agents AGENTS]`
+  - `cpt config show`
 
 - **Sequences**:
   - `cpt-cypilot-seq-init`
@@ -156,7 +156,7 @@ Cypilot DESIGN is decomposed into 10 features organized around architectural lay
   - `cypilot kit install <path>`
   - `cypilot kit update [--force]`
   - `cypilot kit migrate [--kit SLUG] [--dry-run]`
-  - `cypilot validate --blueprints`
+  - `cpt validate --blueprints`
 
 - **Sequences**:
 
@@ -221,12 +221,12 @@ Cypilot DESIGN is decomposed into 10 features organized around architectural lay
   - [x] `p1` - `cpt-cypilot-component-traceability-engine`
 
 - **API**:
-  - `cypilot validate --artifact <path>`
-  - `cypilot validate`
-  - `cypilot list-ids [--kind K] [--pattern P]`
-  - `cypilot where-defined --id <id>`
-  - `cypilot where-used --id <id>`
-  - `cypilot get-content --id <id>`
+  - `cpt validate --artifact <path>`
+  - `cpt validate`
+  - `cpt list-ids [--kind K] [--pattern P]`
+  - `cpt where-defined --id <id>`
+  - `cpt where-used --id <id>`
+  - `cpt get-content --id <id>`
 
 - **Sequences**:
   - `cpt-cypilot-seq-validate`
@@ -280,7 +280,7 @@ Cypilot DESIGN is decomposed into 10 features organized around architectural lay
   - [ ] `p1` - `cpt-cypilot-component-sdlc-plugin`
 
 - **API**:
-  - `cypilot self-check`
+  - `cpt self-check`
 
 - **Sequences**:
 
@@ -333,7 +333,7 @@ Cypilot DESIGN is decomposed into 10 features organized around architectural lay
   - [x] `p1` - `cpt-cypilot-component-agent-generator`
 
 - **API**:
-  - `cypilot agents [--agent A]`
+  - `cpt agents [--agent A]`
 
 - **Sequences**:
   - `cpt-cypilot-seq-generate-workflow`
@@ -382,8 +382,8 @@ Cypilot DESIGN is decomposed into 10 features organized around architectural lay
   None (PR workflows are agent-driven, using `gh` CLI subprocess)
 
 - **API**:
-  - `cypilot sdlc pr-review <number>`
-  - `cypilot sdlc pr-status <number>`
+  - `cpt sdlc pr-review <number>`
+  - `cpt sdlc pr-status <number>`
 
 - **Sequences**:
   - `cpt-cypilot-seq-pr-review`
@@ -438,11 +438,11 @@ Cypilot DESIGN is decomposed into 10 features organized around architectural lay
   Components reused from Feature 1 (`config-manager`, `skill-engine`) and Feature 2 (`kit-manager`)
 
 - **API**:
-  - `cypilot update [--check]`
-  - `cypilot migrate-config`
-  - `cypilot config system add <name> [--kit K]`
-  - `cypilot config system remove <name>`
-  - `cypilot --version`
+  - `cpt update [--check]`
+  - `cpt migrate-config`
+  - `cpt config system add <name> [--kit K]`
+  - `cpt config system remove <name>`
+  - `cpt --version`
 
 - **Sequences**:
   - `cpt-cypilot-seq-update`
@@ -460,11 +460,11 @@ Cypilot DESIGN is decomposed into 10 features organized around architectural lay
 - **Depends On**: `cpt-cypilot-feature-traceability-validation`
 
 - **Scope**:
-  - VS Code extension: ID syntax highlighting, go-to-definition, real-time validation, autocompletion, hover info, CodeLens, traceability tree view, quick fixes — all delegated to `cypilot validate`
-  - `cypilot doctor`: check Python version, git, gh CLI, agents, config integrity
-  - `cypilot self-check`: validate examples against templates
-  - `cypilot hook install/uninstall`: git pre-commit hooks for validation
-  - `cypilot completions install`: shell completion scripts for bash/zsh/fish
+  - VS Code extension: ID syntax highlighting, go-to-definition, real-time validation, autocompletion, hover info, CodeLens, traceability tree view, quick fixes — all delegated to `cpt validate`
+  - `cpt doctor`: check Python version, git, gh CLI, agents, config integrity
+  - `cpt self-check`: validate examples against templates
+  - `cpt hook install/uninstall`: git pre-commit hooks for validation
+  - `cpt completions install`: shell completion scripts for bash/zsh/fish
 
 - **Out of scope**:
   - VS Code extension publishing (separate repo/process)
@@ -495,11 +495,11 @@ Cypilot DESIGN is decomposed into 10 features organized around architectural lay
   Components reused from Feature 3 (`validator`, `traceability-engine`)
 
 - **API**:
-  - `cypilot doctor`
-  - `cypilot self-check`
-  - `cypilot hook install`
-  - `cypilot hook uninstall`
-  - `cypilot completions install`
+  - `cpt doctor`
+  - `cpt self-check`
+  - `cpt hook install`
+  - `cpt hook uninstall`
+  - `cpt completions install`
 
 - **Sequences**:
 
@@ -555,9 +555,9 @@ Cypilot DESIGN is decomposed into 10 features organized around architectural lay
   Components reused from Feature 4 (`sdlc-plugin`) and Feature 3 (`traceability-engine`)
 
 - **API**:
-  - `cypilot sdlc autodetect show --system S`
-  - `cypilot sdlc autodetect add-artifact`
-  - `cypilot sdlc autodetect add-codebase`
+  - `cpt sdlc autodetect show --system S`
+  - `cpt sdlc autodetect add-artifact`
+  - `cpt sdlc autodetect add-codebase`
 
 - **Sequences**:
 
@@ -619,8 +619,8 @@ Cypilot DESIGN is decomposed into 10 features organized around architectural lay
   - [ ] `p1` - `cpt-cypilot-component-skill-engine`
 
 - **API**:
-  - `cypilot migrate` (or detected automatically during `cypilot init` in v2 project)
-  - `cypilot migrate-config`
+  - `cpt migrate` (or detected automatically during `cpt init` in v2 project)
+  - `cpt migrate-config`
 
 - **Sequences**:
 
@@ -677,7 +677,7 @@ Cypilot DESIGN is decomposed into 10 features organized around architectural lay
   - [x] `p1` - `cpt-cypilot-component-validator`
 
 - **API**:
-  - `cypilot spec-coverage [--min-coverage N] [--min-granularity N] [--verbose]`
+  - `cpt spec-coverage [--min-coverage N] [--min-granularity N] [--verbose]`
 
 - **Sequences**:
 

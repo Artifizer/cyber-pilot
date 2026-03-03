@@ -86,16 +86,16 @@ This installs `cypilot` and `cpt` commands globally. The CLI is a thin proxy she
 
 ```bash
 # Initialize Cypilot in your project
-cypilot init
+cpt init
 
 # Generate agent entry points for your IDE
-cypilot agents --agent windsurf
+cpt generate-agents --agent windsurf
 
 # Generate all agents for your IDE
-cypilot agents
+cpt generate-agents
 ```
 
-`cypilot init` creates the Cypilot directory (default: `cypilot/`) with three subdirectories:
+`cpt init` creates the Cypilot directory (default: `cypilot/`) with three subdirectories:
 
 | Directory | Purpose | Editable? |
 |-----------|---------|-----------|
@@ -132,7 +132,7 @@ A full walkthrough is available in [`guides/STORY.md`](guides/STORY.md).
 | `cypilot init` | Initializes Cypilot — creates config directory, generates rules, injects root AGENTS.md |
 | `cypilot auto-config` | Scans project structure and generates per-system convention rules |
 | `cypilot show config` | Displays config structure, registered artifacts, and codebase mappings |
-| `cypilot agents --agent windsurf` | Regenerates agent entry points for a specific agent |
+| `cypilot generate-agents --agent windsurf` | Regenerates agent entry points for a specific agent |
 
 **Artifact Generation**
 
@@ -206,7 +206,7 @@ Kit-specific workflows (e.g., PR review, PR status) are generated from blueprint
 ### Update
 
 ```bash
-cypilot update
+cpt update
 ```
 
 Updates `.core/` from cache, regenerates `.gen/` from user blueprints, and ensures `config/` scaffold integrity. User-editable files in `config/` are never overwritten.
@@ -218,7 +218,7 @@ Updates `.core/` from cache, regenerates `.gen/` from user blueprints, and ensur
 
 ### Directory Structure
 
-After `cypilot init`, a project has:
+After `cpt init`, a project has:
 
 ```
 project/
@@ -263,7 +263,7 @@ Each kit is a **blueprint package** — a `blueprints/` directory containing one
 | `@cpt:system-prompt` | `AGENTS.md` (agent system prompt content) |
 | `@cpt:workflow` | `workflows/{name}.md` (kit-specific workflows) |
 
-Users can customize blueprints in `config/kits/{slug}/blueprints/`. Running `cypilot update` regenerates `.gen/` from user blueprints while preserving user config.
+Users can customize blueprints in `config/kits/{slug}/blueprints/`. Running `cpt update` regenerates `.gen/` from user blueprints while preserving user config.
 
 ---
 
