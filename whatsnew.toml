@@ -1,0 +1,48 @@
+# Cypilot Core — What's New
+# Entries are shown once during `cpt update` when the user hasn't seen them yet.
+# Keys are version strings; only entries missing from config/whatsnew.toml are displayed.
+
+["v3.0.3-beta"]
+summary = "Variable-based path references"
+details = """\
+- Migrated all path references from hardcoded @/ prefix to {cypilot_path}/ variable
+- Blueprints, skills, and workflows now use {cypilot_path} for portability
+- Allows custom adapter directory names (e.g. .bootstrap for self-hosted repo)\
+"""
+
+["v3.0.4-beta"]
+summary = "Kit migration with three-way merge"
+details = """\
+- Introduced conf.toml-based kit versioning (single kit-level version)
+- Three-way merge for blueprint migration: unchanged markers updated, customized preserved
+- Removed per-blueprint version and kit fields from @cpt:blueprint TOML blocks
+- Added .prev/ snapshot for accurate old-reference comparison\
+"""
+
+["v3.0.5-beta"]
+summary = "Three-way merge stability and shared helpers"
+details = """\
+- Fixed three-way merge to correctly insert new markers added in reference
+- Improved error handling for kit migration and regeneration
+- Extracted shared helpers for cypilot directory resolution and kit output generation
+- .prev/ directory cleaned up after migration and first install\
+"""
+
+["v3.0.6-beta"]
+summary = "CLI improvements"
+details = """\
+- Show help text instead of JSON error when no subcommand provided
+- Added version consistency checks across package files
+- Added contributing guide\
+"""
+
+["v3.0.7-beta"]
+summary = "Named markers, interactive migration, and blueprint fixes"
+details = """\
+- Named marker syntax: @cpt:TYPE:ID for stable identity-based merge
+- Legacy marker auto-normalization during migration (positional → named)
+- Interactive migration with per-marker color-coded unified diffs
+- Marker deletion/restoration tracking with unified prompt
+- Sysprompt singleton support and improved fence tracking in blueprint parser
+- Orphaned marker cleanup\
+"""

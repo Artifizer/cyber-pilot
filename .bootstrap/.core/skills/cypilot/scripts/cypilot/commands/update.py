@@ -109,6 +109,19 @@ def cmd_update(argv: List[str]) -> int:
     gen_dir = cypilot_dir / GEN_SUBDIR
     config_dir = cypilot_dir / "config"
 
+    # ── Show core whatsnew (before .core/ is replaced) ────────────────────
+    if not args.dry_run:
+        cache_whatsnew = _read_core_whatsnew(CACHE_DIR / "whatsnew.toml")
+        core_whatsnew = _read_core_whatsnew(core_dir / "whatsnew.toml")
+        if cache_whatsnew:
+            ack = _show_core_whatsnew(
+                cache_whatsnew, core_whatsnew,
+                interactive=not args.no_interactive and not args.yes,
+            )
+            if not ack:
+                print(json.dumps({"status": "ABORTED", "message": "Update aborted by user."}, indent=2))
+                return 0
+
     # @cpt-begin:cpt-cypilot-flow-version-config-update:p1:inst-replace-core
     # ── Step 1: Replace .core/ from cache (always force) ─────────────────
     sys.stderr.write("Step 1: Updating .core/ from cache...\n")
@@ -117,6 +130,10 @@ def cmd_update(argv: List[str]) -> int:
         copy_results = _copy_from_cache(CACHE_DIR, cypilot_dir, force=True)
         core_dir.mkdir(parents=True, exist_ok=True)
         (core_dir / "README.md").write_text(_core_readme(), encoding="utf-8")
+        # Copy whatsnew.toml into .core/ so next update knows what was seen
+        _cache_whatsnew = CACHE_DIR / "whatsnew.toml"
+        if _cache_whatsnew.is_file():
+            shutil.copy2(_cache_whatsnew, core_dir / "whatsnew.toml")
     else:
         copy_results = {d: "dry_run" for d in COPY_DIRS}
     actions["core_update"] = copy_results
@@ -355,5 +372,69 @@ def _read_project_name(config_dir: Path) -> Optional[str]:
 
 # Re-exported from kit.py — tests import it from here
 from .kit import _read_conf_version as _read_conf_version  # noqa: F401
+
+
+def _read_core_whatsnew(path: Path) -> Dict[str, Dict[str, str]]:
+    """Read a standalone whatsnew.toml file.
+
+    Returns dict mapping version string to {summary, details}.
+    """
+    if not path.is_file():
+        return {}
+    try:
+        import tomllib
+        with open(path, "rb") as f:
+            data = tomllib.load(f)
+    except Exception:
+        return {}
+    result: Dict[str, Dict[str, str]] = {}
+    for key, entry in data.items():
+        if isinstance(entry, dict):
+            result[key] = {
+                "summary": str(entry.get("summary", "")),
+                "details": str(entry.get("details", "")),
+            }
+    return result
+
+
+def _show_core_whatsnew(
+    ref_whatsnew: Dict[str, Dict[str, str]],
+    core_whatsnew: Dict[str, Dict[str, str]],
+    *,
+    interactive: bool = True,
+) -> bool:
+    """Display core whatsnew entries present in cache but missing from .core/.
+
+    Returns True if user acknowledged (or non-interactive), False if declined.
+    """
+    missing = sorted(
+        (v, ref_whatsnew[v]) for v in ref_whatsnew
+        if v not in core_whatsnew
+    )
+    if not missing:
+        return True
+
+    sys.stderr.write(f"\n{'=' * 60}\n")
+    sys.stderr.write(f"  What's new in Cypilot\n")
+    sys.stderr.write(f"{'=' * 60}\n")
+
+    for ver, entry in missing:
+        sys.stderr.write(f"\n  \033[1m{ver}: {entry['summary']}\033[0m\n")
+        if entry["details"]:
+            for line in entry["details"].splitlines():
+                sys.stderr.write(f"    {line}\n")
+
+    sys.stderr.write(f"\n{'=' * 60}\n")
+
+    if not interactive:
+        return True
+
+    sys.stderr.write("  Press Enter to continue with update (or 'q' to abort): ")
+    sys.stderr.flush()
+    try:
+        response = input().strip().lower()
+    except EOFError:
+        return False
+    return response != "q"
 
 

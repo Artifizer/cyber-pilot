@@ -554,5 +554,247 @@ class TestUpdateHelperExceptions(unittest.TestCase):
                 os.chdir(cwd)
 
 
+# =========================================================================
+# _read_core_whatsnew / _show_core_whatsnew
+# =========================================================================
+
+class TestReadCoreWhatsnew(unittest.TestCase):
+    """Tests for reading standalone whatsnew.toml."""
+
+    def test_read_valid(self):
+        from cypilot.commands.update import _read_core_whatsnew
+        with TemporaryDirectory() as td:
+            p = Path(td) / "whatsnew.toml"
+            p.write_text(
+                '["v3.0.4-beta"]\nsummary = "A"\ndetails = "D1"\n\n'
+                '["v3.0.5-beta"]\nsummary = "B"\ndetails = "D2"\n',
+                encoding="utf-8",
+            )
+            result = _read_core_whatsnew(p)
+            self.assertEqual(len(result), 2)
+            self.assertIn("v3.0.4-beta", result)
+            self.assertEqual(result["v3.0.4-beta"]["summary"], "A")
+            self.assertEqual(result["v3.0.5-beta"]["details"], "D2")
+
+    def test_read_missing_file(self):
+        from cypilot.commands.update import _read_core_whatsnew
+        self.assertEqual(_read_core_whatsnew(Path("/nonexistent/whatsnew.toml")), {})
+
+    def test_read_corrupt_file(self):
+        from cypilot.commands.update import _read_core_whatsnew
+        with TemporaryDirectory() as td:
+            p = Path(td) / "whatsnew.toml"
+            p.write_text("{{invalid", encoding="utf-8")
+            self.assertEqual(_read_core_whatsnew(p), {})
+
+    def test_read_skips_non_dict_entries(self):
+        from cypilot.commands.update import _read_core_whatsnew
+        with TemporaryDirectory() as td:
+            p = Path(td) / "whatsnew.toml"
+            p.write_text(
+                'scalar_key = "not a dict"\n\n'
+                '["v1.0"]\nsummary = "OK"\ndetails = ""\n',
+                encoding="utf-8",
+            )
+            result = _read_core_whatsnew(p)
+            self.assertEqual(len(result), 1)
+            self.assertIn("v1.0", result)
+
+
+class TestShowCoreWhatsnew(unittest.TestCase):
+    """Tests for core whatsnew display and prompting."""
+
+    def test_non_interactive_shows_missing(self):
+        from cypilot.commands.update import _show_core_whatsnew
+        ref = {
+            "v3.0.4": {"summary": "A", "details": "- d1"},
+            "v3.0.5": {"summary": "B", "details": "- d2"},
+        }
+        err = io.StringIO()
+        with redirect_stderr(err):
+            result = _show_core_whatsnew(ref, {}, interactive=False)
+        self.assertTrue(result)
+        output = err.getvalue()
+        self.assertIn("What's new", output)
+        self.assertIn("A", output)
+        self.assertIn("B", output)
+
+    def test_filters_by_core_keys(self):
+        """Only entries missing from .core/ whatsnew are shown."""
+        from cypilot.commands.update import _show_core_whatsnew
+        ref = {
+            "v3.0.4": {"summary": "Old", "details": ""},
+            "v3.0.5": {"summary": "New", "details": ""},
+        }
+        core = {"v3.0.4": {"summary": "Old", "details": ""}}
+        err = io.StringIO()
+        with redirect_stderr(err):
+            _show_core_whatsnew(ref, core, interactive=False)
+        output = err.getvalue()
+        self.assertNotIn("Old", output)
+        self.assertIn("New", output)
+
+    def test_all_seen_returns_true(self):
+        from cypilot.commands.update import _show_core_whatsnew
+        same = {"v1": {"summary": "X", "details": ""}}
+        self.assertTrue(_show_core_whatsnew(same, same, interactive=True))
+
+    def test_empty_ref_returns_true(self):
+        from cypilot.commands.update import _show_core_whatsnew
+        self.assertTrue(_show_core_whatsnew({}, {}, interactive=True))
+
+    def test_enter_continues(self):
+        from cypilot.commands.update import _show_core_whatsnew
+        ref = {"v1": {"summary": "X", "details": ""}}
+        err = io.StringIO()
+        with patch("builtins.input", return_value=""), redirect_stderr(err):
+            self.assertTrue(_show_core_whatsnew(ref, {}, interactive=True))
+
+    def test_q_aborts(self):
+        from cypilot.commands.update import _show_core_whatsnew
+        ref = {"v1": {"summary": "X", "details": ""}}
+        err = io.StringIO()
+        with patch("builtins.input", return_value="q"), redirect_stderr(err):
+            self.assertFalse(_show_core_whatsnew(ref, {}, interactive=True))
+
+    def test_eof_aborts(self):
+        from cypilot.commands.update import _show_core_whatsnew
+        ref = {"v1": {"summary": "X", "details": ""}}
+        err = io.StringIO()
+        with patch("builtins.input", side_effect=EOFError), redirect_stderr(err):
+            self.assertFalse(_show_core_whatsnew(ref, {}, interactive=True))
+
+
+class TestCmdUpdateWhatsnew(unittest.TestCase):
+    """Integration tests for core whatsnew in cmd_update pipeline."""
+
+    def test_update_shows_whatsnew_and_copies_to_core(self):
+        """Update with new whatsnew entries shows them and copies to .core/."""
+        from cypilot.commands.update import cmd_update
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            root.mkdir()
+            cache = Path(td) / "cache"
+            _make_cache(cache)
+            # Add whatsnew.toml to cache
+            (cache / "whatsnew.toml").write_text(
+                '["v3.0.4"]\nsummary = "Test change"\ndetails = "- detail"\n',
+                encoding="utf-8",
+            )
+            _init_project(root, cache)
+
+            cwd = os.getcwd()
+            try:
+                os.chdir(str(root))
+                with patch("cypilot.commands.update.CACHE_DIR", cache):
+                    buf = io.StringIO()
+                    err = io.StringIO()
+                    with redirect_stdout(buf), redirect_stderr(err):
+                        rc = cmd_update(["-y"])
+                self.assertEqual(rc, 0)
+                stderr_text = err.getvalue()
+                self.assertIn("Test change", stderr_text)
+                # whatsnew.toml should be copied to .core/
+                core_wn = root / "cypilot" / ".core" / "whatsnew.toml"
+                self.assertTrue(core_wn.is_file())
+            finally:
+                os.chdir(cwd)
+
+    def test_update_second_run_no_whatsnew(self):
+        """Second update with same cache → no whatsnew shown (already in .core/)."""
+        from cypilot.commands.update import cmd_update
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            root.mkdir()
+            cache = Path(td) / "cache"
+            _make_cache(cache)
+            (cache / "whatsnew.toml").write_text(
+                '["v3.0.4"]\nsummary = "Test"\ndetails = ""\n',
+                encoding="utf-8",
+            )
+            _init_project(root, cache)
+
+            cwd = os.getcwd()
+            try:
+                os.chdir(str(root))
+                # First update — shows whatsnew (non-interactive to avoid input())
+                with patch("cypilot.commands.update.CACHE_DIR", cache):
+                    buf = io.StringIO()
+                    err = io.StringIO()
+                    with redirect_stdout(buf), redirect_stderr(err):
+                        cmd_update(["-y"])
+                self.assertIn("Test", err.getvalue())
+
+                # Second update — whatsnew already in .core/, nothing to show
+                with patch("cypilot.commands.update.CACHE_DIR", cache):
+                    buf2 = io.StringIO()
+                    err2 = io.StringIO()
+                    with redirect_stdout(buf2), redirect_stderr(err2):
+                        rc = cmd_update([])
+                self.assertEqual(rc, 0)
+                self.assertNotIn("What's new", err2.getvalue())
+            finally:
+                os.chdir(cwd)
+
+    def test_update_whatsnew_abort(self):
+        """User types 'q' at whatsnew prompt → update aborted."""
+        from cypilot.commands.update import cmd_update
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            root.mkdir()
+            cache = Path(td) / "cache"
+            _make_cache(cache)
+            (cache / "whatsnew.toml").write_text(
+                '["v3.0.4"]\nsummary = "X"\ndetails = ""\n',
+                encoding="utf-8",
+            )
+            _init_project(root, cache)
+
+            cwd = os.getcwd()
+            try:
+                os.chdir(str(root))
+                with patch("cypilot.commands.update.CACHE_DIR", cache):
+                    with patch("builtins.input", return_value="q"):
+                        buf = io.StringIO()
+                        err = io.StringIO()
+                        with redirect_stdout(buf), redirect_stderr(err):
+                            rc = cmd_update([])
+                self.assertEqual(rc, 0)
+                out = json.loads(buf.getvalue())
+                self.assertEqual(out["status"], "ABORTED")
+                # .core/ should NOT have been updated
+                core_wn = root / "cypilot" / ".core" / "whatsnew.toml"
+                self.assertFalse(core_wn.is_file())
+            finally:
+                os.chdir(cwd)
+
+    def test_update_dry_run_skips_whatsnew(self):
+        """--dry-run skips whatsnew display entirely."""
+        from cypilot.commands.update import cmd_update
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            root.mkdir()
+            cache = Path(td) / "cache"
+            _make_cache(cache)
+            (cache / "whatsnew.toml").write_text(
+                '["v3.0.4"]\nsummary = "X"\ndetails = ""\n',
+                encoding="utf-8",
+            )
+            _init_project(root, cache)
+
+            cwd = os.getcwd()
+            try:
+                os.chdir(str(root))
+                with patch("cypilot.commands.update.CACHE_DIR", cache):
+                    buf = io.StringIO()
+                    err = io.StringIO()
+                    with redirect_stdout(buf), redirect_stderr(err):
+                        rc = cmd_update(["--dry-run"])
+                self.assertEqual(rc, 0)
+                self.assertNotIn("What's new", err.getvalue())
+            finally:
+                os.chdir(cwd)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -849,6 +849,8 @@ class TestMigrateKit(unittest.TestCase):
         with TemporaryDirectory() as td:
             _, _, ref_dir, config_kit, _ = self._setup_kit(
                 Path(td), ref_ver=1, user_ver=1,
+                old_heading="Feature v1", new_heading="Feature v1",
+                user_heading="Feature v1",
             )
             result = migrate_kit("sdlc", ref_dir, config_kit, interactive=False)
             self.assertEqual(result["status"], "current")
@@ -1161,6 +1163,12 @@ class TestCmdKitMigrate(unittest.TestCase):
         from cypilot.utils import toml_utils
         with TemporaryDirectory() as td:
             root, adapter, kit_slug = self._setup_migrate_project(Path(td), ref_ver=1, user_ver=1)
+            # Copy reference blueprints to user config so merge finds no changes
+            import shutil
+            ref_bp = adapter / "kits" / kit_slug / "blueprints"
+            user_bp = adapter / "config" / "kits" / kit_slug / "blueprints"
+            if ref_bp.is_dir() and not user_bp.is_dir():
+                shutil.copytree(ref_bp, user_bp)
             cwd = os.getcwd()
             try:
                 os.chdir(str(root))
@@ -1907,18 +1915,21 @@ class TestReferenceGuidedNormalization(unittest.TestCase):
         from cypilot.commands.kit import _normalize_legacy_to_named
         legacy = '`@cpt:heading`\n```toml\nlevel = 1\ntemplate = "Title"\n```\n`@/cpt:heading`\n'
         ref = '`@cpt:heading:my-title`\n```toml\nlevel = 1\ntemplate = "Title"\n```\n`@/cpt:heading:my-title`\n'
-        result = _normalize_legacy_to_named(legacy, ref)
+        result, details = _normalize_legacy_to_named(legacy, ref)
         self.assertIn("`@cpt:heading:my-title`", result)
         self.assertIn("`@/cpt:heading:my-title`", result)
+        self.assertEqual(len(details), 1)
+        self.assertEqual(list(details.values())[0], ("@cpt:heading", "@cpt:heading:my-title"))
 
     def test_prompt_without_toml(self):
         """Prompt marker with no TOML — gets ID from reference positionally."""
         from cypilot.commands.kit import _normalize_legacy_to_named
         legacy = '`@cpt:prompt`\nSome text\n`@/cpt:prompt`\n'
         ref = '`@cpt:prompt:overview`\nSome text\n`@/cpt:prompt:overview`\n'
-        result = _normalize_legacy_to_named(legacy, ref)
+        result, details = _normalize_legacy_to_named(legacy, ref)
         self.assertIn("`@cpt:prompt:overview`", result)
         self.assertIn("`@/cpt:prompt:overview`", result)
+        self.assertIn("prompt#0", details)
 
     def test_count_mismatch_skips_type(self):
         """When marker counts differ, normalization skips that type."""
@@ -1928,18 +1939,239 @@ class TestReferenceGuidedNormalization(unittest.TestCase):
             '`@cpt:rule:a`\n```toml\nkind = "a"\n```\nR1\n`@/cpt:rule:a`\n'
             '`@cpt:rule:b`\n```toml\nkind = "b"\n```\nR2\n`@/cpt:rule:b`\n'
         )
-        result = _normalize_legacy_to_named(legacy, ref)
+        result, details = _normalize_legacy_to_named(legacy, ref)
         # Should NOT upgrade (counts differ: 1 vs 2)
         self.assertIn("`@cpt:rule`", result)
         self.assertNotIn("`@cpt:rule:a`", result)
+        self.assertEqual(details, {})
 
     def test_already_named_not_touched(self):
         """Named markers in text are not double-upgraded."""
         from cypilot.commands.kit import _normalize_legacy_to_named
         text = '`@cpt:heading:title`\n```toml\nid = "title"\n```\nH\n`@/cpt:heading:title`\n'
         ref = '`@cpt:heading:title`\n```toml\nid = "title"\n```\nH\n`@/cpt:heading:title`\n'
-        result = _normalize_legacy_to_named(text, ref)
+        result, details = _normalize_legacy_to_named(text, ref)
         self.assertEqual(result, text)
+        self.assertEqual(details, {})
+
+
+# =========================================================================
+# _read_whatsnew / _show_whatsnew
+# =========================================================================
+
+class TestReadWhatsnew(unittest.TestCase):
+    """Tests for reading whatsnew entries from conf.toml."""
+
+    def test_read_whatsnew_valid(self):
+        from cypilot.commands.kit import _read_whatsnew
+        from cypilot.utils import toml_utils
+        with TemporaryDirectory() as td:
+            p = Path(td) / "conf.toml"
+            toml_utils.dump({
+                "version": 3,
+                "whatsnew": {
+                    "2": {"summary": "Change A", "details": "Details A"},
+                    "3": {"summary": "Change B", "details": "Details B"},
+                },
+            }, p)
+            result = _read_whatsnew(p)
+            self.assertEqual(len(result), 2)
+            self.assertIn(2, result)
+            self.assertIn(3, result)
+            self.assertEqual(result[2]["summary"], "Change A")
+            self.assertEqual(result[3]["details"], "Details B")
+
+    def test_read_whatsnew_missing_file(self):
+        from cypilot.commands.kit import _read_whatsnew
+        result = _read_whatsnew(Path("/nonexistent/conf.toml"))
+        self.assertEqual(result, {})
+
+    def test_read_whatsnew_no_section(self):
+        from cypilot.commands.kit import _read_whatsnew
+        from cypilot.utils import toml_utils
+        with TemporaryDirectory() as td:
+            p = Path(td) / "conf.toml"
+            toml_utils.dump({"version": 1}, p)
+            result = _read_whatsnew(p)
+            self.assertEqual(result, {})
+
+    def test_read_whatsnew_skips_invalid_keys(self):
+        from cypilot.commands.kit import _read_whatsnew
+        from cypilot.utils import toml_utils
+        with TemporaryDirectory() as td:
+            p = Path(td) / "conf.toml"
+            toml_utils.dump({
+                "version": 2,
+                "whatsnew": {
+                    "2": {"summary": "OK", "details": ""},
+                    "not_a_number": {"summary": "Bad", "details": ""},
+                },
+            }, p)
+            result = _read_whatsnew(p)
+            self.assertEqual(len(result), 1)
+            self.assertIn(2, result)
+
+
+class TestShowWhatsnew(unittest.TestCase):
+    """Tests for whatsnew display and prompting."""
+
+    def test_show_whatsnew_non_interactive(self):
+        from cypilot.commands.kit import _show_whatsnew
+        ref = {
+            2: {"summary": "Change A", "details": "- detail 1"},
+            3: {"summary": "Change B", "details": "- detail 2"},
+        }
+        err = io.StringIO()
+        with redirect_stderr(err):
+            result = _show_whatsnew("sdlc", ref, {}, interactive=False)
+        self.assertTrue(result)
+        output = err.getvalue()
+        self.assertIn("What's new", output)
+        self.assertIn("Change A", output)
+        self.assertIn("Change B", output)
+
+    def test_show_whatsnew_filters_by_user_keys(self):
+        """Only entries missing from user whatsnew are shown."""
+        from cypilot.commands.kit import _show_whatsnew
+        ref = {
+            2: {"summary": "Change A", "details": ""},
+            3: {"summary": "Change B", "details": ""},
+            4: {"summary": "Change C", "details": ""},
+        }
+        user = {2: {"summary": "Change A", "details": ""}}
+        err = io.StringIO()
+        with redirect_stderr(err):
+            _show_whatsnew("sdlc", ref, user, interactive=False)
+        output = err.getvalue()
+        self.assertNotIn("Change A", output)
+        self.assertIn("Change B", output)
+        self.assertIn("Change C", output)
+
+    def test_show_whatsnew_empty_returns_true(self):
+        from cypilot.commands.kit import _show_whatsnew
+        result = _show_whatsnew("sdlc", {}, {}, interactive=True)
+        self.assertTrue(result)
+
+    def test_show_whatsnew_all_seen_returns_true(self):
+        """All ref entries already in user → nothing to show."""
+        from cypilot.commands.kit import _show_whatsnew
+        same = {2: {"summary": "X", "details": ""}}
+        result = _show_whatsnew("sdlc", same, same, interactive=True)
+        self.assertTrue(result)
+
+    def test_show_whatsnew_interactive_enter_continues(self):
+        from cypilot.commands.kit import _show_whatsnew
+        ref = {2: {"summary": "X", "details": ""}}
+        err = io.StringIO()
+        with patch("builtins.input", return_value=""), redirect_stderr(err):
+            result = _show_whatsnew("sdlc", ref, {}, interactive=True)
+        self.assertTrue(result)
+
+    def test_show_whatsnew_interactive_q_aborts(self):
+        from cypilot.commands.kit import _show_whatsnew
+        ref = {2: {"summary": "X", "details": ""}}
+        err = io.StringIO()
+        with patch("builtins.input", return_value="q"), redirect_stderr(err):
+            result = _show_whatsnew("sdlc", ref, {}, interactive=True)
+        self.assertFalse(result)
+
+    def test_show_whatsnew_eof_aborts(self):
+        from cypilot.commands.kit import _show_whatsnew
+        ref = {2: {"summary": "X", "details": ""}}
+        err = io.StringIO()
+        with patch("builtins.input", side_effect=EOFError), redirect_stderr(err):
+            result = _show_whatsnew("sdlc", ref, {}, interactive=True)
+        self.assertFalse(result)
+
+
+class TestMigrateKitWhatsnew(unittest.TestCase):
+    """Tests for whatsnew integration in migrate_kit."""
+
+    def _setup_kit_with_whatsnew(self, td_p, ref_ver=2, user_ver=1):
+        root = td_p / "proj"
+        adapter = _bootstrap_project(root)
+        from cypilot.utils import toml_utils
+
+        bp = '`@cpt:blueprint`\n```toml\nartifact = "FEAT"\n```\n`@/cpt:blueprint`\n'
+
+        ref_dir = adapter / "kits" / "sdlc"
+        ref_bp = ref_dir / "blueprints"
+        ref_bp.mkdir(parents=True)
+        (ref_bp / "FEAT.md").write_text(bp, encoding="utf-8")
+        toml_utils.dump({
+            "version": ref_ver,
+            "whatsnew": {
+                str(ref_ver): {"summary": "Test change", "details": "- some detail"},
+            },
+        }, ref_dir / "conf.toml")
+
+        prev_bp = ref_dir / ".prev" / "blueprints"
+        prev_bp.mkdir(parents=True)
+        (prev_bp / "FEAT.md").write_text(bp, encoding="utf-8")
+
+        config_kit = adapter / "config" / "kits" / "sdlc"
+        user_bp = config_kit / "blueprints"
+        user_bp.mkdir(parents=True)
+        (user_bp / "FEAT.md").write_text(bp, encoding="utf-8")
+        toml_utils.dump({"version": user_ver}, config_kit / "conf.toml")
+
+        return root, adapter, ref_dir, config_kit
+
+    def test_migrate_shows_whatsnew_and_continues(self):
+        """Interactive migration: user presses Enter → migration proceeds."""
+        from cypilot.commands.kit import migrate_kit
+        with TemporaryDirectory() as td:
+            _, _, ref_dir, config_kit = self._setup_kit_with_whatsnew(Path(td))
+            err = io.StringIO()
+            with patch("builtins.input", return_value=""), redirect_stderr(err):
+                result = migrate_kit("sdlc", ref_dir, config_kit, interactive=True)
+            self.assertEqual(result["status"], "migrated")
+            self.assertIn("Test change", err.getvalue())
+
+    def test_migrate_whatsnew_abort(self):
+        """Interactive migration: user types 'q' → migration aborted."""
+        from cypilot.commands.kit import migrate_kit
+        with TemporaryDirectory() as td:
+            _, _, ref_dir, config_kit = self._setup_kit_with_whatsnew(Path(td))
+            err = io.StringIO()
+            with patch("builtins.input", return_value="q"), redirect_stderr(err):
+                result = migrate_kit("sdlc", ref_dir, config_kit, interactive=True)
+            self.assertEqual(result["status"], "aborted")
+
+    def test_migrate_whatsnew_auto_approve_skips_prompt(self):
+        """auto_approve=True skips whatsnew prompt."""
+        from cypilot.commands.kit import migrate_kit
+        with TemporaryDirectory() as td:
+            _, _, ref_dir, config_kit = self._setup_kit_with_whatsnew(Path(td))
+            err = io.StringIO()
+            with redirect_stderr(err):
+                result = migrate_kit("sdlc", ref_dir, config_kit,
+                                     interactive=True, auto_approve=True)
+            self.assertEqual(result["status"], "migrated")
+            # Whatsnew still displayed even with auto_approve
+            self.assertIn("Test change", err.getvalue())
+
+    def test_migrate_no_whatsnew_no_prompt(self):
+        """No whatsnew section in conf.toml → no prompt, migration proceeds."""
+        from cypilot.commands.kit import migrate_kit
+        from cypilot.utils import toml_utils
+        with TemporaryDirectory() as td:
+            _, _, ref_dir, config_kit = self._setup_kit_with_whatsnew(Path(td))
+            # Overwrite conf.toml without whatsnew
+            toml_utils.dump({"version": 2}, ref_dir / "conf.toml")
+            result = migrate_kit("sdlc", ref_dir, config_kit, interactive=True)
+            self.assertEqual(result["status"], "migrated")
+
+    def test_migrate_non_interactive_shows_whatsnew_no_prompt(self):
+        """Non-interactive migration shows whatsnew but doesn't prompt."""
+        from cypilot.commands.kit import migrate_kit
+        with TemporaryDirectory() as td:
+            _, _, ref_dir, config_kit = self._setup_kit_with_whatsnew(Path(td))
+            err = io.StringIO()
+            with redirect_stderr(err):
+                result = migrate_kit("sdlc", ref_dir, config_kit, interactive=False)
+            self.assertEqual(result["status"], "migrated")
+            self.assertIn("Test change", err.getvalue())
 
 
 if __name__ == "__main__":

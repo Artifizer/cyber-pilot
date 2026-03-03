@@ -906,7 +906,7 @@ def _upgrade_legacy_tags(merged_parts: List[tuple]) -> tuple:
     return result, upgraded, upgraded_details
 
 
-def _normalize_legacy_to_named(text: str, reference_text: str = "") -> str:
+def _normalize_legacy_to_named(text: str, reference_text: str = "") -> tuple:
     """Upgrade legacy @cpt:TYPE tags to @cpt:TYPE:ID in text for merge normalization.
 
     When reference_text is provided, uses positional matching within each marker
@@ -914,13 +914,16 @@ def _normalize_legacy_to_named(text: str, reference_text: str = "") -> str:
     This handles all marker types, including those without derivable TOML IDs.
 
     Falls back to TOML-based derivation when reference is not available.
+
+    Returns (normalized_text, upgraded_details) where upgraded_details maps
+    marker_key -> (old_tag, new_tag).
     """
     if not reference_text:
         segments = _parse_segments(text)
         parts = [(seg.raw, seg.marker_key if seg.kind == "marker" else None)
                  for seg in segments]
-        normalized, _ = _upgrade_legacy_tags(parts)
-        return "".join(p[0] for p in normalized)
+        normalized, _, upg_details = _upgrade_legacy_tags(parts)
+        return "".join(p[0] for p in normalized), upg_details
 
     text_segments = _parse_segments(text)
     ref_segments = _parse_segments(reference_text)
@@ -948,6 +951,7 @@ def _normalize_legacy_to_named(text: str, reference_text: str = "") -> str:
 
     # Rewrite tags in text segments
     result_parts: List[str] = []
+    norm_details: Dict[str, tuple] = {}  # key → (old_tag, new_tag)
     for seg in text_segments:
         if seg.kind != "marker" or id(seg) not in upgrade_map:
             result_parts.append(seg.raw)
@@ -966,8 +970,12 @@ def _normalize_legacy_to_named(text: str, reference_text: str = "") -> str:
             raw, count=1, flags=re.MULTILINE,
         )
         result_parts.append(raw)
+        norm_details[seg.marker_key] = (
+            f"@cpt:{mtype}",
+            f"@cpt:{mtype}:{new_id}",
+        )
 
-    return "".join(result_parts)
+    return "".join(result_parts), norm_details
 
 
 def _prompt_confirm(message: str, state: Dict[str, bool]) -> str:
@@ -1052,8 +1060,8 @@ def _three_way_merge_blueprint(
     """
     # Normalize legacy markers to named syntax before comparison.
     # Uses new_ref as positional guide so ALL marker types get correct IDs.
-    old_ref_text = _normalize_legacy_to_named(old_ref_text, new_ref_text)
-    user_text = _normalize_legacy_to_named(user_text, new_ref_text)
+    old_ref_text, _ = _normalize_legacy_to_named(old_ref_text, new_ref_text)
+    user_text, norm_upgraded_details = _normalize_legacy_to_named(user_text, new_ref_text)
 
     # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-parse-three
     old_segments = _parse_segments(old_ref_text)
@@ -1227,7 +1235,8 @@ def _three_way_merge_blueprint(
         "ref_removed_details": ref_removed_details,
         "removed": [k for k in ref_removed if k in remove_keys],
         "kept": kept, "inserted": inserted,
-        "upgraded": upgraded, "upgraded_details": upgraded_details,
+        "upgraded": upgraded or list(norm_upgraded_details),
+        "upgraded_details": {**norm_upgraded_details, **upgraded_details},
     }
     return merged_text, report
     # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-return-merge
@@ -1267,6 +1276,70 @@ def _read_conf_version(conf_path: Path) -> int:
     except Exception:
         return 0
     # @cpt-end:cpt-cypilot-algo-blueprint-system-conf-toml-helpers:p1:inst-read-version
+
+
+def _read_whatsnew(conf_path: Path) -> Dict[int, Dict[str, str]]:
+    """Read [whatsnew] section from conf.toml.
+
+    Returns dict mapping version (int) to {summary, details}.
+    """
+    data = _read_conf_toml(conf_path)
+    raw = data.get("whatsnew", {})
+    result: Dict[int, Dict[str, str]] = {}
+    for key, entry in raw.items():
+        try:
+            ver = int(key)
+        except (ValueError, TypeError):
+            continue
+        if isinstance(entry, dict):
+            result[ver] = {
+                "summary": str(entry.get("summary", "")),
+                "details": str(entry.get("details", "")),
+            }
+    return result
+
+
+def _show_whatsnew(
+    kit_slug: str,
+    ref_whatsnew: Dict[int, Dict[str, str]],
+    user_whatsnew: Dict[int, Dict[str, str]],
+    *,
+    interactive: bool = True,
+) -> bool:
+    """Display whatsnew entries present in ref but missing from user config.
+
+    Compares ref vs user whatsnew keys; shows only entries the user hasn't seen.
+    Returns True if user acknowledged (or non-interactive), False if declined.
+    """
+    missing = sorted(
+        (v, ref_whatsnew[v]) for v in ref_whatsnew
+        if v not in user_whatsnew
+    )
+    if not missing:
+        return True
+
+    sys.stderr.write(f"\n{'=' * 60}\n")
+    sys.stderr.write(f"  What's new in kit '{kit_slug}'\n")
+    sys.stderr.write(f"{'=' * 60}\n")
+
+    for ver, entry in missing:
+        sys.stderr.write(f"\n  \033[1mv{ver}: {entry['summary']}\033[0m\n")
+        if entry["details"]:
+            for line in entry["details"].splitlines():
+                sys.stderr.write(f"    {line}\n")
+
+    sys.stderr.write(f"\n{'=' * 60}\n")
+
+    if not interactive:
+        return True
+
+    sys.stderr.write("  Press Enter to continue with migration (or 'q' to abort): ")
+    sys.stderr.flush()
+    try:
+        response = input().strip().lower()
+    except EOFError:
+        return False
+    return response != "q"
 
 
 def update_kit(
@@ -1436,13 +1509,19 @@ def migrate_kit(
     except (ValueError, TypeError):
         user_kit_ver = 0
 
-    if ref_kit_ver <= user_kit_ver:
-        # Clean up stale .prev/ if left by update_kit (no migration needed)
-        if not dry_run:
-            prev_dir = ref_dir / ".prev"
-            if prev_dir.is_dir():
-                shutil.rmtree(prev_dir)
-        return {"kit": kit_slug, "status": "current"}
+    version_bump = ref_kit_ver > user_kit_ver
+
+    # Show whatsnew before migration starts
+    if version_bump and not dry_run:
+        ref_whatsnew = _read_whatsnew(ref_dir / "conf.toml")
+        user_whatsnew = _read_whatsnew(config_kit_dir / "conf.toml")
+        if ref_whatsnew:
+            ack = _show_whatsnew(
+                kit_slug, ref_whatsnew, user_whatsnew,
+                interactive=interactive and not auto_approve,
+            )
+            if not ack:
+                return {"kit": kit_slug, "status": "aborted"}
 
     # Directories
     ref_bp_dir = ref_dir / "blueprints"
@@ -1514,15 +1593,42 @@ def migrate_kit(
             if interactive and not dry_run:
                 upd_details = report.get("updated_details", {})
                 skip_details = report.get("skipped_details", {})
+                n_upd = len(report["updated"])
+                n_ins = len(report.get("inserted", []))
+                n_skip = len(report["skipped"])
+                n_del = len(report.get("deleted", []))
+                n_rem = len(report.get("ref_removed", []))
+                syntax_only = (
+                    text_changed
+                    and not n_upd and not n_ins
+                    and not n_skip and not n_del and not n_rem
+                )
+
+                # Syntax-only upgrade: auto-apply, just log
+                if syntax_only:
+                    sys.stderr.write(f"\n  [{kit_slug}] {bp_name}: syntax upgrade\n")
+                    upg_details = report.get("upgraded_details", {})
+                    for k in report.get("upgraded", []):
+                        if k in upg_details:
+                            old_tag, new_tag = upg_details[k]
+                            sys.stderr.write(f"      {old_tag} → {new_tag}\n")
+                    bp_report["action"] = "merged"
+                    bp_report["markers_upgraded"] = True
+                    user_bp_dir.mkdir(parents=True, exist_ok=True)
+                    user_file.write_text(merged_text, encoding="utf-8")
+                    bp_results.append(bp_report)
+                    continue
+
+                # Content changes: show diffs, prompt
                 sys.stderr.write(f"\n  [{kit_slug}] {bp_name}:\n")
 
-                if text_changed and not report["updated"] and not report.get("inserted"):
-                    sys.stderr.write("    syntax upgrade (legacy → named markers):\n")
                 upg_details = report.get("upgraded_details", {})
-                for k in report.get("upgraded", []):
-                    if k in upg_details:
-                        old_tag, new_tag = upg_details[k]
-                        sys.stderr.write(f"      {old_tag} → {new_tag}\n")
+                if report.get("upgraded"):
+                    sys.stderr.write("    syntax upgrade (legacy → named markers):\n")
+                    for k in report["upgraded"]:
+                        if k in upg_details:
+                            old_tag, new_tag = upg_details[k]
+                            sys.stderr.write(f"      {old_tag} → {new_tag}\n")
                 for k in report["updated"]:
                     sys.stderr.write(f"    ✎ {k} — updated from reference\n")
                     if k in upd_details:
@@ -1553,11 +1659,6 @@ def migrate_kit(
 
                 # Build context-aware prompt
                 actions = []
-                n_upd = len(report["updated"])
-                n_ins = len(report.get("inserted", []))
-                n_skip = len(report["skipped"])
-                n_del = len(report.get("deleted", []))
-                n_rem = len(report.get("ref_removed", []))
                 if n_upd:
                     actions.append(f"update {n_upd}")
                 if n_ins:
@@ -1568,8 +1669,6 @@ def migrate_kit(
                     actions.append(f"restore {n_del} deleted")
                 if n_rem:
                     actions.append(f"remove {n_rem} obsolete")
-                if text_changed and not n_upd and not n_ins:
-                    actions.append("upgrade syntax")
                 prompt_msg = f"  {', '.join(actions)}?"
                 answer = _prompt_confirm(prompt_msg, apply_state)
                 if answer == "n":
@@ -1620,10 +1719,24 @@ def migrate_kit(
 
             bp_results.append(bp_report)
 
+    # Check if any changes were detected (merged, created, or declined)
+    has_content_changes = any(
+        r.get("action") in ("merged", "created", "declined")
+        for r in bp_results
+    )
+
+    if not has_content_changes and not version_bump:
+        # No content changes and no version bump — clean up .prev/ and return current
+        if not dry_run:
+            prev_dir = ref_dir / ".prev"
+            if prev_dir.is_dir():
+                shutil.rmtree(prev_dir)
+        return {"kit": kit_slug, "status": "current"}
+
     kit_ver_label = f"v{user_kit_ver} → v{ref_kit_ver}"
 
-    # Update config conf.toml to match reference
-    if not dry_run:
+    # Update config conf.toml only on version bump
+    if version_bump and not dry_run:
         ref_conf_file = ref_dir / "conf.toml"
         user_conf_file = config_kit_dir / "conf.toml"
         if ref_conf_file.is_file():
@@ -1739,13 +1852,16 @@ def cmd_kit_migrate(argv: List[str]) -> int:
 
     # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-migrate:p1:inst-return-migrate-ok
     migrated_count = sum(1 for r in results if r["status"] == "migrated")
+    aborted_count = sum(1 for r in results if r["status"] == "aborted")
     has_failures = any(r["status"] == "FAIL" for r in results)
     output: Dict[str, Any] = {
-        "status": "FAIL" if has_failures else "PASS",
+        "status": "FAIL" if has_failures else ("ABORTED" if aborted_count and not migrated_count else "PASS"),
         "kits_migrated": migrated_count,
-        "kits_current": len(results) - migrated_count,
+        "kits_current": len(results) - migrated_count - aborted_count,
         "results": results,
     }
+    if aborted_count:
+        output["kits_aborted"] = aborted_count
     if args.dry_run:
         output["dry_run"] = True
 
