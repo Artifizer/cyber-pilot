@@ -2,7 +2,7 @@
 # Bump `version` when any blueprint or script changes.
 # Migration is triggered by kit-level version drift only.
 
-version = 4
+version = 5
 slug = "sdlc"
 name = "Cypilot SDLC Kit"
 
@@ -31,4 +31,10 @@ details = """\
 - Interactive prompt per blueprint file: y/N/all (approve remaining)
 - Customized markers highlighted separately with your version vs reference
 - Syntax-only upgrades (legacy → named) auto-applied without prompting\
+"""
+
+[whatsnew.5]
+summary = "Fix legacy checklist_epilogue marker in CODEBASE blueprint"
+details = """\
+- Renamed `@cpt:checklist_epilogue` → `@cpt:checklist_epilogue:default` for stable merge identity\
 """
