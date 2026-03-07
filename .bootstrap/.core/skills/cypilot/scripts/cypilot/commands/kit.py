@@ -1,40 +1,27 @@
 """
 Kit Management Commands
 
-Provides CLI handlers for kit install, kit update, and generate-resources.
-
-@cpt-flow:cpt-cypilot-flow-blueprint-system-kit-install:p1
-@cpt-flow:cpt-cypilot-flow-blueprint-system-kit-update:p1
-@cpt-flow:cpt-cypilot-flow-blueprint-system-generate-resources:p1
-@cpt-flow:cpt-cypilot-flow-blueprint-system-validate-kits:p1
-@cpt-dod:cpt-cypilot-dod-blueprint-system-kit-install:p1
-@cpt-dod:cpt-cypilot-dod-blueprint-system-kit-update:p1
-@cpt-dod:cpt-cypilot-dod-blueprint-system-validate-kits:p1
-@cpt-dod:cpt-cypilot-dod-blueprint-system-kit-migrate:p1
-@cpt-state:cpt-cypilot-state-blueprint-system-kit-install:p1
+Provides CLI handlers for kit install and kit update.
+Kits are direct file packages — no blueprint processing or generation.
 """
 
 import argparse
-import json
-import os
-import re
 import shutil
-import subprocess
 import sys
-import tempfile
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from ..utils.ui import ui
 
-# Subdirectories to copy from kit source (reference + install)
-KIT_COPY_SUBDIRS = ["blueprints", "scripts"]
-
 # ---------------------------------------------------------------------------
 # Config seeding — copy default .toml configs from kit scripts to config/
-# @cpt-algo:cpt-cypilot-algo-blueprint-system-seed-configs:p1
 # ---------------------------------------------------------------------------
+
+# Directories and files that constitute kit content (copied to config/kits/{slug}/)
+_KIT_CONTENT_DIRS = ("artifacts", "codebase", "scripts", "workflows")
+_KIT_CONTENT_FILES = ("constraints.toml", "SKILL.md", "AGENTS.md")
+# Infrastructure file — copied but not subject to interactive diff
+_KIT_CONF_FILE = "conf.toml"
 
 _CONFIG_EXTENSIONS = {".toml"}
 
@@ -48,21 +35,18 @@ def _seed_kit_config_files(
     Only seeds files that don't already exist in config/ — never overwrites
     user-editable config.
     """
+    # @cpt-begin:cpt-cypilot-algo-kit-content-mgmt:p1:inst-seed-configs
     config_dir.mkdir(parents=True, exist_ok=True)
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-seed-configs:p1:inst-foreach-toml
     for src in gen_scripts_dir.iterdir():
         if src.is_file() and src.suffix in _CONFIG_EXTENSIONS:
             dst = config_dir / src.name
-            # @cpt-begin:cpt-cypilot-algo-blueprint-system-seed-configs:p1:inst-seed-if-missing
             if not dst.exists():
                 shutil.copy2(src, dst)
                 actions[f"config_{src.stem}"] = "seeded"
-            # @cpt-end:cpt-cypilot-algo-blueprint-system-seed-configs:p1:inst-seed-if-missing
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-seed-configs:p1:inst-foreach-toml
+    # @cpt-end:cpt-cypilot-algo-kit-content-mgmt:p1:inst-seed-configs
 
 # ---------------------------------------------------------------------------
 # Shared CLI helper — resolve project root + cypilot directory
-# @cpt-algo:cpt-cypilot-algo-blueprint-system-resolve-dir:p1
 # ---------------------------------------------------------------------------
 
 def _resolve_cypilot_dir() -> Optional[tuple]:
@@ -72,337 +56,383 @@ def _resolve_cypilot_dir() -> Optional[tuple]:
     """
     from ..utils.files import find_project_root, _read_cypilot_var
 
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-resolve-dir:p1:inst-find-root
     project_root = find_project_root(Path.cwd())
     if project_root is None:
         ui.result({"status": "ERROR", "message": "No project root found"})
         return None
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-resolve-dir:p1:inst-find-root
 
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-resolve-dir:p1:inst-read-cypilot-var
     cypilot_rel = _read_cypilot_var(project_root)
     if not cypilot_rel:
         ui.result({"status": "ERROR", "message": "No cypilot directory"})
         return None
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-resolve-dir:p1:inst-read-cypilot-var
 
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-resolve-dir:p1:inst-resolve-abs
     cypilot_dir = (project_root / cypilot_rel).resolve()
     return project_root, cypilot_dir
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-resolve-dir:p1:inst-resolve-abs
 
 # ---------------------------------------------------------------------------
-# Shared helper — write per-kit SKILL.md + workflow files into .gen/
-# @cpt-algo:cpt-cypilot-algo-blueprint-system-write-gen-outputs:p1
+# Kit content helpers — copy specific dirs/files, collect metadata for .gen/
 # ---------------------------------------------------------------------------
 
-def _write_kit_gen_outputs(
-    kit_slug: str,
-    summary: Dict[str, Any],
-    gen_kits_dir: Path,
-) -> Dict[str, Any]:
-    """Write per-kit SKILL.md and workflow .md files into config/kits/{slug}/.
+# @cpt-algo:cpt-cypilot-algo-kit-content-mgmt:p1
+def _copy_kit_content(
+    kit_source: Path,
+    config_kit_dir: Path,
+) -> Dict[str, str]:
+    """Copy kit content items from *kit_source* → *config_kit_dir*.
 
-    Returns dict with keys: skill_nav (str or ""), workflows_written (list).
+    Copies only the directories listed in ``_KIT_CONTENT_DIRS``, the files
+    listed in ``_KIT_CONTENT_FILES``, and the infra ``_KIT_CONF_FILE``.
+    Returns a dict of ``{item: action}`` entries.
     """
-    result: Dict[str, Any] = {"skill_nav": "", "workflows_written": []}
+    # @cpt-begin:cpt-cypilot-algo-kit-content-mgmt:p1:inst-copy-content
+    actions: Dict[str, str] = {}
+    config_kit_dir.mkdir(parents=True, exist_ok=True)
 
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-write-gen-outputs:p1:inst-write-skill
-    skill_content = summary.get("skill_content", "")
-    if skill_content:
-        art_kinds = [k.upper() for k in summary.get("artifact_kinds", []) if k]
-        wf_names = [w["name"] for w in summary.get("workflows", []) if w.get("name")]
-        desc_parts: List[str] = []
-        if art_kinds:
-            desc_parts.append(f"Artifacts: {', '.join(art_kinds)}")
-        if wf_names:
-            desc_parts.append(f"Workflows: {', '.join(wf_names)}")
-        kit_description = "; ".join(desc_parts) if desc_parts else f"Kit {kit_slug}"
+    for d in _KIT_CONTENT_DIRS:
+        src = kit_source / d
+        dst = config_kit_dir / d
+        if src.is_dir():
+            if dst.exists():
+                shutil.rmtree(dst)
+            shutil.copytree(src, dst)
+            actions[d] = "copied"
 
-        gen_kit_skill_path = gen_kits_dir / kit_slug / "SKILL.md"
-        gen_kit_skill_path.parent.mkdir(parents=True, exist_ok=True)
-        gen_kit_skill_path.write_text(
-            f"---\nname: cypilot-{kit_slug}\n"
-            f"description: \"{kit_description}\"\n---\n\n"
-            f"# Cypilot Skill — Kit `{kit_slug}`\n\n"
-            f"Generated from kit `{kit_slug}` blueprints.\n\n"
-            + skill_content + "\n",
-            encoding="utf-8",
-        )
+    for f in _KIT_CONTENT_FILES:
+        src = kit_source / f
+        dst = config_kit_dir / f
+        if src.is_file():
+            shutil.copy2(src, dst)
+            actions[f] = "copied"
+
+    return actions
+    # @cpt-end:cpt-cypilot-algo-kit-content-mgmt:p1:inst-copy-content
+
+
+def _collect_kit_metadata(
+    config_kit_dir: Path,
+    kit_slug: str,
+) -> Dict[str, str]:
+    """Read installed kit files and return metadata for .gen/ aggregation.
+
+    Returns dict with:
+        skill_nav      — navigation line for ``.gen/SKILL.md``
+        agents_content — raw content of kit's AGENTS.md for ``.gen/AGENTS.md``
+    """
+    # @cpt-begin:cpt-cypilot-algo-kit-content-mgmt:p1:inst-collect-metadata
+    result: Dict[str, str] = {"skill_nav": "", "agents_content": ""}
+
+    skill_path = config_kit_dir / "SKILL.md"
+    if skill_path.is_file():
         result["skill_nav"] = (
             f"ALWAYS invoke `{{cypilot_path}}/config/kits/{kit_slug}/SKILL.md` FIRST"
         )
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-write-gen-outputs:p1:inst-write-skill
 
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-write-gen-outputs:p1:inst-write-workflow
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-generate-workflows:p2:inst-write-workflow
-    for wf in summary.get("workflows", []):
-        wf_name = wf["name"]
-        wf_path = gen_kits_dir / kit_slug / "workflows" / f"{wf_name}.md"
-        wf_path.parent.mkdir(parents=True, exist_ok=True)
-        fm_lines = ["---", "cypilot: true", "type: workflow", f"name: cypilot-{wf_name}"]
-        if wf.get("description"):
-            fm_lines.append(f"description: {wf['description']}")
-        if wf.get("version"):
-            fm_lines.append(f"version: {wf['version']}")
-        if wf.get("purpose"):
-            fm_lines.append(f"purpose: {wf['purpose']}")
-        fm_lines.append("---")
-        wf_path.write_text(
-            "\n".join(fm_lines) + "\n\n" + wf["content"] + "\n",
-            encoding="utf-8",
-        )
-        result["workflows_written"].append(wf_name)
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-generate-workflows:p2:inst-write-workflow
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-write-gen-outputs:p1:inst-write-workflow
+    agents_path = config_kit_dir / "AGENTS.md"
+    if agents_path.is_file():
+        try:
+            result["agents_content"] = agents_path.read_text(encoding="utf-8")
+        except OSError:
+            pass
 
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-write-gen-outputs:p1:inst-return-gen-outputs
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-generate-workflows:p2:inst-return-workflows
     return result
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-generate-workflows:p2:inst-return-workflows
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-write-gen-outputs:p1:inst-return-gen-outputs
+    # @cpt-end:cpt-cypilot-algo-kit-content-mgmt:p1:inst-collect-metadata
+
+
+# ---------------------------------------------------------------------------
+# .gen/ aggregation — single source of truth for all callers
+# ---------------------------------------------------------------------------
+
+# @cpt-algo:cpt-cypilot-algo-kit-regen-gen:p1
+def regenerate_gen_aggregates(cypilot_dir: Path) -> Dict[str, Any]:
+    """Regenerate .gen/AGENTS.md, .gen/SKILL.md, .gen/README.md from all installed kits.
+
+    Scans config/kits/*/ for installed kits, collects metadata (skill_nav,
+    agents_content) from each, and writes the aggregate files into .gen/.
+
+    This is the canonical function — called by cmd_kit_install, cmd_kit_update,
+    cmd_init, and cmd_update.
+
+    Returns dict with keys: gen_agents, gen_skill, gen_readme (action strings).
+    """
+    config_dir = cypilot_dir / "config"
+    gen_dir = cypilot_dir / ".gen"
+    gen_dir.mkdir(parents=True, exist_ok=True)
+
+    result: Dict[str, Any] = {}
+
+    # @cpt-begin:cpt-cypilot-algo-kit-regen-gen:p1:inst-scan-kits
+    # Collect metadata from all installed kits
+    gen_skill_nav_parts: List[str] = []
+    gen_agents_parts: List[str] = []
+    config_kits_dir = config_dir / "kits"
+    if config_kits_dir.is_dir():
+        for kit_dir in sorted(config_kits_dir.iterdir()):
+            if not kit_dir.is_dir():
+                continue
+            # @cpt-begin:cpt-cypilot-algo-kit-regen-gen:p1:inst-collect-all-metadata
+            meta = _collect_kit_metadata(kit_dir, kit_dir.name)
+            if meta["skill_nav"]:
+                gen_skill_nav_parts.append(meta["skill_nav"])
+            if meta["agents_content"]:
+                gen_agents_parts.append(meta["agents_content"])
+            # @cpt-end:cpt-cypilot-algo-kit-regen-gen:p1:inst-collect-all-metadata
+    # @cpt-end:cpt-cypilot-algo-kit-regen-gen:p1:inst-scan-kits
+
+    # @cpt-begin:cpt-cypilot-algo-kit-regen-gen:p1:inst-read-project-name
+    # Read project name from core.toml
+    project_name = _read_project_name_from_core(config_dir) or "Cypilot"
+    # @cpt-end:cpt-cypilot-algo-kit-regen-gen:p1:inst-read-project-name
+
+    # @cpt-begin:cpt-cypilot-algo-kit-regen-gen:p1:inst-write-gen-agents
+    # Write .gen/AGENTS.md
+    kit_id = "cypilot-sdlc"
+    artifacts_when = (
+        f"ALWAYS open and follow `{{cypilot_path}}/config/artifacts.toml` "
+        f"WHEN Cypilot uses kit `{kit_id}` for artifact kinds: "
+        f"PRD, DESIGN, DECOMPOSITION, ADR, FEATURE OR codebase"
+    )
+    gen_agents_content = "\n".join([
+        f"# Cypilot: {project_name}",
+        "",
+        "## Navigation Rules",
+        "",
+        "ALWAYS open and follow `{cypilot_path}/.core/schemas/artifacts.schema.json` WHEN working with artifacts.toml",
+        "",
+        "ALWAYS open and follow `{cypilot_path}/.core/architecture/specs/artifacts-registry.md` WHEN working with artifacts.toml",
+        "",
+        artifacts_when,
+        "",
+    ])
+    if gen_agents_parts:
+        gen_agents_content = gen_agents_content.rstrip() + "\n\n" + "\n\n".join(gen_agents_parts) + "\n"
+    (gen_dir / "AGENTS.md").write_text(gen_agents_content, encoding="utf-8")
+    result["gen_agents"] = "updated"
+    # @cpt-end:cpt-cypilot-algo-kit-regen-gen:p1:inst-write-gen-agents
+
+    # @cpt-begin:cpt-cypilot-algo-kit-regen-gen:p1:inst-write-gen-skill
+    # Write .gen/SKILL.md
+    nav_rules = "\n\n".join(gen_skill_nav_parts) if gen_skill_nav_parts else ""
+    (gen_dir / "SKILL.md").write_text(
+        "# Cypilot Generated Skills\n\n"
+        "This file routes to per-kit skill instructions.\n\n"
+        + (nav_rules + "\n" if nav_rules else ""),
+        encoding="utf-8",
+    )
+    result["gen_skill"] = "updated"
+    # @cpt-end:cpt-cypilot-algo-kit-regen-gen:p1:inst-write-gen-skill
+
+    # @cpt-begin:cpt-cypilot-algo-kit-regen-gen:p1:inst-write-gen-readme
+    # Write .gen/README.md
+    from .init import _gen_readme
+    (gen_dir / "README.md").write_text(_gen_readme(), encoding="utf-8")
+    result["gen_readme"] = "updated"
+    # @cpt-end:cpt-cypilot-algo-kit-regen-gen:p1:inst-write-gen-readme
+
+    return result
+
+
+def _read_project_name_from_core(config_dir: Path) -> Optional[str]:
+    """Read project name from config/core.toml [system].name."""
+    core_toml = config_dir / "core.toml"
+    if not core_toml.is_file():
+        return None
+    try:
+        import tomllib
+        with open(core_toml, "rb") as f:
+            data = tomllib.load(f)
+        system = data.get("system", {})
+        if isinstance(system, dict):
+            name = system.get("name")
+            if isinstance(name, str) and name.strip():
+                return name.strip()
+    except Exception as exc:
+        sys.stderr.write(f"kit: warning: cannot read project name from {core_toml}: {exc}\n")
+    return None
+
 
 # ---------------------------------------------------------------------------
 # Core kit installation logic (used by both cmd_kit_install and init)
 # ---------------------------------------------------------------------------
 
+# @cpt-dod:cpt-cypilot-dod-kit-install:p1
+# @cpt-state:cpt-cypilot-state-kit-installation:p1
+# @cpt-algo:cpt-cypilot-algo-kit-install:p1
 def install_kit(
     kit_source: Path,
     cypilot_dir: Path,
     kit_slug: str,
     kit_version: str = "",
 ) -> Dict[str, Any]:
-    """Install a kit: copy blueprints+scripts, process, generate outputs.
+    """Install a kit: copy ready files from source into config/kits/{slug}/.
 
-    Copies only blueprints/ and scripts/ from kit_source.
+    Kits are direct file packages — no blueprint processing.
     Caller is responsible for validation and dry-run checks.
 
     Args:
-        kit_source: Kit source directory (must contain blueprints/).
+        kit_source: Kit source directory.
         cypilot_dir: Resolved project cypilot directory.
         kit_slug: Kit identifier.
         kit_version: Kit version string.
 
     Returns:
-        Dict with: status, kit, version, files_written, artifact_kinds,
-        errors, actions, skill_nav, sysprompt_content.
+        Dict with: status, kit, version, files_copied,
+        errors, actions, skill_nav, agents_content.
     """
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-install:p1:inst-ask-config-dir
     config_dir = cypilot_dir / "config"
-    user_kit_dir = cypilot_dir / "kits" / kit_slug
-    user_bp_dir = user_kit_dir / "blueprints"
     config_kits_dir = config_dir / "kits"
     config_kit_dir = config_kits_dir / kit_slug
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-install:p1:inst-ask-config-dir
-    blueprints_dir = kit_source / "blueprints"
-    scripts_dir = kit_source / "scripts"
 
     actions: Dict[str, str] = {}
     errors: List[str] = []
 
-    if not blueprints_dir.is_dir():
+    # @cpt-begin:cpt-cypilot-algo-kit-install:p1:inst-validate-source
+    if not kit_source.is_dir():
         return {
             "status": "FAIL",
             "kit": kit_slug,
-            "errors": [f"Kit source missing blueprints/: {kit_source}"],
+            "errors": [f"Kit source not found: {kit_source}"],
         }
+    # @cpt-end:cpt-cypilot-algo-kit-install:p1:inst-validate-source
 
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-install:p1:inst-copy-blueprints
-    # Copy blueprints to kits/{slug}/blueprints/ (user-editable)
-    if user_bp_dir.exists():
-        shutil.rmtree(user_bp_dir)
-    user_bp_dir.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(blueprints_dir, user_bp_dir)
-    actions["user_blueprints"] = "copied"
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-install:p1:inst-copy-blueprints
+    # @cpt-begin:cpt-cypilot-algo-kit-install:p1:inst-copy-content
+    # Copy kit content → config/kits/{slug}/
+    copy_actions = _copy_kit_content(kit_source, config_kit_dir)
+    actions.update(copy_actions)
+    # @cpt-end:cpt-cypilot-algo-kit-install:p1:inst-copy-content
 
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-install:p1:inst-copy-conf
-    # Copy conf.toml to kits/{slug}/ (version metadata only)
-    conf_src = kit_source / "conf.toml"
-    if conf_src.is_file():
-        user_kit_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(conf_src, user_kit_dir / "conf.toml")
-        actions["conf_toml"] = "copied"
-        if not kit_version:
-            kit_version = _read_kit_version(conf_src)
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-install:p1:inst-copy-conf
+    # @cpt-begin:cpt-cypilot-algo-kit-install:p1:inst-read-version
+    # Read version from source conf.toml (conf.toml is NOT copied into installed kit)
+    if not kit_version:
+        src_conf = kit_source / _KIT_CONF_FILE
+        if src_conf.is_file():
+            kit_version = _read_kit_version(src_conf)
+    # @cpt-end:cpt-cypilot-algo-kit-install:p1:inst-read-version
 
-    # Copy scripts to config/kits/{slug}/scripts/
+    # @cpt-begin:cpt-cypilot-algo-kit-install:p1:inst-seed-configs
+    # Seed kit config files into config/ (only if missing)
+    scripts_dir = config_kit_dir / "scripts"
     if scripts_dir.is_dir():
-        gen_kit_scripts = config_kit_dir / "scripts"
-        if gen_kit_scripts.exists():
-            shutil.rmtree(gen_kit_scripts)
-        config_kit_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(scripts_dir, gen_kit_scripts)
-        actions["gen_scripts"] = "copied"
+        _seed_kit_config_files(scripts_dir, config_dir, actions)
+    # @cpt-end:cpt-cypilot-algo-kit-install:p1:inst-seed-configs
 
-        # Seed kit config files into config/ (only if missing)
-        _seed_kit_config_files(gen_kit_scripts, config_dir, actions)
-
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-install:p1:inst-process-blueprints
-    # Process blueprints → generate resources into config/kits/{slug}/
-    from ..utils.blueprint import process_kit
-
-    summary, kit_errors = process_kit(
-        kit_slug, user_bp_dir, config_kits_dir, dry_run=False,
-    )
-    errors.extend(kit_errors)
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-install:p1:inst-process-blueprints
-
-    # Write per-kit SKILL.md + workflow files into config/kits/
-    gen_out = _write_kit_gen_outputs(kit_slug, summary, config_kits_dir)
-    skill_nav = gen_out["skill_nav"]
-    if skill_nav:
-        actions["gen_kit_skill"] = "created"
-    for wf_name in gen_out["workflows_written"]:
-        actions[f"gen_workflow_{wf_name}"] = "created"
-
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-install:p1:inst-register-kit
+    # @cpt-begin:cpt-cypilot-algo-kit-install:p1:inst-register-core
     # Register in core.toml
     _register_kit_in_core_toml(config_dir, kit_slug, kit_version, cypilot_dir)
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-install:p1:inst-register-kit
+    # @cpt-end:cpt-cypilot-algo-kit-install:p1:inst-register-core
+
+    # @cpt-begin:cpt-cypilot-algo-kit-install:p1:inst-collect-meta
+    # Collect metadata for .gen/ aggregation
+    meta = _collect_kit_metadata(config_kit_dir, kit_slug)
+    # @cpt-end:cpt-cypilot-algo-kit-install:p1:inst-collect-meta
+
+    # @cpt-begin:cpt-cypilot-algo-kit-install:p1:inst-return-result
+    files_copied = sum(1 for v in copy_actions.values() if v == "copied")
 
     return {
         "status": "PASS" if not errors else "WARN",
         "action": "installed",
         "kit": kit_slug,
         "version": kit_version,
-        "files_written": summary.get("files_written", 0),
-        "artifact_kinds": summary.get("artifact_kinds", []),
+        "files_copied": files_copied,
         "errors": errors,
-        "skill_nav": skill_nav,
-        "sysprompt_content": summary.get("sysprompt_content", ""),
+        "skill_nav": meta["skill_nav"],
+        "agents_content": meta["agents_content"],
         "actions": actions,
     }
+    # @cpt-end:cpt-cypilot-algo-kit-install:p1:inst-return-result
 
 # ---------------------------------------------------------------------------
 # Kit Install CLI
 # ---------------------------------------------------------------------------
 
+# @cpt-flow:cpt-cypilot-flow-kit-install-cli:p1
 def cmd_kit_install(argv: List[str]) -> int:
     """Install a kit from a local path.
 
-    Usage: cypilot kit install <path> [--force]
+    Delegates to install_kit() for the actual work, then regenerates
+    .gen/ aggregates.
+
+    Usage: cypilot kit install <path> [--force] [--dry-run]
     """
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-install:p1:inst-user-install
+    # @cpt-begin:cpt-cypilot-flow-kit-install-cli:p1:inst-parse-args
     p = argparse.ArgumentParser(prog="kit install", description="Install a kit package")
-    p.add_argument("path", help="Path to kit source directory (must contain blueprints/)")
+    p.add_argument("path", help="Path to kit source directory")
     p.add_argument("--force", action="store_true", help="Overwrite existing kit")
     p.add_argument("--dry-run", action="store_true", help="Show what would be done")
     args = p.parse_args(argv)
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-install:p1:inst-user-install
+    # @cpt-end:cpt-cypilot-flow-kit-install-cli:p1:inst-parse-args
 
-    from ..utils.blueprint import parse_blueprint
-    from ..utils.files import find_project_root, _read_cypilot_var
-
+    # @cpt-begin:cpt-cypilot-flow-kit-install-cli:p1:inst-validate-source
     kit_source = Path(args.path).resolve()
-    blueprints_dir = kit_source / "blueprints"
-
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-install:p1:inst-validate-source
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-install:p1:inst-if-invalid-source
-    if not blueprints_dir.is_dir():
+    if not kit_source.is_dir():
         ui.result({
             "status": "FAIL",
-            "message": f"Kit source missing blueprints/ directory: {kit_source}",
-            "hint": "Kit must contain a blueprints/ directory with at least one .md file",
+            "message": f"Kit source directory not found: {kit_source}",
+            "hint": "Provide a path to a valid kit directory",
         })
         return 2
+    # @cpt-end:cpt-cypilot-flow-kit-install-cli:p1:inst-validate-source
 
-    bp_files = list(blueprints_dir.glob("*.md"))
-    if not bp_files:
-        ui.result({
-            "status": "FAIL",
-            "message": f"No .md files in {blueprints_dir}",
-            "hint": "blueprints/ must contain at least one blueprint .md file",
-        })
-        return 2
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-install:p1:inst-if-invalid-source
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-install:p1:inst-validate-source
+    # @cpt-begin:cpt-cypilot-flow-kit-install-cli:p1:inst-read-slug-version
+    # Read slug and version from source conf.toml
+    kit_slug = _read_kit_slug(kit_source) or kit_source.name
+    kit_version = _read_kit_version(kit_source / _KIT_CONF_FILE) if (kit_source / _KIT_CONF_FILE).is_file() else ""
+    # @cpt-end:cpt-cypilot-flow-kit-install-cli:p1:inst-read-slug-version
 
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-install:p1:inst-extract-metadata
-    # Kit slug and version from conf.toml (single source of truth)
-    kit_slug = ""
-    kit_version = ""
-    conf_toml = kit_source / "conf.toml"
-    if conf_toml.is_file():
-        try:
-            import tomllib
-            with open(conf_toml, "rb") as f:
-                conf_data = tomllib.load(f)
-            slug = conf_data.get("slug")
-            if isinstance(slug, str) and slug.strip():
-                kit_slug = slug.strip()
-            ver = conf_data.get("version")
-            if ver is not None:
-                kit_version = str(ver)
-        except Exception as exc:
-            sys.stderr.write(f"kit-install: failed to read {conf_toml}: {exc}\n")
-
-    if not kit_slug:
-        kit_slug = kit_source.name
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-install:p1:inst-extract-metadata
-
-    project_root = find_project_root(Path.cwd())
-    if project_root is None:
-        ui.result({
-            "status": "ERROR",
-            "message": "No project root found",
-            "hint": "Run 'cypilot init' first",
-        })
+    # @cpt-begin:cpt-cypilot-flow-kit-install-cli:p1:inst-resolve-project
+    # Resolve project
+    resolved = _resolve_cypilot_dir()
+    if resolved is None:
         return 1
+    _, cypilot_dir = resolved
+    config_kit_dir = cypilot_dir / "config" / "kits" / kit_slug
+    # @cpt-end:cpt-cypilot-flow-kit-install-cli:p1:inst-resolve-project
 
-    cypilot_rel = _read_cypilot_var(project_root)
-    if not cypilot_rel:
-        ui.result({
-            "status": "ERROR",
-            "message": "No cypilot directory configured",
-            "hint": "Run 'cypilot init' first",
-        })
-        return 1
-
-    cypilot_dir = (project_root / cypilot_rel).resolve()
-    ref_dir = cypilot_dir / "kits" / kit_slug
-
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-install:p1:inst-if-already-registered
-    if ref_dir.exists() and not args.force:
+    # @cpt-begin:cpt-cypilot-flow-kit-install-cli:p1:inst-check-existing
+    if config_kit_dir.exists() and not args.force:
         ui.result({
             "status": "FAIL",
             "message": f"Kit '{kit_slug}' already installed",
             "hint": "Use --force to overwrite",
         })
         return 2
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-install:p1:inst-if-already-registered
+    # @cpt-end:cpt-cypilot-flow-kit-install-cli:p1:inst-check-existing
 
+    # @cpt-begin:cpt-cypilot-flow-kit-install-cli:p1:inst-dry-run
     if args.dry_run:
-        user_bp_dir = cypilot_dir / "kits" / kit_slug / "blueprints"
         ui.result({
             "status": "DRY_RUN",
             "kit": kit_slug,
             "version": kit_version,
             "source": kit_source.as_posix(),
-            "blueprints": user_bp_dir.as_posix(),
+            "target": config_kit_dir.as_posix(),
         })
         return 0
+    # @cpt-end:cpt-cypilot-flow-kit-install-cli:p1:inst-dry-run
 
+    # @cpt-begin:cpt-cypilot-flow-kit-install-cli:p1:inst-delegate-install
     result = install_kit(kit_source, cypilot_dir, kit_slug, kit_version)
+    # @cpt-end:cpt-cypilot-flow-kit-install-cli:p1:inst-delegate-install
 
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-install:p1:inst-return-install-ok
-    # @cpt-begin:cpt-cypilot-state-blueprint-system-kit-install:p1:inst-install-complete
+    # @cpt-begin:cpt-cypilot-flow-kit-install-cli:p1:inst-regen-gen
+    # Regenerate .gen/ aggregates
+    regenerate_gen_aggregates(cypilot_dir)
+    # @cpt-end:cpt-cypilot-flow-kit-install-cli:p1:inst-regen-gen
+
+    # @cpt-begin:cpt-cypilot-flow-kit-install-cli:p1:inst-output-result
     output: Dict[str, Any] = {
         "status": result["status"],
         "action": result.get("action", "installed"),
         "kit": kit_slug,
         "version": kit_version,
-        "files_written": result.get("files_written", 0),
-        "artifact_kinds": result.get("artifact_kinds", []),
+        "files_written": result.get("files_copied", 0),
     }
     if result.get("errors"):
         output["errors"] = result["errors"]
 
     ui.result(output, human_fn=lambda d: _human_kit_install(d))
     return 0
-    # @cpt-end:cpt-cypilot-state-blueprint-system-kit-install:p1:inst-install-complete
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-install:p1:inst-return-install-ok
+    # @cpt-end:cpt-cypilot-flow-kit-install-cli:p1:inst-output-result
 
 def _human_kit_install(data: dict) -> None:
     status = data.get("status", "")
@@ -417,8 +447,7 @@ def _human_kit_install(data: dict) -> None:
 
     if status == "DRY_RUN":
         ui.detail("Source", data.get("source", "?"))
-        ui.detail("Reference", data.get("reference", "?"))
-        ui.detail("Blueprints", data.get("blueprints", "?"))
+        ui.detail("Target", data.get("target", "?"))
         ui.success("Dry run — no files written.")
         ui.blank()
         return
@@ -451,118 +480,97 @@ def _human_kit_install(data: dict) -> None:
 # Kit Update
 # ---------------------------------------------------------------------------
 
+# @cpt-flow:cpt-cypilot-flow-kit-update-cli:p1
 def cmd_kit_update(argv: List[str]) -> int:
-    """Update installed kits.
+    """Update an installed kit from a source directory using file-level diff.
 
-    Usage: cypilot kit update [--force] [--kit SLUG]
+    Delegates to update_kit() which handles version check, first-install,
+    file-level diff, and core.toml registration.  After the kit update,
+    regenerates .gen/ aggregates.
+
+    Usage: cypilot kit update <path> [--force] [--dry-run] [--no-interactive] [-y]
     """
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-user-update
-    p = argparse.ArgumentParser(prog="kit update", description="Update installed kits")
-    p.add_argument("--kit", default=None, help="Kit slug to update (default: all)")
-    p.add_argument("--force", action="store_true", help="Force overwrite user blueprints")
+    # @cpt-begin:cpt-cypilot-flow-kit-update-cli:p1:inst-parse-args
+    p = argparse.ArgumentParser(prog="kit update", description="Update an installed kit")
+    p.add_argument("path", help="Path to kit source directory")
+    p.add_argument("--force", action="store_true",
+                   help="Skip version check and force update")
     p.add_argument("--dry-run", action="store_true", help="Show what would be done")
+    p.add_argument("--no-interactive", action="store_true",
+                   help="Disable interactive prompts (auto-decline changes)")
+    p.add_argument("-y", "--yes", action="store_true",
+                   help="Auto-approve all prompts (no interaction)")
     args = p.parse_args(argv)
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-user-update
+    # @cpt-end:cpt-cypilot-flow-kit-update-cli:p1:inst-parse-args
 
+    # @cpt-begin:cpt-cypilot-flow-kit-update-cli:p1:inst-validate-source
+    kit_source = Path(args.path).resolve()
+    if not kit_source.is_dir():
+        ui.result({
+            "status": "FAIL",
+            "message": f"Kit source directory not found: {kit_source}",
+            "hint": "Provide a path to a valid kit directory",
+        })
+        return 2
+    # @cpt-end:cpt-cypilot-flow-kit-update-cli:p1:inst-validate-source
+
+    # @cpt-begin:cpt-cypilot-flow-kit-update-cli:p1:inst-read-slug
+    # Read slug from source conf.toml
+    kit_slug = _read_kit_slug(kit_source) or kit_source.name
+    # @cpt-end:cpt-cypilot-flow-kit-update-cli:p1:inst-read-slug
+
+    # @cpt-begin:cpt-cypilot-flow-kit-update-cli:p1:inst-resolve-project
+    # Resolve project
     resolved = _resolve_cypilot_dir()
     if resolved is None:
         return 1
     _, cypilot_dir = resolved
-    config_dir = cypilot_dir / "config"
-    kits_user_dir = cypilot_dir / "kits"
-    config_kits_dir = config_dir / "kits"
+    # @cpt-end:cpt-cypilot-flow-kit-update-cli:p1:inst-resolve-project
 
-    if not kits_user_dir.is_dir():
-        ui.result({"status": "FAIL", "message": "No kits installed", "hint": "Run 'cypilot kit install <path>' first"})
-        return 2
+    # @cpt-begin:cpt-cypilot-flow-kit-update-cli:p1:inst-delegate-update
+    # Delegate to update_kit (handles version check, first-install, diff, core.toml)
+    interactive = not args.no_interactive and sys.stdin.isatty()
+    kit_r = update_kit(
+        kit_slug, kit_source, cypilot_dir,
+        dry_run=args.dry_run,
+        interactive=interactive,
+        auto_approve=args.yes,
+        force=args.force,
+    )
+    # @cpt-end:cpt-cypilot-flow-kit-update-cli:p1:inst-delegate-update
 
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-resolve-kits
-    if args.kit:
-        kit_dirs = [kits_user_dir / args.kit]
-        if not kit_dirs[0].is_dir():
-            ui.result({"status": "FAIL", "message": f"Kit '{args.kit}' not found in {kits_user_dir}"})
-            return 2
-    else:
-        kit_dirs = [d for d in sorted(kits_user_dir.iterdir()) if d.is_dir()]
+    # @cpt-begin:cpt-cypilot-flow-kit-update-cli:p1:inst-regen-gen
+    # Regenerate .gen/ aggregates (unless dry-run)
+    if not args.dry_run:
+        regenerate_gen_aggregates(cypilot_dir)
+    # @cpt-end:cpt-cypilot-flow-kit-update-cli:p1:inst-regen-gen
 
-    if not kit_dirs:
-        ui.result({"status": "FAIL", "message": "No kits found"})
-        return 2
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-resolve-kits
+    # @cpt-begin:cpt-cypilot-flow-kit-update-cli:p1:inst-format-output
+    # Format output from update_kit result
+    ver = kit_r.get("version", {})
+    ver_status = ver.get("status", "") if isinstance(ver, dict) else str(ver)
+    gen = kit_r.get("gen", {})
+    accepted = gen.get("accepted_files", []) if isinstance(gen, dict) else []
+    declined = kit_r.get("gen_rejected", [])
+    files_written = gen.get("files_written", 0) if isinstance(gen, dict) else 0
 
-    from ..utils.blueprint import process_kit
-
-    results: List[Dict[str, Any]] = []
-    all_errors: List[str] = []
-
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-foreach-kit
-    # @cpt-begin:cpt-cypilot-state-blueprint-system-kit-install:p1:inst-version-drift
-    for kit_dir in kit_dirs:
-        kit_slug = kit_dir.name
-
-        # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-load-new-source
-        user_bp_dir = kit_dir / "blueprints"
-
-        if not user_bp_dir.is_dir():
-            all_errors.append(f"Kit '{kit_slug}' has no blueprints/ in kits/{kit_slug}/")
-            continue
-        # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-load-new-source
-
-        # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-if-force
-        # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-force-overwrite
-        # Force mode handled by update_kit with auto_approve — standalone kit update
-        # just regenerates from current user blueprints
-        # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-force-overwrite
-        # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-if-force
-
-        # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-else-smart
-        # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-compare-hashes
-        # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-auto-update
-        # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-interactive-diff
-        # Hash-based customization detection delegated to update_kit in full update cycle;
-        # standalone kit update regenerates from current user blueprints.
-        # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-interactive-diff
-        # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-auto-update
-        # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-compare-hashes
-        # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-else-smart
-
-        # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-regenerate
-        if args.dry_run:
-            results.append({"kit": kit_slug, "action": "dry_run"})
-        else:
-            summary, errors = process_kit(
-                kit_slug, user_bp_dir, config_kits_dir, dry_run=False,
-            )
-            results.append({
-                "kit": kit_slug,
-                "action": "force_updated" if args.force else "regenerated",
-                "files_written": summary.get("files_written", 0),
-                "artifact_kinds": summary.get("artifact_kinds", []),
-            })
-            all_errors.extend(errors)
-        # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-regenerate
-    # @cpt-end:cpt-cypilot-state-blueprint-system-kit-install:p1:inst-version-drift
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-foreach-kit
-
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-update-version
-    # (version updated implicitly during process_kit regeneration)
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-update-version
-
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-return-update-ok
-    # @cpt-begin:cpt-cypilot-state-blueprint-system-kit-install:p1:inst-update-complete
-    overall = "PASS" if not all_errors else "WARN"
     output: Dict[str, Any] = {
-        "status": overall,
-        "kits_updated": len(results),
-        "results": results,
+        "status": "PASS",
+        "kits_updated": 1 if ver_status not in ("current", "dry_run") else 0,
+        "results": [{
+            "kit": kit_slug,
+            "action": ver_status,
+            "accepted": accepted,
+            "declined": declined,
+            "files_written": files_written,
+        }],
     }
-    if all_errors:
-        output["errors"] = all_errors
+    if ver_status == "current":
+        output["message"] = f"Kit '{kit_slug}' is already up to date"
 
     ui.result(output, human_fn=lambda d: _human_kit_update(d))
     return 0
-    # @cpt-end:cpt-cypilot-state-blueprint-system-kit-install:p1:inst-update-complete
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-update:p1:inst-return-update-ok
+    # @cpt-end:cpt-cypilot-flow-kit-update-cli:p1:inst-format-output
 
 def _human_kit_update(data: dict) -> None:
     status = data.get("status", "")
@@ -574,14 +582,21 @@ def _human_kit_update(data: dict) -> None:
     for r in data.get("results", []):
         kit_slug = r.get("kit", "?")
         action = r.get("action", "?")
-        fw = r.get("files_written")
-        kinds = r.get("artifact_kinds", [])
+        accepted = r.get("accepted", [])
+        declined = r.get("declined", [])
+        unchanged = r.get("unchanged", 0)
         parts = [f"{kit_slug}: {action}"]
-        if fw is not None:
-            parts.append(f"{fw} files")
-        if kinds:
-            parts.append(", ".join(kinds))
+        if accepted:
+            parts.append(f"{len(accepted)} accepted")
+        if declined:
+            parts.append(f"{len(declined)} declined")
+        if unchanged:
+            parts.append(f"{unchanged} unchanged")
         ui.step("  ".join(parts))
+        for fp in accepted:
+            ui.substep(f"  ~ {fp}")
+        for fp in declined:
+            ui.substep(f"  ✗ {fp} (declined)")
 
     errs = data.get("errors", [])
     if errs:
@@ -598,900 +613,12 @@ def _human_kit_update(data: dict) -> None:
     ui.blank()
 
 # ---------------------------------------------------------------------------
-# Generate Resources
-# ---------------------------------------------------------------------------
-
-def cmd_generate_resources(argv: List[str]) -> int:
-    """Regenerate kit resources from blueprints.
-
-    Usage: cypilot generate-resources [--kit SLUG]
-    """
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-generate-resources:p1:inst-user-generate
-    p = argparse.ArgumentParser(prog="generate-resources", description="Regenerate kit resources from blueprints")
-    p.add_argument("--kit", default=None, help="Kit slug (default: all)")
-    p.add_argument("--dry-run", action="store_true", help="Show what would be done")
-    p.add_argument("--no-interactive", action="store_true",
-                   help="Disable interactive prompts for generated output diff")
-    p.add_argument("-y", "--yes", action="store_true",
-                   help="Auto-approve all prompts (no interaction)")
-    args = p.parse_args(argv)
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-generate-resources:p1:inst-user-generate
-
-    resolved = _resolve_cypilot_dir()
-    if resolved is None:
-        return 1
-    _, cypilot_dir = resolved
-    config_dir = cypilot_dir / "config"
-    kits_user_dir = cypilot_dir / "kits"
-    config_kits_dir = config_dir / "kits"
-
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-generate-resources:p1:inst-resolve-gen-kits
-    if args.kit:
-        bp_dirs = [(args.kit, kits_user_dir / args.kit / "blueprints")]
-    else:
-        bp_dirs = []
-        if kits_user_dir.is_dir():
-            for kit_dir in sorted(kits_user_dir.iterdir()):
-                bp_dir = kit_dir / "blueprints"
-                if bp_dir.is_dir():
-                    bp_dirs.append((kit_dir.name, bp_dir))
-
-    if not bp_dirs:
-        ui.result({"status": "FAIL", "message": "No kits with blueprints found", "hint": "Run 'cypilot kit install <path>' first"})
-        return 2
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-generate-resources:p1:inst-resolve-gen-kits
-
-    from ..utils.blueprint import process_kit
-    from ..utils.diff_engine import snapshot_directory, interactive_review
-
-    interactive = not args.no_interactive and sys.stdin.isatty()
-    results: List[Dict[str, Any]] = []
-    all_errors: List[str] = []
-
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-generate-resources:p1:inst-foreach-gen-kit
-    for kit_slug, bp_dir in bp_dirs:
-        if not bp_dir.is_dir():
-            all_errors.append(f"Kit '{kit_slug}' blueprints directory not found: {bp_dir}")
-            continue
-
-        # @cpt-begin:cpt-cypilot-flow-blueprint-system-generate-resources:p1:inst-gen-process
-        # Snapshot current generated output for interactive diff
-        config_kit_dir = config_kits_dir / kit_slug
-        old_snapshot = snapshot_directory(config_kit_dir)
-
-        summary, errors = process_kit(
-            kit_slug, bp_dir, config_kits_dir, dry_run=args.dry_run,
-        )
-        kit_result: Dict[str, Any] = {
-            "kit": kit_slug,
-            "files_written": summary.get("files_written", 0),
-            "artifact_kinds": summary.get("artifact_kinds", []),
-        }
-
-        # Interactive review of generated output changes
-        if not args.dry_run:
-            review = interactive_review(
-                config_kit_dir, old_snapshot,
-                interactive=interactive,
-                auto_approve=args.yes,
-            )
-            if review["diff"].get("added") or review["diff"].get("modified") or review["diff"].get("removed"):
-                kit_result["gen_diff"] = review["diff"]
-            if review["rejected"]:
-                kit_result["gen_rejected"] = review["rejected"]
-
-        results.append(kit_result)
-        all_errors.extend(errors)
-        # @cpt-end:cpt-cypilot-flow-blueprint-system-generate-resources:p1:inst-gen-process
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-generate-resources:p1:inst-foreach-gen-kit
-
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-generate-resources:p1:inst-return-gen-ok
-    overall = "PASS" if not all_errors else "WARN"
-    output: Dict[str, Any] = {
-        "status": overall,
-        "kits_processed": len(results),
-        "results": results,
-    }
-    if all_errors:
-        output["errors"] = all_errors
-
-    ui.result(output, human_fn=lambda d: _human_generate_resources(d))
-    return 0
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-generate-resources:p1:inst-return-gen-ok
-
-def _human_generate_resources(data: dict) -> None:
-    status = data.get("status", "")
-    n = data.get("kits_processed", 0)
-
-    ui.header("Generate Resources")
-    ui.detail("Kits processed", str(n))
-
-    for r in data.get("results", []):
-        kit_slug = r.get("kit", "?")
-        fw = r.get("files_written", 0)
-        kinds = r.get("artifact_kinds", [])
-        kind_str = f"  ({', '.join(kinds)})" if kinds else ""
-        ui.step(f"{kit_slug}: {fw} files generated{kind_str}")
-
-    errs = data.get("errors", [])
-    if errs:
-        ui.blank()
-        for e in errs:
-            ui.warn(str(e))
-
-    if status == "PASS":
-        ui.success("Resources generated.")
-    elif status == "WARN":
-        ui.warn("Generation finished with warnings.")
-    else:
-        ui.info(f"Status: {status}")
-    ui.blank()
-
-# ---------------------------------------------------------------------------
-# Kit Migrate — marker-level three-way merge
-# @cpt-algo:cpt-cypilot-algo-blueprint-system-three-way-merge:p1
-# ---------------------------------------------------------------------------
-
-# Regex mirrors blueprint.py parser — supports both legacy and named syntax
-# @cpt-begin:cpt-cypilot-algo-blueprint-system-parse-blueprint:p1:inst-derive-identity-key
-_MIG_OPEN_RE = re.compile(r"^`@cpt:(\w[\w-]*)(?::(\w[\w-]*))?` *$")
-_MIG_CLOSE_RE = re.compile(r"^`@/cpt:(\w[\w-]*)(?::(\w[\w-]*))?` *$")
-
-_SINGLETON_MARKERS = frozenset({"blueprint", "skill", "system-prompt", "rules", "checklist"})
-
-@dataclass
-class _Segment:
-    """A contiguous block inside a blueprint: either plain text or a @cpt: marker."""
-    kind: str           # "text" or "marker"
-    raw: str            # full raw text (including open/close tags for markers)
-    marker_type: str = ""   # e.g. "heading", "workflow", "skill" (empty for text)
-    marker_key: str = ""    # stable identity key
-    explicit_id: str = ""   # ID from named syntax @cpt:TYPE:ID (empty for legacy)
-
-def _marker_identity_key(marker_type: str, raw_content: str, explicit_id: str = "") -> str:
-    """Derive a stable identity key for a marker from its type and TOML data.
-
-    Resolution chain (highest priority first):
-      1. Explicit syntax ID: @cpt:TYPE:ID → "TYPE:ID"
-      2. Singleton markers: blueprint, skill, system-prompt, rules, checklist → TYPE
-      3. TOML-derived key: heading:{id}, workflow:{name}, id:{kind}
-      4. Positional fallback: TYPE (caller appends #N index)
-    """
-    # 1. Singleton markers — type IS the key
-    if marker_type in _SINGLETON_MARKERS:
-        return marker_type
-
-    # 2. Explicit syntax ID (highest priority for non-singletons)
-    if explicit_id:
-        return f"{marker_type}:{explicit_id}"
-
-    # 3. TOML-derived key
-    # Quick TOML key extraction without full parser
-    def _toml_val(key: str) -> str:
-        for line in raw_content.splitlines():
-            stripped = line.strip()
-            if (stripped.startswith(f"{key} ") or stripped.startswith(f"{key}=")) and "=" in stripped:
-                _, _, val = stripped.partition("=")
-                return val.strip().strip('"').strip("'")
-        return ""
-
-    if marker_type == "workflow":
-        name = _toml_val("name")
-        return f"workflow:{name}" if name else "workflow"
-    if marker_type == "heading":
-        hid = _toml_val("id")
-        if hid:
-            return f"heading:{hid}"
-        level = _toml_val("level")
-        return f"heading:L{level}" if level else "heading"
-    if marker_type == "id":
-        kind = _toml_val("kind")
-        return f"id:{kind}" if kind else "id"
-
-    # 4. Fallback to type (caller appends positional index)
-    return marker_type
-
-def _parse_segments(text: str) -> List[_Segment]:
-    """Parse blueprint text into ordered segments (text and marker blocks).
-
-    Each marker segment includes its opening tag, content, and closing tag.
-    Text segments are everything between markers.
-    """
-    lines = text.splitlines(keepends=True)
-    segments: List[_Segment] = []
-    text_buf: List[str] = []
-    i = 0
-
-    while i < len(lines):
-        stripped = lines[i].rstrip("\n\r")
-        m_open = _MIG_OPEN_RE.match(stripped.strip())
-        if not m_open:
-            text_buf.append(lines[i])
-            i += 1
-            continue
-
-        # Flush accumulated text
-        if text_buf:
-            segments.append(_Segment(kind="text", raw="".join(text_buf)))
-            text_buf = []
-
-        marker_type = m_open.group(1)
-        explicit_id = m_open.group(2) or ""
-        marker_lines: List[str] = [lines[i]]
-        j = i + 1
-        found_close = False
-        while j < len(lines):
-            marker_lines.append(lines[j])
-            close_stripped = lines[j].rstrip("\n\r")
-            m_close = _MIG_CLOSE_RE.match(close_stripped.strip())
-            if m_close and m_close.group(1) == marker_type and (m_close.group(2) or "") == explicit_id:
-                found_close = True
-                j += 1
-                break
-            j += 1
-
-        if not found_close:
-            # Unclosed marker — treat as text
-            text_buf.extend(marker_lines)
-            i = j
-            continue
-
-        raw = "".join(marker_lines)
-        # Content between open and close tags (for identity extraction)
-        content_lines = marker_lines[1:-1]
-        raw_content = "".join(content_lines)
-        key = _marker_identity_key(marker_type, raw_content, explicit_id)
-
-        segments.append(_Segment(
-            kind="marker",
-            raw=raw,
-            marker_type=marker_type,
-            marker_key=key,
-            explicit_id=explicit_id,
-        ))
-        i = j
-
-    if text_buf:
-        segments.append(_Segment(kind="text", raw="".join(text_buf)))
-
-    # Add positional index per base key for markers WITHOUT explicit syntax ID.
-    # Named markers (@cpt:TYPE:ID) already have unique keys and skip indexing.
-    key_seen: Dict[str, int] = {}
-    for seg in segments:
-        if seg.kind != "marker":
-            continue
-        if seg.explicit_id:
-            continue
-        base = seg.marker_key
-        idx = key_seen.get(base, 0)
-        key_seen[base] = idx + 1
-        seg.marker_key = f"{base}#{idx}"
-
-    return segments
-# @cpt-end:cpt-cypilot-algo-blueprint-system-parse-blueprint:p1:inst-derive-identity-key
-
-def _kebab_safe(value: str) -> str:
-    """Normalize a string to a safe kebab-case token for marker IDs.
-
-    Lowercase, replace non-alphanumeric sequences with hyphens, strip edges.
-    """
-    result = re.sub(r"[^a-z0-9]+", "-", value.lower())
-    return result.strip("-")
-
-def _derive_marker_id(marker_type: str, raw_content: str, preceding_heading_id: str = "") -> str:
-    """Derive a kebab-case ID for a legacy marker based on its type and TOML content.
-
-    Used by the legacy marker upgrade step to convert @cpt:TYPE → @cpt:TYPE:ID.
-    """
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p2:inst-upgrade-legacy
-    def _toml_val(key: str) -> str:
-        for line in raw_content.splitlines():
-            stripped = line.strip()
-            if (stripped.startswith(f"{key} ") or stripped.startswith(f"{key}=")) and "=" in stripped:
-                _, _, val = stripped.partition("=")
-                return val.strip().strip('"').strip("'")
-        return ""
-
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p2:inst-upgrade-heading
-    if marker_type == "heading":
-        return _kebab_safe(_toml_val("id"))
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p2:inst-upgrade-heading
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p2:inst-upgrade-id
-    if marker_type == "id":
-        return _kebab_safe(_toml_val("kind"))
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p2:inst-upgrade-id
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p2:inst-upgrade-workflow
-    if marker_type == "workflow":
-        return _kebab_safe(_toml_val("name"))
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p2:inst-upgrade-workflow
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p2:inst-upgrade-check
-    if marker_type == "check":
-        return _kebab_safe(_toml_val("id"))
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p2:inst-upgrade-check
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p2:inst-upgrade-rule
-    if marker_type == "rule":
-        kind = _toml_val("kind")
-        section = _toml_val("section")
-        if kind and section:
-            return _kebab_safe(f"{kind}-{section}")
-        return _kebab_safe(kind or section)
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p2:inst-upgrade-rule
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p2:inst-upgrade-prompt-example
-    if marker_type in ("prompt", "example"):
-        return _kebab_safe(preceding_heading_id)
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p2:inst-upgrade-prompt-example
-    return ""
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p2:inst-upgrade-legacy
-
-def _upgrade_legacy_tags(merged_parts: List[tuple]) -> tuple:
-    """Rewrite legacy @cpt:TYPE tags to @cpt:TYPE:ID in merged output.
-
-    Skips singleton markers and markers that already have explicit IDs.
-    Derives IDs from TOML content per marker type.
-
-    Returns (updated_parts, upgraded_keys, upgraded_details).
-    """
-    upgraded: List[str] = []
-    upgraded_details: Dict[str, tuple] = {}  # key → (old_tag, new_tag)
-    last_heading_id = ""
-    id_counts: Dict[str, int] = {}
-    result: List[tuple] = []
-
-    for raw, key in merged_parts:
-        if key is None:
-            result.append((raw, key))
-            continue
-
-        # Parse opening tag to check if already named
-        lines_list = raw.splitlines(keepends=True)
-        if not lines_list:
-            result.append((raw, key))
-            continue
-        first_line = lines_list[0].rstrip("\n\r").strip()
-        m = _MIG_OPEN_RE.match(first_line)
-        if not m:
-            result.append((raw, key))
-            continue
-
-        # Track heading IDs from already-named markers
-        if m.group(2):
-            if m.group(1) == "heading":
-                last_heading_id = m.group(2)
-            result.append((raw, key))
-            continue
-
-        marker_type = m.group(1)
-        if marker_type in _SINGLETON_MARKERS:
-            result.append((raw, key))
-            continue
-
-        # Extract content between tags for ID derivation
-        content = "".join(lines_list[1:-1]) if len(lines_list) > 2 else ""
-        derived_id = _derive_marker_id(marker_type, content, last_heading_id)
-
-        if not derived_id:
-            result.append((raw, key))
-            continue
-
-        # Disambiguate duplicate IDs: append -1, -2, etc.
-        count_key = f"{marker_type}:{derived_id}"
-        count = id_counts.get(count_key, 0)
-        id_counts[count_key] = count + 1
-        final_id = derived_id if count == 0 else f"{derived_id}-{count}"
-
-        if marker_type == "heading":
-            last_heading_id = final_id
-
-        # Rewrite opening and closing tags
-        new_raw = re.sub(
-            r"^`@cpt:" + re.escape(marker_type) + r"`( *)$",
-            "`@cpt:" + marker_type + ":" + final_id + "`\\1",
-            raw, count=1, flags=re.MULTILINE,
-        )
-        new_raw = re.sub(
-            r"^`@/cpt:" + re.escape(marker_type) + r"`( *)$",
-            "`@/cpt:" + marker_type + ":" + final_id + "`\\1",
-            new_raw, count=1, flags=re.MULTILINE,
-        )
-
-        if new_raw != raw:
-            upgraded.append(key)
-            upgraded_details[key] = (
-                f"@cpt:{marker_type}",
-                f"@cpt:{marker_type}:{final_id}",
-            )
-        result.append((new_raw, key))
-
-    return result, upgraded, upgraded_details
-
-def _normalize_legacy_to_named(text: str, reference_text: str = "") -> tuple:
-    """Upgrade legacy @cpt:TYPE tags to @cpt:TYPE:ID in text for merge normalization.
-
-    When reference_text is provided, uses positional matching within each marker
-    type to map legacy markers to their named equivalents in the reference.
-    This handles all marker types, including those without derivable TOML IDs.
-
-    Falls back to TOML-based derivation when reference is not available.
-
-    Returns (normalized_text, upgraded_details) where upgraded_details maps
-    marker_key -> (old_tag, new_tag).
-    """
-    if not reference_text:
-        segments = _parse_segments(text)
-        parts = [(seg.raw, seg.marker_key if seg.kind == "marker" else None)
-                 for seg in segments]
-        normalized, _, upg_details = _upgrade_legacy_tags(parts)
-        return "".join(p[0] for p in normalized), upg_details
-
-    text_segments = _parse_segments(text)
-    ref_segments = _parse_segments(reference_text)
-
-    # Group markers by type for positional matching
-    ref_by_type: Dict[str, List[_Segment]] = {}
-    for seg in ref_segments:
-        if seg.kind == "marker":
-            ref_by_type.setdefault(seg.marker_type, []).append(seg)
-
-    text_by_type: Dict[str, List[_Segment]] = {}
-    for seg in text_segments:
-        if seg.kind == "marker":
-            text_by_type.setdefault(seg.marker_type, []).append(seg)
-
-    # Build upgrade map: text segment id → (marker_type, explicit_id from reference)
-    upgrade_map: Dict[int, tuple] = {}
-    for mtype, t_segs in text_by_type.items():
-        r_segs = ref_by_type.get(mtype, [])
-        if len(t_segs) != len(r_segs):
-            continue  # counts differ — can't safely map positionally
-        for t_seg, r_seg in zip(t_segs, r_segs):
-            if not t_seg.explicit_id and r_seg.explicit_id:
-                upgrade_map[id(t_seg)] = (mtype, r_seg.explicit_id)
-
-    # Rewrite tags in text segments
-    result_parts: List[str] = []
-    norm_details: Dict[str, tuple] = {}  # key → (old_tag, new_tag)
-    for seg in text_segments:
-        if seg.kind != "marker" or id(seg) not in upgrade_map:
-            result_parts.append(seg.raw)
-            continue
-
-        mtype, new_id = upgrade_map[id(seg)]
-        raw = seg.raw
-        raw = re.sub(
-            r"^`@cpt:" + re.escape(mtype) + r"`( *)$",
-            "`@cpt:" + mtype + ":" + new_id + "`\\1",
-            raw, count=1, flags=re.MULTILINE,
-        )
-        raw = re.sub(
-            r"^`@/cpt:" + re.escape(mtype) + r"`( *)$",
-            "`@/cpt:" + mtype + ":" + new_id + "`\\1",
-            raw, count=1, flags=re.MULTILINE,
-        )
-        result_parts.append(raw)
-        norm_details[seg.marker_key] = (
-            f"@cpt:{mtype}",
-            f"@cpt:{mtype}:{new_id}",
-        )
-
-    return "".join(result_parts), norm_details
-
-def _prompt_confirm(message: str, state: Dict[str, bool], *, allow_modify: bool = False) -> str:
-    """Interactive prompt returning 'y', 'n', or 'm' (when allow_modify=True).
-
-    state['all'] tracks whether user already chose 'all' (auto-approve).
-    Prompts go to stderr, input from stdin.
-    """
-    if state.get("all"):
-        return "y"
-    if allow_modify:
-        sys.stderr.write(f"{message} [y/N/m(odify)/all] ")
-    else:
-        sys.stderr.write(f"{message} [y/N/all (approve remaining files)] ")
-    sys.stderr.flush()
-    try:
-        response = input().strip().lower()
-    except EOFError:
-        return "n"
-    if response == "all":
-        state["all"] = True
-        return "y"
-    if allow_modify and response in ("m", "modify"):
-        return "m"
-    return "y" if response == "y" else "n"
-
-def _show_marker_content(raw: str, color: str = "red") -> None:
-    """Show marker content lines in a single color (red=removed, green=added)."""
-    code = "\033[31m" if color == "red" else "\033[32m"
-    for line in raw.splitlines():
-        sys.stderr.write(f"        {code}{line}\033[0m\n")
-
-def _show_marker_diff(key: str, user_raw: str, new_raw: str) -> None:
-    """Show compact unified diff between user and reference marker content."""
-    import difflib
-    user_lines = user_raw.splitlines(keepends=True)
-    new_lines = new_raw.splitlines(keepends=True)
-    diff = list(difflib.unified_diff(
-        user_lines, new_lines,
-        fromfile=f"yours ({key})",
-        tofile=f"reference ({key})",
-        lineterm="",
-    ))
-    if not diff:
-        return
-    for line in diff:
-        line_s = line.rstrip("\n")
-        if line_s.startswith("+++") or line_s.startswith("---"):
-            sys.stderr.write(f"        {line_s}\n")
-        elif line_s.startswith("+"):
-            sys.stderr.write(f"        \033[32m{line_s}\033[0m\n")
-        elif line_s.startswith("-"):
-            sys.stderr.write(f"        \033[31m{line_s}\033[0m\n")
-        elif line_s.startswith("@@"):
-            sys.stderr.write(f"        \033[36m{line_s}\033[0m\n")
-
-_EDITOR_SEPARATOR = "# ── edit below this line ──────────────────────────────────────"
-
-def _get_editor() -> str:
-    """Return the user's preferred editor, git-style: $VISUAL → $EDITOR → vi."""
-    return os.environ.get("VISUAL") or os.environ.get("EDITOR") or "vi"
-
-def _open_editor_for_marker(
-    key: str,
-    user_raw: str,
-    new_raw: str,
-) -> Optional[str]:
-    """Open user's default editor for manual marker merge, git-style.
-
-    Creates a temp file with the diff as comments and the user's current
-    content as default. Returns edited content, or None if aborted
-    (empty file saved or editor failed).
-    """
-    import difflib
-
-    # Build diff for reference
-    user_lines = user_raw.splitlines(keepends=True)
-    new_lines = new_raw.splitlines(keepends=True)
-    diff = list(difflib.unified_diff(
-        user_lines, new_lines,
-        fromfile=f"yours ({key})",
-        tofile=f"reference ({key})",
-        lineterm="",
-    ))
-
-    # Compose temp file content
-    header_lines = [
-        f"# cypilot migrate: edit marker [{key}]",
-        "#",
-        "# Diff between your version (−) and the new reference (+):",
-    ]
-    if diff:
-        header_lines.append("#")
-        for d in diff:
-            header_lines.append(f"#   {d.rstrip()}")
-    else:
-        header_lines.append("#   (no diff — versions are identical)")
-    header_lines.extend([
-        "#",
-        "# Edit the content below the separator line.",
-        "# To abort, delete all content below the separator and save.",
-        _EDITOR_SEPARATOR,
-    ])
-
-    content = "\n".join(header_lines) + "\n" + user_raw
-
-    editor = _get_editor()
-    tmp_path: Optional[str] = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            suffix=".md",
-            prefix=f"cypilot-migrate-{key.replace(':', '-').replace('#', '-')}-",
-            delete=False,
-            encoding="utf-8",
-        ) as tmp:
-            tmp.write(content)
-            tmp_path = tmp.name
-
-        import shlex
-        cmd = shlex.split(editor)
-        subprocess.check_call(cmd + [tmp_path])
-
-        with open(tmp_path, encoding="utf-8") as f:
-            edited = f.read()
-    except FileNotFoundError:
-        sys.stderr.write(f"        editor not found: {editor}\n")
-        return None
-    except Exception as exc:
-        sys.stderr.write(f"        editor failed: {exc}\n")
-        return None
-    finally:
-        if tmp_path:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-
-    # Extract content after separator
-    sep_idx = edited.find(_EDITOR_SEPARATOR)
-    if sep_idx != -1:
-        after_sep = edited[sep_idx + len(_EDITOR_SEPARATOR):]
-        # Strip exactly one leading newline after separator
-        if after_sep.startswith("\n"):
-            after_sep = after_sep[1:]
-        result = after_sep
-    else:
-        # No separator found — use entire content, strip header comments
-        lines = edited.splitlines(keepends=True)
-        first_non_comment = 0
-        for i, line in enumerate(lines):
-            if not line.startswith("#"):
-                first_non_comment = i
-                break
-        else:
-            first_non_comment = len(lines)
-        result = "".join(lines[first_non_comment:])
-
-    # Empty result = abort
-    if not result.strip():
-        return None
-
-    return result
-
-def _three_way_merge_blueprint(
-    old_ref_text: str,
-    new_ref_text: str,
-    user_text: str,
-    *,
-    force_keys: frozenset = frozenset(),
-    restore_keys: frozenset = frozenset(),
-    remove_keys: frozenset = frozenset(),
-    skip_keys: frozenset = frozenset(),
-    skip_insert_keys: frozenset = frozenset(),
-    modify_overrides: Optional[Dict[str, str]] = None,
-) -> tuple:
-    """Three-way merge of a blueprint at the @cpt: marker level.
-
-    Args:
-        old_ref_text: Previous reference version (before update).
-        new_ref_text: New reference version (after update).
-        user_text: User's current config copy.
-        force_keys: Set of marker keys to force-update even if user customized.
-        restore_keys: Set of marker keys to restore (user deleted, re-insert from ref).
-        remove_keys: Set of marker keys to remove (reference deleted, user still has).
-        skip_keys: Set of marker keys to NOT update (keep user version even though ref changed).
-        skip_insert_keys: Set of marker keys to NOT insert (even though new in ref).
-        modify_overrides: Dict of marker key → custom content from manual editor merge.
-
-    Returns:
-        (merged_text, report) where report is a dict with:
-        - updated: list of marker keys that were updated
-        - skipped: list of marker keys skipped (user customized)
-        - kept: list of marker keys kept as-is (no change in reference)
-        - inserted: list of marker keys inserted (new in reference)
-        - deleted: list of marker keys user removed (still in reference)
-        - upgraded: list of marker keys upgraded from legacy to named syntax
-        - modified: list of marker keys manually edited by user
-    """
-    if modify_overrides is None:
-        modify_overrides = {}
-    # Normalize legacy markers to named syntax before comparison.
-    # Uses new_ref as positional guide so ALL marker types get correct IDs.
-    old_ref_text, _ = _normalize_legacy_to_named(old_ref_text, new_ref_text)
-    user_text, norm_upgraded_details = _normalize_legacy_to_named(user_text, new_ref_text)
-
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-parse-three
-    old_segments = _parse_segments(old_ref_text)
-    new_segments = _parse_segments(new_ref_text)
-    user_segments = _parse_segments(user_text)
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-parse-three
-
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-identify-changes
-    # Build lookup maps: key → raw text
-    old_map: Dict[str, str] = {}
-    for seg in old_segments:
-        if seg.kind == "marker":
-            old_map[seg.marker_key] = seg.raw
-
-    new_map: Dict[str, str] = {}
-    for seg in new_segments:
-        if seg.kind == "marker":
-            new_map[seg.marker_key] = seg.raw
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-identify-changes
-
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-apply-merge
-    updated: List[str] = []
-    updated_details: Dict[str, tuple] = {}  # key → (old_raw, new_raw)
-    skipped: List[str] = []
-    skipped_details: Dict[str, tuple] = {}  # key → (user_raw, new_raw)
-    ref_removed: List[str] = []
-    ref_removed_details: Dict[str, str] = {}  # key → user_raw
-    kept: List[str] = []
-    modified: List[str] = []  # keys manually edited via editor
-    # Each element: (raw_text, marker_key or None)
-    merged_parts: List[tuple] = []
-
-    for seg in user_segments:
-        if seg.kind == "text":
-            merged_parts.append((seg.raw, None))
-            continue
-
-        key = seg.marker_key
-        old_raw = old_map.get(key)
-        new_raw = new_map.get(key)
-
-        # Manual editor override takes precedence over all other logic
-        if key in modify_overrides:
-            merged_parts.append((modify_overrides[key], key))
-            modified.append(key)
-            continue
-
-        # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-keep-user-added
-        if old_raw is None:
-            # Marker not in old reference — user-added or unknown, keep as-is
-            merged_parts.append((seg.raw, key))
-            kept.append(key)
-        # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-keep-user-added
-        # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-keep-ref-removed
-        elif new_raw is None:
-            # Marker removed in new reference
-            if key in remove_keys:
-                # User approved removal — drop it
-                pass
-            else:
-                merged_parts.append((seg.raw, key))
-            ref_removed.append(key)
-            ref_removed_details[key] = seg.raw
-        # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-keep-ref-removed
-        # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-update-unmodified
-        elif seg.raw == old_raw:
-            # User hasn't changed it — safe to update
-            if new_raw != old_raw and key not in skip_keys:
-                merged_parts.append((new_raw, key))
-                updated.append(key)
-                updated_details[key] = (old_raw, new_raw)
-            # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-keep-unchanged
-            else:
-                merged_parts.append((seg.raw, key))
-                kept.append(key)
-            # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-keep-unchanged
-        # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-update-unmodified
-        else:
-            # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-preserve-user
-            # User customized this marker
-            if key in force_keys and new_raw is not None:
-                merged_parts.append((new_raw, key))
-                updated.append(key)
-                updated_details[key] = (seg.raw, new_raw)
-            else:
-                merged_parts.append((seg.raw, key))
-                skipped.append(key)
-                skipped_details[key] = (seg.raw, new_raw)
-            # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-preserve-user
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-apply-merge
-
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-respect-deletions
-    # Detect markers that user deleted (present in old_ref AND new_ref but absent from user).
-    user_keys = {seg.marker_key for seg in user_segments if seg.kind == "marker"}
-    deleted: List[str] = []
-    deleted_details: Dict[str, str] = {}  # key → new_raw
-    for key in new_map:
-        if key not in user_keys and key in old_map:
-            deleted.append(key)
-            deleted_details[key] = new_map[key]
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-respect-deletions
-
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-insert-new
-    # Insert markers that are truly new (in new_ref but NOT in old_ref)
-    # at their correct position based on new_segments ordering.
-    # Markers that existed in old_ref but were removed by the user stay deleted
-    # unless they are in restore_keys.
-    inserted: List[str] = []
-    restored: List[str] = []
-    seen_keys = set(updated) | set(skipped) | set(kept)
-    for ni, seg in enumerate(new_segments):
-        if seg.kind != "marker":
-            continue
-        is_new = seg.marker_key not in old_map and seg.marker_key not in seen_keys
-        is_restore = seg.marker_key in restore_keys and seg.marker_key in deleted_details
-        if not is_new and not is_restore:
-            continue
-        if is_new and seg.marker_key in skip_insert_keys:
-            continue
-        if seg.marker_key in seen_keys:
-            continue
-
-        # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-find-anchor
-        # Find nearest preceding known marker in new_segments as anchor
-        anchor_key = None
-        for pi in range(ni - 1, -1, -1):
-            prev = new_segments[pi]
-            if prev.kind == "marker" and prev.marker_key in seen_keys:
-                anchor_key = prev.marker_key
-                break
-        # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-find-anchor
-
-        insert_idx = len(merged_parts)  # default: append at end
-        # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-insert-after-anchor
-        if anchor_key is not None:
-            for mi in range(len(merged_parts) - 1, -1, -1):
-                if merged_parts[mi][1] == anchor_key:
-                    insert_idx = mi + 1
-                    break
-        # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-insert-after-anchor
-        # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-insert-fallback
-        elif anchor_key is None:
-            # No preceding anchor found — search forward for nearest following
-            # known marker in new_segments and insert before it
-            for fi in range(ni + 1, len(new_segments)):
-                fwd = new_segments[fi]
-                if fwd.kind == "marker" and fwd.marker_key in seen_keys:
-                    fwd_key = fwd.marker_key
-                    for mi in range(len(merged_parts)):
-                        if merged_parts[mi][1] == fwd_key:
-                            insert_idx = mi
-                            break
-                    break
-            # If still no match, insert_idx stays at len(merged_parts) — append
-        # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-insert-fallback
-
-        if seg.marker_key in modify_overrides:
-            merged_parts.insert(insert_idx, (modify_overrides[seg.marker_key], seg.marker_key))
-            modified.append(seg.marker_key)
-        else:
-            merged_parts.insert(insert_idx, (seg.raw, seg.marker_key))
-        if is_restore:
-            restored.append(seg.marker_key)
-        else:
-            inserted.append(seg.marker_key)
-        seen_keys.add(seg.marker_key)
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-insert-new
-
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p2:inst-upgrade-legacy
-    # Upgrade legacy markers to named syntax in the merged output
-    merged_parts, upgraded, upgraded_details = _upgrade_legacy_tags(merged_parts)
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p2:inst-upgrade-legacy
-
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-return-merge
-    merged_text = "".join(part[0] for part in merged_parts)
-    # Remove restored markers from deleted list
-    deleted = [k for k in deleted if k not in restored]
-    report = {
-        "updated": updated, "updated_details": updated_details,
-        "skipped": skipped, "skipped_details": skipped_details,
-        "deleted": deleted, "deleted_details": deleted_details,
-        "restored": restored,
-        "ref_removed": [k for k in ref_removed if k not in remove_keys],
-        "ref_removed_details": ref_removed_details,
-        "removed": [k for k in ref_removed if k in remove_keys],
-        "kept": kept, "inserted": inserted,
-        "modified": modified,
-        "upgraded": list(dict.fromkeys(list(norm_upgraded_details) + upgraded)),
-        "upgraded_details": {**norm_upgraded_details, **upgraded_details},
-    }
-    return merged_text, report
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-three-way-merge:p1:inst-return-merge
-
-# ---------------------------------------------------------------------------
 # Kit Migrate — conf.toml helpers
-# @cpt-algo:cpt-cypilot-algo-blueprint-system-conf-toml-helpers:p1
 # ---------------------------------------------------------------------------
-
-def _read_conf_toml(conf_path: Path) -> Dict[str, Any]:
-    """Read and parse a conf.toml file. Returns empty dict on failure."""
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-conf-toml-helpers:p1:inst-read-conf
-    if not conf_path.is_file():
-        return {}
-    try:
-        import tomllib
-        with open(conf_path, "rb") as f:
-            return tomllib.load(f)
-    except Exception:
-        return {}
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-conf-toml-helpers:p1:inst-read-conf
 
 def _read_conf_version(conf_path: Path) -> int:
     """Read top-level 'version' from conf.toml. Returns 0 if missing."""
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-conf-toml-helpers:p1:inst-read-version
+    # @cpt-begin:cpt-cypilot-algo-kit-config-helpers:p1:inst-read-conf-version
     if not conf_path.is_file():
         return 0
     try:
@@ -1502,179 +629,10 @@ def _read_conf_version(conf_path: Path) -> int:
         return int(ver) if ver is not None else 0
     except Exception:
         return 0
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-conf-toml-helpers:p1:inst-read-version
-
-def _read_whatsnew(conf_path: Path) -> Dict[int, Dict[str, str]]:
-    """Read [whatsnew] section from conf.toml.
-
-    Returns dict mapping version (int) to {summary, details}.
-    """
-    data = _read_conf_toml(conf_path)
-    raw = data.get("whatsnew", {})
-    result: Dict[int, Dict[str, str]] = {}
-    for key, entry in raw.items():
-        try:
-            ver = int(key)
-        except (ValueError, TypeError):
-            continue
-        if isinstance(entry, dict):
-            result[ver] = {
-                "summary": str(entry.get("summary", "")),
-                "details": str(entry.get("details", "")),
-            }
-    return result
-
-def _show_whatsnew(
-    kit_slug: str,
-    ref_whatsnew: Dict[int, Dict[str, str]],
-    user_whatsnew: Dict[int, Dict[str, str]],
-    *,
-    interactive: bool = True,
-) -> bool:
-    """Display whatsnew entries present in ref but missing from user config.
-
-    Compares ref vs user whatsnew keys; shows only entries the user hasn't seen.
-    Returns True if user acknowledged (or non-interactive), False if declined.
-    """
-    missing = sorted(
-        (v, ref_whatsnew[v]) for v in ref_whatsnew
-        if v not in user_whatsnew
-    )
-    if not missing:
-        return True
-
-    sys.stderr.write(f"\n{'=' * 60}\n")
-    sys.stderr.write(f"  What's new in kit '{kit_slug}'\n")
-    sys.stderr.write(f"{'=' * 60}\n")
-
-    for ver, entry in missing:
-        sys.stderr.write(f"\n  \033[1mv{ver}: {entry['summary']}\033[0m\n")
-        if entry["details"]:
-            for line in entry["details"].splitlines():
-                sys.stderr.write(f"    {line}\n")
-
-    sys.stderr.write(f"\n{'=' * 60}\n")
-
-    if not interactive:
-        return True
-
-    sys.stderr.write("  Press Enter to continue with migration (or 'q' to abort): ")
-    sys.stderr.flush()
-    try:
-        response = input().strip().lower()
-    except EOFError:
-        return False
-    return response != "q"
+    # @cpt-end:cpt-cypilot-algo-kit-config-helpers:p1:inst-read-conf-version
 
 # ---------------------------------------------------------------------------
-# Blueprint hash registry — SHA-256 based customization detection
-# @cpt-algo:cpt-cypilot-algo-blueprint-system-hash-detection:p1
-# ---------------------------------------------------------------------------
-
-_HASH_FILE = "blueprint_hashes.toml"
-
-
-def _compute_file_hash(path: Path) -> str:
-    """Compute SHA-256 hash of a file, return hex digest."""
-    import hashlib
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
-def _compute_kit_hashes(kit_dir: Path) -> Dict[str, str]:
-    """Compute SHA-256 hashes for all kit files (blueprints + scripts).
-
-    Keys are relative paths from kit root, e.g.:
-        blueprints/PRD.md, scripts/pr.py, scripts/prompts/pr/code-review.md
-
-    Returns {relative_path: hex_digest}.
-    """
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-hash-detection:p1:inst-compute-hashes
-    hashes: Dict[str, str] = {}
-    # Blueprints: *.md in blueprints/
-    bp_dir = kit_dir / "blueprints"
-    if bp_dir.is_dir():
-        for f in sorted(bp_dir.glob("*.md")):
-            hashes[f"blueprints/{f.name}"] = _compute_file_hash(f)
-    # Scripts: all files in scripts/ (recursive, skip __pycache__ and .pyc)
-    scripts_dir = kit_dir / "scripts"
-    if scripts_dir.is_dir():
-        import os
-        for root, dirs, files in os.walk(scripts_dir):
-            dirs[:] = [d for d in dirs if d != "__pycache__"]
-            for fname in sorted(files):
-                if fname.endswith(".pyc"):
-                    continue
-                fp = Path(root) / fname
-                rel = fp.relative_to(kit_dir)
-                hashes[str(rel)] = _compute_file_hash(fp)
-    return hashes
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-hash-detection:p1:inst-compute-hashes
-
-
-def _read_blueprint_hashes(source_dir: Path, version: str) -> Dict[str, str]:
-    """Read kit file hashes for a specific version from kit source.
-
-    The hash file lives in the kit source (cache), keyed by version.
-    Never stored in user projects.
-
-    Keys are relative paths from kit root (e.g. "blueprints/PRD.md",
-    "scripts/pr.py").
-
-    Args:
-        source_dir: Kit source directory (cache or repo).
-        version: Version string to look up (e.g. "1", "2").
-
-    Returns {relative_path: hex_digest} or empty dict if no hash file or version.
-    """
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-hash-detection:p1:inst-read-hashes
-    hash_path = source_dir / _HASH_FILE
-    if not hash_path.is_file():
-        return {}
-    try:
-        from ..utils import toml_utils
-        data = toml_utils.load(hash_path)
-        ver_data = data.get(str(version), {})
-        if isinstance(ver_data, dict):
-            return {str(k): str(v) for k, v in ver_data.items() if isinstance(v, str)}
-        return {}
-    except Exception as exc:
-        sys.stderr.write(f"kit: warning: cannot read hashes from {hash_path}: {exc}\n")
-        return {}
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-hash-detection:p1:inst-read-hashes
-
-
-def _write_blueprint_hashes(source_dir: Path, version: str, hashes: Dict[str, str]) -> None:
-    """Write kit file hashes for a specific version to kit source hash file.
-
-    Merges into existing file (preserves other versions).
-    Only used in kit source (cache/repo), never in user projects.
-    Keys should be relative paths from kit root (blueprints/*, scripts/*).
-    """
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-hash-detection:p1:inst-write-hashes
-    from ..utils import toml_utils
-    hash_path = source_dir / _HASH_FILE
-    existing: Dict[str, Any] = {}
-    if hash_path.is_file():
-        try:
-            existing = toml_utils.load(hash_path)
-        except Exception as exc:
-            sys.stderr.write(f"kit: warning: cannot read existing hashes from {hash_path}: {exc}\n")
-    existing[str(version)] = hashes
-    toml_utils.dump(
-        existing, hash_path,
-        header_comment="Auto-generated kit file hash registry (per version)\n"
-        "Keys are relative paths from kit root: blueprints/*.md and scripts/**\n"
-        "Used for smart update detection — do not edit manually",
-    )
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-hash-detection:p1:inst-write-hashes
-
-
-# ---------------------------------------------------------------------------
-# Layout migration — old (config/kits/ + .gen/kits/) → new (kits/ + config/kits/)
+# Layout migration — old (kits/ + .gen/kits/) → new (config/kits/ only, no kits/)
 # @cpt-algo:cpt-cypilot-algo-version-config-layout-restructure:p1
 # ---------------------------------------------------------------------------
 
@@ -1683,154 +641,163 @@ def _detect_and_migrate_layout(
     *,
     dry_run: bool = False,
 ) -> Dict[str, Any]:
-    """Detect old directory layout and migrate to new layout.
+    """Detect old directory layout and migrate to the new flat model.
 
-    Old layout:
+    Handles two legacy layouts:
+
+    Layout A (oldest):
         config/kits/{slug}/blueprints/  — user blueprints
-        config/kits/{slug}/conf.toml    — kit config
         .gen/kits/{slug}/               — generated outputs
-        kits/{slug}/                    — reference copies (read-only)
+        kits/{slug}/                    — reference copies
 
-    New layout:
+    Layout B (intermediate):
         kits/{slug}/blueprints/         — user blueprints
         kits/{slug}/conf.toml           — kit config
-        kits/{slug}/blueprint_hashes.toml — hash registry
         config/kits/{slug}/             — generated outputs
 
-    Detection: old layout when config/kits/{slug}/blueprints/ exists
-    AND .gen/kits/{slug}/ exists.
+    New layout (direct file packages):
+        config/kits/{slug}/             — all kit content (no blueprints)
+        (no kits/ directory)
+
+    Migration merges non-blueprint content into config/kits/{slug}/,
+    updates core.toml paths, then removes kits/ and .gen/kits/.
 
     Returns dict with migrated kit slugs or empty if no migration needed.
     """
-    # @cpt-begin:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-backup
     config_kits = cypilot_dir / "config" / "kits"
     gen_kits = cypilot_dir / ".gen" / "kits"
     kits_dir = cypilot_dir / "kits"
 
-    if not config_kits.is_dir() or not gen_kits.is_dir():
+    # Detect: old layout exists when kits/ directory is present
+    has_kits_dir = kits_dir.is_dir() and any(kits_dir.iterdir())
+    has_gen_kits = gen_kits.is_dir() and any(gen_kits.iterdir())
+    if not has_kits_dir and not has_gen_kits:
         return {}
 
     migrated: Dict[str, Any] = {}
     backup_dir = cypilot_dir / ".layout_backup"
 
-    for slug_dir in sorted(config_kits.iterdir()):
-        if not slug_dir.is_dir():
-            continue
-        slug = slug_dir.name
-        user_bp = slug_dir / "blueprints"
-        gen_kit = gen_kits / slug
+    # ── Migrate kits/{slug}/ content into config/kits/{slug}/ ──────────
+    if has_kits_dir:
+        for kit_dir in sorted(kits_dir.iterdir()):
+            if not kit_dir.is_dir():
+                continue
+            slug = kit_dir.name
+            config_kit = config_kits / slug
 
-        if not user_bp.is_dir() or not gen_kit.is_dir():
-            continue
+            if dry_run:
+                migrated[slug] = "would_migrate"
+                continue
 
-        # Old layout detected for this kit
-        if dry_run:
-            migrated[slug] = "would_migrate"
-            continue
+            try:
+                # @cpt-begin:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-backup
+                # Backup
+                kit_backup = backup_dir / slug
+                if kit_backup.exists():
+                    shutil.rmtree(kit_backup)
+                kit_backup.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(kit_dir, kit_backup / "user_kit")
+                # @cpt-end:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-backup
 
-        try:
-            # Backup
-            kit_backup = backup_dir / slug
-            if kit_backup.exists():
-                shutil.rmtree(kit_backup)
-            kit_backup.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(slug_dir, kit_backup / "config_kit")
-            shutil.copytree(gen_kit, kit_backup / "gen_kit")
-            old_ref = kits_dir / slug
-            if old_ref.is_dir():
-                shutil.copytree(old_ref, kit_backup / "ref_kit")
-            # @cpt-end:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-backup
+                # Copy non-blueprint content from kits/{slug}/ → config/kits/{slug}/
+                config_kit.mkdir(parents=True, exist_ok=True)
+                for item in kit_dir.iterdir():
+                    if item.name in ("blueprints", "blueprint_hashes.toml", "__pycache__", ".prev"):
+                        continue  # skip legacy artifacts
+                    dst = config_kit / item.name
+                    if item.is_dir():
+                        if dst.exists():
+                            shutil.rmtree(dst)
+                        shutil.copytree(item, dst)
+                    elif not dst.exists():
+                        # Don't overwrite existing config/kits/ files
+                        shutil.copy2(item, dst)
 
-            # @cpt-begin:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-move-blueprints
-            # Step 2: Move config/kits/{slug}/blueprints/ → kits/{slug}/blueprints/
-            target_kit = kits_dir / slug
-            if target_kit.exists():
-                shutil.rmtree(target_kit)
-            target_kit.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(user_bp, target_kit / "blueprints")
-            # @cpt-end:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-move-blueprints
+                migrated[slug] = "migrated"
+            except Exception as exc:
+                # @cpt-begin:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-rollback
+                # Rollback
+                kit_backup = backup_dir / slug
+                if kit_backup.is_dir() and (kit_backup / "user_kit").is_dir():
+                    target = kits_dir / slug
+                    if target.exists():
+                        shutil.rmtree(target)
+                    shutil.copytree(kit_backup / "user_kit", target)
+                migrated[slug] = f"FAILED: {exc}"
+                # @cpt-end:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-rollback
 
-            # @cpt-begin:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-move-conf
-            # Step 3: Move config/kits/{slug}/conf.toml → kits/{slug}/conf.toml
-            conf_src = slug_dir / "conf.toml"
-            if conf_src.is_file():
-                shutil.copy2(conf_src, target_kit / "conf.toml")
-            # @cpt-end:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-move-conf
+    # @cpt-begin:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-move-gen
+    # ── Migrate .gen/kits/{slug}/ into config/kits/{slug}/ ─────────────
+    if has_gen_kits:
+        for gen_kit in sorted(gen_kits.iterdir()):
+            if not gen_kit.is_dir():
+                continue
+            slug = gen_kit.name
+            config_kit = config_kits / slug
 
-            # @cpt-begin:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-move-gen
-            # Step 4: Clear config/kits/{slug}/, move .gen/kits/{slug}/ → config/kits/{slug}/
-            shutil.rmtree(slug_dir)
-            shutil.copytree(gen_kit, slug_dir)
-            # @cpt-end:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-move-gen
+            if dry_run:
+                migrated.setdefault(slug, "would_migrate")
+                continue
 
-            # @cpt-begin:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-clean-gen
-            # Step 5: Remove .gen/kits/{slug}/
-            shutil.rmtree(gen_kit)
-            # @cpt-end:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-clean-gen
+            try:
+                config_kit.mkdir(parents=True, exist_ok=True)
+                for item in gen_kit.iterdir():
+                    dst = config_kit / item.name
+                    if item.is_dir():
+                        if not dst.exists():
+                            shutil.copytree(item, dst)
+                    elif not dst.exists():
+                        shutil.copy2(item, dst)
+                migrated.setdefault(slug, "migrated")
+            except Exception as exc:
+                migrated[slug] = f"FAILED: {exc}"
+    # @cpt-end:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-move-gen
 
-            # @cpt-begin:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-update-core
-            # Step 6: Update core.toml kit path
-            config_dir = cypilot_dir / "config"
-            core_toml = config_dir / "core.toml"
-            if core_toml.is_file():
-                import tomllib
-                with open(core_toml, "rb") as f:
-                    data = tomllib.load(f)
-                kits_conf = data.get("kits", {})
-                updated = False
-                # Kit ID (e.g. 'cypilot-sdlc') may differ from dir slug (e.g. 'sdlc'),
-                # so match by old path pattern instead of key lookup.
-                old_gen_path = f".gen/kits/{slug}"
-                for kit_id, kit_entry in kits_conf.items():
-                    if isinstance(kit_entry, dict) and kit_entry.get("path") == old_gen_path:
-                        kit_entry["path"] = f"config/kits/{slug}"
-                        updated = True
-                # Also check direct slug match (covers case where key == slug)
-                if not updated and slug in kits_conf:
-                    kits_conf[slug]["path"] = f"config/kits/{slug}"
+    if dry_run:
+        return migrated
+
+    # @cpt-begin:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-update-core
+    # ── Update core.toml kit paths ─────────────────────────────────────
+    config_dir = cypilot_dir / "config"
+    core_toml = config_dir / "core.toml"
+    if core_toml.is_file():
+        import tomllib
+        with open(core_toml, "rb") as f:
+            data = tomllib.load(f)
+        kits_conf = data.get("kits", {})
+        updated = False
+        for kit_id, kit_entry in kits_conf.items():
+            if isinstance(kit_entry, dict):
+                old_path = kit_entry.get("path", "")
+                if old_path.startswith(".gen/kits/") or old_path.startswith("kits/"):
+                    slug = old_path.rsplit("/", 1)[-1]
+                    kit_entry["path"] = f"config/kits/{slug}"
                     updated = True
-                if updated:
-                    from ..utils import toml_utils
-                    toml_utils.dump(data, core_toml, header_comment="Cypilot project configuration")
-            # @cpt-end:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-update-core
+        if updated:
+            from ..utils import toml_utils
+            toml_utils.dump(data, core_toml, header_comment="Cypilot project configuration")
+    # @cpt-end:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-update-core
 
-            migrated[slug] = "migrated"
+    # @cpt-begin:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-remove-refs
+    # ── Remove legacy directories ──────────────────────────────────────
+    has_failures = any(isinstance(s, str) and s.startswith("FAILED") for s in migrated.values())
 
-        except Exception as exc:
-            # @cpt-begin:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-rollback
-            # Rollback on failure
-            kit_backup = backup_dir / slug
-            if kit_backup.is_dir():
-                # Restore config/kits/{slug}/
-                if (kit_backup / "config_kit").is_dir():
-                    if slug_dir.exists():
-                        shutil.rmtree(slug_dir)
-                    shutil.copytree(kit_backup / "config_kit", slug_dir)
-                # Restore .gen/kits/{slug}/
-                if (kit_backup / "gen_kit").is_dir():
-                    gen_target = gen_kits / slug
-                    if not gen_target.exists():
-                        shutil.copytree(kit_backup / "gen_kit", gen_target)
-                # Restore kits/{slug}/
-                if (kit_backup / "ref_kit").is_dir():
-                    ref_target = kits_dir / slug
-                    if ref_target.exists():
-                        shutil.rmtree(ref_target)
-                    shutil.copytree(kit_backup / "ref_kit", ref_target)
-            migrated[slug] = f"FAILED: {exc}"
-            # @cpt-end:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-rollback
+    if not has_failures and kits_dir.is_dir():
+        shutil.rmtree(kits_dir)
 
-    # Clean up .gen/kits/ if empty
-    if gen_kits.is_dir() and not any(gen_kits.iterdir()):
-        gen_kits.rmdir()
+    # @cpt-end:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-remove-refs
 
-    # Clean up backups for successful migrations only; preserve failed ones
+    # @cpt-begin:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-clean-gen
+    if gen_kits.is_dir():
+        shutil.rmtree(gen_kits, ignore_errors=True)
+    # @cpt-end:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-clean-gen
+
+    # Clean up backups for successful migrations; preserve failed ones
     if backup_dir.is_dir():
         for slug, status in migrated.items():
             kit_backup = backup_dir / slug
             if status == "migrated" and kit_backup.is_dir():
                 shutil.rmtree(kit_backup, ignore_errors=True)
-        # Remove backup_dir only if empty (failed kit backups remain)
         try:
             backup_dir.rmdir()
         except OSError:
@@ -1839,6 +806,8 @@ def _detect_and_migrate_layout(
     return migrated
 
 
+# @cpt-dod:cpt-cypilot-dod-kit-update:p1
+# @cpt-algo:cpt-cypilot-algo-kit-update:p1
 def update_kit(
     kit_slug: str,
     source_dir: Path,
@@ -1847,8 +816,13 @@ def update_kit(
     dry_run: bool = False,
     interactive: bool = True,
     auto_approve: bool = False,
+    force: bool = False,
 ) -> Dict[str, Any]:
     """Full update cycle for a single kit.
+
+    Kits are direct file packages.  On first install the kit content is
+    copied wholesale.  On subsequent runs a file-level diff is shown and
+    the user decides per-file.
 
     Args:
         kit_slug: Kit identifier (e.g. "sdlc").
@@ -1856,659 +830,153 @@ def update_kit(
         cypilot_dir: Project adapter directory.
         dry_run: If True, don't write files.
         interactive: If True, prompt user for confirmation before writing.
-        auto_approve: If True, skip all prompts (equivalent to 'all').
+        auto_approve: If True, skip all prompts (accept all).
+        force: If True, skip version check and force-overwrite all files.
 
-    New layout:
-        kits/{slug}/            — user-editable (blueprints/ + conf.toml)
-        config/kits/{slug}/     — generated outputs
+    Layout:
+        config/kits/{slug}/     — installed kit files (user-editable)
 
-    Steps:
-        1. First-install or version-check + auto-migrate user blueprints
-        2. Copy scripts → config/kits/{slug}/scripts/
-        3. Regenerate config/kits/{slug}/ from user blueprints (process_kit)
-
-    Returns dict with version and gen results.
+    Returns dict consumed by update.py / cmd_kit_update:
+        kit, version, gen, skill_nav?, agents_content?, gen_errors?
     """
-    user_kit_dir = cypilot_dir / "kits" / kit_slug
-    user_bp_dir = user_kit_dir / "blueprints"
-    config_kits_dir = cypilot_dir / "config" / "kits"
+    # @cpt-begin:cpt-cypilot-algo-kit-update:p1:inst-resolve-config
+    config_dir = cypilot_dir / "config"
+    config_kits_dir = config_dir / "kits"
     config_kit_dir = config_kits_dir / kit_slug
 
     result: Dict[str, Any] = {"kit": kit_slug}
+    # @cpt-end:cpt-cypilot-algo-kit-update:p1:inst-resolve-config
 
+    # @cpt-begin:cpt-cypilot-algo-kit-update:p1:inst-dry-run-check
     if dry_run:
         result["version"] = {"status": "dry_run"}
         result["gen"] = "dry_run"
         return result
+    # @cpt-end:cpt-cypilot-algo-kit-update:p1:inst-dry-run-check
 
-    conf_src = source_dir / "conf.toml"
+    # @cpt-begin:cpt-cypilot-algo-kit-update:p1:inst-read-source-version
+    # Read source version
+    src_conf = source_dir / _KIT_CONF_FILE
+    source_version = _read_kit_version(src_conf) if src_conf.is_file() else ""
+    # @cpt-end:cpt-cypilot-algo-kit-update:p1:inst-read-source-version
 
-    # ── 1. First-install or version-check + migrate ──────────────────────
-    if not user_bp_dir.is_dir():
-        # First install — copy blueprints + conf.toml to kits/{slug}/
-        src_bp = source_dir / "blueprints"
-        if src_bp.is_dir():
-            user_bp_dir.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(src_bp, user_bp_dir)
-        if conf_src.is_file():
-            user_kit_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(conf_src, user_kit_dir / "conf.toml")
+    # @cpt-begin:cpt-cypilot-algo-kit-update:p1:inst-version-check
+    # ── Version check (skip update if same version, unless force) ────────
+    if not force and source_version and config_kit_dir.is_dir():
+        installed_version = _read_kit_version_from_core(config_dir, kit_slug)
+        if installed_version and installed_version == source_version:
+            result["version"] = {"status": "current"}
+            result["gen"] = {"files_written": 0}
+            # Still collect metadata for .gen/ aggregation
+            meta = _collect_kit_metadata(config_kit_dir, kit_slug)
+            if meta["skill_nav"]:
+                result["skill_nav"] = meta["skill_nav"]
+            if meta["agents_content"]:
+                result["agents_content"] = meta["agents_content"]
+            return result
+    # @cpt-end:cpt-cypilot-algo-kit-update:p1:inst-version-check
+
+    # @cpt-begin:cpt-cypilot-algo-kit-update:p1:inst-first-install
+    # ── 1. First-install or file-level update ────────────────────────
+    if not config_kit_dir.is_dir():
+        # First install — copy all kit content
+        copy_actions = _copy_kit_content(source_dir, config_kit_dir)
         result["version"] = {"status": "created"}
-    else:
-        # Check version drift and auto-migrate
-        mig_result = migrate_kit(
-            kit_slug, source_dir, user_kit_dir,
-            interactive=interactive, auto_approve=auto_approve,
-        )
-        result["version"] = mig_result
-
-    # ── 2. Copy scripts → config/kits/{slug}/scripts/ ────────────────────
-    scripts_src = source_dir / "scripts"
-    if scripts_src.is_dir():
-        gen_kit_scripts = config_kit_dir / "scripts"
-        if gen_kit_scripts.exists():
-            shutil.rmtree(gen_kit_scripts)
-        config_kit_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(scripts_src, gen_kit_scripts)
-
-    # ── 3. Regenerate config/kits/{slug}/ from user blueprints ───────────
-    from ..utils.blueprint import process_kit
-    from ..utils.diff_engine import snapshot_directory, diff_snapshot, show_diff_summary, interactive_review
-    bp_dir = user_bp_dir if user_bp_dir.is_dir() else (source_dir / "blueprints")
-    if bp_dir.is_dir():
-        # Snapshot current generated output for diff summary
-        old_snapshot = snapshot_directory(config_kit_dir)
-
-        summary, gen_errors = process_kit(
-            kit_slug, bp_dir, config_kits_dir, dry_run=False,
-        )
         result["gen"] = {
-            "files_written": summary.get("files_written", 0),
-            "artifact_kinds": summary.get("artifact_kinds", []),
+            "files_written": sum(1 for v in copy_actions.values() if v == "copied"),
         }
-        if gen_errors:
-            result["gen_errors"] = gen_errors
 
-        # Write per-kit SKILL.md + workflow files
-        gen_out = _write_kit_gen_outputs(kit_slug, summary, config_kits_dir)
-        if gen_out["skill_nav"]:
-            result["skill_nav"] = gen_out["skill_nav"]
+        # Seed kit config files into config/ (only if missing)
+        scripts_dir = config_kit_dir / "scripts"
+        if scripts_dir.is_dir():
+            _seed_kit_config_files(scripts_dir, config_dir, {})
 
-        sysprompt_content = summary.get("sysprompt_content", "")
-        if sysprompt_content:
-            result["agents_content"] = sysprompt_content
+        # Register in core.toml (single source of truth for installed version)
+        _register_kit_in_core_toml(config_dir, kit_slug, source_version, cypilot_dir)
+    # @cpt-end:cpt-cypilot-algo-kit-update:p1:inst-first-install
+    else:
+        # @cpt-begin:cpt-cypilot-algo-kit-update:p1:inst-file-level-diff
+        # Existing kit — file-level diff update
+        from ..utils.diff_engine import file_level_kit_update
 
-        # Interactive review of generated output changes
-        review = interactive_review(
-            config_kit_dir, old_snapshot,
+        report = file_level_kit_update(
+            source_dir, config_kit_dir,
             interactive=interactive,
             auto_approve=auto_approve,
+            content_dirs=_KIT_CONTENT_DIRS,
+            content_files=_KIT_CONTENT_FILES,
         )
-        if review["diff"].get("added") or review["diff"].get("modified") or review["diff"].get("removed"):
-            result["gen_diff"] = review["diff"]
-        if review["rejected"]:
-            result["gen_rejected"] = review["rejected"]
-    else:
-        result["gen"] = {"files_written": 0, "artifact_kinds": []}
+        accepted = report.get("accepted", [])
+        declined = report.get("declined", [])
 
+        # Determine version status
+        if accepted:
+            ver_status = "updated"
+        elif declined:
+            ver_status = "partial"
+        else:
+            ver_status = "current"
+
+        result["version"] = {"status": ver_status}
+        result["gen"] = {
+            "files_written": len(accepted),
+            "accepted_files": accepted,
+        }
+        if declined:
+            result["gen_rejected"] = declined
+        # @cpt-end:cpt-cypilot-algo-kit-update:p1:inst-file-level-diff
+
+        # @cpt-begin:cpt-cypilot-algo-kit-update:p1:inst-update-core-toml
+        # Update version in core.toml from source (always, even if some files declined)
+        if source_version:
+            _register_kit_in_core_toml(config_dir, kit_slug, source_version, cypilot_dir)
+        # @cpt-end:cpt-cypilot-algo-kit-update:p1:inst-update-core-toml
+
+    # @cpt-begin:cpt-cypilot-algo-kit-update:p1:inst-collect-metadata
+    # ── 2. Collect metadata for .gen/ aggregation ────────────────────
+    meta = _collect_kit_metadata(config_kit_dir, kit_slug)
+    if meta["skill_nav"]:
+        result["skill_nav"] = meta["skill_nav"]
+    if meta["agents_content"]:
+        result["agents_content"] = meta["agents_content"]
+    # @cpt-end:cpt-cypilot-algo-kit-update:p1:inst-collect-metadata
+
+    # @cpt-begin:cpt-cypilot-algo-kit-update:p1:inst-return-result
     return result
-
-# @cpt-flow:cpt-cypilot-flow-blueprint-system-kit-migrate:p1
-def migrate_kit(
-    kit_slug: str,
-    source_dir: Path,
-    user_kit_dir: Path,
-    *,
-    dry_run: bool = False,
-    interactive: bool = True,
-    auto_approve: bool = False,
-) -> Dict[str, Any]:
-    """Migrate a single kit's user blueprints using marker-level three-way merge.
-
-    Triggered by kit-level version drift (source version > user version).
-    When triggered, merges ALL blueprint .md files from source into user kit:
-    - Hash matches (unmodified) → auto-update silently
-    - Customized → three-way merge with interactive prompts
-    - Deleted markers → NOT re-added
-
-    New layout:
-        source_dir:     Kit source (cache/repo) with blueprints/, conf.toml, blueprint_hashes.toml
-        user_kit_dir:   {cypilot_path}/kits/{slug}/ with blueprints/ + conf.toml
-
-    Returns dict with migration details.
-    """
-    ref_conf = _read_conf_toml(source_dir / "conf.toml")
-    user_conf = _read_conf_toml(user_kit_dir / "conf.toml")
-
-    try:
-        ref_kit_ver = int(ref_conf.get("version", 0))
-    except (ValueError, TypeError):
-        ref_kit_ver = 0
-    try:
-        user_kit_ver = int(user_conf.get("version", 0))
-    except (ValueError, TypeError):
-        user_kit_ver = 0
-
-    version_bump = ref_kit_ver > user_kit_ver
-
-    if not version_bump:
-        return {"kit": kit_slug, "status": "current"}
-
-    # Show whatsnew before migration starts
-    if version_bump and not dry_run:
-        ref_whatsnew = _read_whatsnew(source_dir / "conf.toml")
-        user_whatsnew = _read_whatsnew(user_kit_dir / "conf.toml")
-        if ref_whatsnew:
-            ack = _show_whatsnew(
-                kit_slug, ref_whatsnew, user_whatsnew,
-                interactive=interactive and not auto_approve,
-            )
-            if not ack:
-                return {"kit": kit_slug, "status": "aborted"}
-
-    # Directories
-    ref_bp_dir = source_dir / "blueprints"
-    user_bp_dir = user_kit_dir / "blueprints"
-
-    # @cpt-begin:cpt-cypilot-algo-blueprint-system-hash-detection:p1:inst-read-known-hashes
-    # Read known blueprint hashes for user's installed version from source
-    known_hashes = _read_blueprint_hashes(source_dir, str(user_kit_ver))
-    # @cpt-end:cpt-cypilot-algo-blueprint-system-hash-detection:p1:inst-read-known-hashes
-
-    # Merge ALL blueprint .md files from reference
-    bp_results: List[Dict[str, Any]] = []
-    apply_state: Dict[str, bool] = {"all": auto_approve}
-
-    if ref_bp_dir.is_dir():
-        for ref_file in sorted(ref_bp_dir.glob("*.md")):
-            bp_name = ref_file.stem
-            user_file = user_bp_dir / ref_file.name
-
-            new_ref_text = ref_file.read_text(encoding="utf-8")
-
-            if not user_file.is_file():
-                # New blueprint — copy it
-                if not dry_run:
-                    user_bp_dir.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(ref_file, user_file)
-                bp_results.append({
-                    "blueprint": bp_name,
-                    "action": "created",
-                })
-                continue
-
-            user_text = user_file.read_text(encoding="utf-8")
-
-            # @cpt-begin:cpt-cypilot-algo-blueprint-system-hash-detection:p1:inst-compare-hashes
-            # Hash-based customization detection: compare user's blueprint hash
-            # against known hash for their installed version from source.
-            known_hash = known_hashes.get(f"blueprints/{ref_file.name}")
-            if known_hash is not None:
-                current_hash = _compute_file_hash(user_file)
-                if current_hash == known_hash:
-                    # Blueprint unmodified by user — auto-update silently
-                    if not dry_run:
-                        user_bp_dir.mkdir(parents=True, exist_ok=True)
-                        shutil.copy2(ref_file, user_file)
-                    bp_results.append({
-                        "blueprint": bp_name,
-                        "action": "auto_updated",
-                    })
-                    continue
-            # @cpt-end:cpt-cypilot-algo-blueprint-system-hash-detection:p1:inst-compare-hashes
-
-            # Customized or no hash record — proceed with three-way merge.
-            # Conservative: treat new_ref as old_ref so all user diffs
-            # are seen as "customized" and preserved.
-            old_ref_text = new_ref_text
-
-            merged_text, report = _three_way_merge_blueprint(
-                old_ref_text, new_ref_text, user_text,
-            )
-
-            bp_report: Dict[str, Any] = {"blueprint": bp_name}
-            if report["updated"]:
-                bp_report["markers_updated"] = report["updated"]
-            if report["skipped"]:
-                bp_report["markers_skipped"] = report["skipped"]
-            if report.get("inserted"):
-                bp_report["markers_inserted"] = report["inserted"]
-            if report.get("deleted"):
-                bp_report["markers_deleted"] = report["deleted"]
-            if report.get("ref_removed"):
-                bp_report["markers_ref_removed"] = report["ref_removed"]
-
-            text_changed = merged_text != user_text
-            has_changes = (
-                report["updated"] or report.get("inserted")
-                or report.get("deleted") or report.get("ref_removed")
-                or text_changed
-            )
-
-            if not has_changes:
-                bp_report["action"] = "no_marker_changes"
-                bp_results.append(bp_report)
-                continue
-
-            # ── Interactive: show all diffs, prompt per file ─────────
-            if interactive and not dry_run:
-                upd_details = report.get("updated_details", {})
-                skip_details = report.get("skipped_details", {})
-                n_upd = len(report["updated"])
-                n_ins = len(report.get("inserted", []))
-                n_skip = len(report["skipped"])
-                n_del = len(report.get("deleted", []))
-                n_rem = len(report.get("ref_removed", []))
-                syntax_only = (
-                    text_changed
-                    and not n_upd and not n_ins
-                    and not n_skip and not n_del and not n_rem
-                )
-
-                # Syntax-only upgrade: auto-apply, just log
-                if syntax_only:
-                    sys.stderr.write(f"\n  [{kit_slug}] {bp_name}: syntax upgrade\n")
-                    upg_details = report.get("upgraded_details", {})
-                    for k in report.get("upgraded", []):
-                        if k in upg_details:
-                            old_tag, new_tag = upg_details[k]
-                            sys.stderr.write(f"      {old_tag} → {new_tag}\n")
-                    bp_report["action"] = "merged"
-                    bp_report["markers_upgraded"] = True
-                    user_bp_dir.mkdir(parents=True, exist_ok=True)
-                    user_file.write_text(merged_text, encoding="utf-8")
-                    bp_results.append(bp_report)
-                    continue
-
-                # Content changes: prompt per marker
-                sys.stderr.write(f"\n  [{kit_slug}] {bp_name}:\n")
-
-                upg_details = report.get("upgraded_details", {})
-                if report.get("upgraded"):
-                    sys.stderr.write("    syntax upgrade (legacy → named markers):\n")
-                    for k in report["upgraded"]:
-                        if k in upg_details:
-                            old_tag, new_tag = upg_details[k]
-                            sys.stderr.write(f"      {old_tag} → {new_tag}\n")
-
-                # Build inserted content map
-                ins_map: Dict[str, str] = {}
-                for seg in _parse_segments(new_ref_text):
-                    if seg.kind == "marker" and seg.marker_key in set(report.get("inserted", [])):
-                        ins_map[seg.marker_key] = seg.raw
-
-                # Per-marker prompts: collect decisions
-                declined_update: List[str] = []
-                declined_insert: List[str] = []
-                accepted_force: List[str] = []
-                accepted_restore: List[str] = []
-                accepted_remove: List[str] = []
-                modify_overrides: Dict[str, str] = {}
-
-                for k in report["updated"]:
-                    sys.stderr.write(f"    ✎ {k} — updated from reference\n")
-                    if k in upd_details:
-                        _show_marker_diff(k, *upd_details[k])
-                    ans = _prompt_confirm("    apply?", apply_state, allow_modify=True)
-                    if ans == "n":
-                        declined_update.append(k)
-                    elif ans == "m" and k in upd_details:
-                        old_raw, new_raw = upd_details[k]
-                        edited = _open_editor_for_marker(k, old_raw, new_raw)
-                        if edited is not None:
-                            modify_overrides[k] = edited
-                            sys.stderr.write(f"        ✓ manually edited\n")
-                        else:
-                            sys.stderr.write(f"        ✗ aborted — keeping yours\n")
-                            declined_update.append(k)
-
-                for k in report.get("inserted", []):
-                    sys.stderr.write(f"    + {k} — new marker\n")
-                    if k in ins_map:
-                        _show_marker_content(ins_map[k], color="green")
-                    ans = _prompt_confirm("    insert?", apply_state, allow_modify=True)
-                    if ans == "n":
-                        declined_insert.append(k)
-                    elif ans == "m" and k in ins_map:
-                        edited = _open_editor_for_marker(k, ins_map[k], ins_map[k])
-                        if edited is not None:
-                            modify_overrides[k] = edited
-                            sys.stderr.write(f"        ✓ manually edited\n")
-                        else:
-                            sys.stderr.write(f"        ✗ aborted — skipping insert\n")
-                            declined_insert.append(k)
-
-                for k in report["skipped"]:
-                    sys.stderr.write(f"    ≡ {k} — customized by you\n")
-                    if k in skip_details:
-                        _show_marker_diff(k, *skip_details[k])
-                    ans = _prompt_confirm("    overwrite?", apply_state, allow_modify=True)
-                    if ans == "y":
-                        accepted_force.append(k)
-                    elif ans == "m" and k in skip_details:
-                        user_raw, new_raw = skip_details[k]
-                        edited = _open_editor_for_marker(k, user_raw, new_raw)
-                        if edited is not None:
-                            modify_overrides[k] = edited
-                            sys.stderr.write(f"        ✓ manually edited\n")
-                        else:
-                            sys.stderr.write(f"        ✗ aborted — keeping yours\n")
-
-                del_details = report.get("deleted_details", {})
-                for k in report.get("deleted", []):
-                    sys.stderr.write(f"    ✗ {k} — deleted by you (exists in reference)\n")
-                    if k in del_details:
-                        _show_marker_content(del_details[k], color="red")
-                    if _prompt_confirm("    restore?", apply_state) == "y":
-                        accepted_restore.append(k)
-
-                ref_rem_details = report.get("ref_removed_details", {})
-                for k in report.get("ref_removed", []):
-                    sys.stderr.write(f"    − {k} — removed from reference (will be deleted from config)\n")
-                    if k in ref_rem_details:
-                        _show_marker_content(ref_rem_details[k], color="red")
-                    if _prompt_confirm("    remove?", apply_state) == "y":
-                        accepted_remove.append(k)
-
-                # Re-merge with per-marker decisions
-                merged_text, report = _three_way_merge_blueprint(
-                    old_ref_text, new_ref_text, user_text,
-                    force_keys=frozenset(accepted_force),
-                    restore_keys=frozenset(accepted_restore),
-                    remove_keys=frozenset(accepted_remove),
-                    skip_keys=frozenset(declined_update),
-                    skip_insert_keys=frozenset(declined_insert),
-                    modify_overrides=modify_overrides,
-                )
-
-                if merged_text == user_text:
-                    bp_report["action"] = "declined"
-                    # Don't update hash — keep old so next update re-detects
-                    bp_results.append(bp_report)
-                    continue
-
-                # Rebuild bp_report from final merge
-                bp_report = {"blueprint": bp_name}
-                if report["updated"]:
-                    bp_report["markers_updated"] = report["updated"]
-                if report["skipped"]:
-                    bp_report["markers_skipped"] = report["skipped"]
-                if report.get("inserted"):
-                    bp_report["markers_inserted"] = report["inserted"]
-                if report.get("restored"):
-                    bp_report["markers_restored"] = report["restored"]
-                if report.get("modified"):
-                    bp_report["markers_modified"] = report["modified"]
-                if accepted_force:
-                    bp_report["markers_forced"] = accepted_force
-                if declined_update:
-                    bp_report["markers_declined"] = declined_update
-                if declined_insert:
-                    bp_report["markers_insert_declined"] = declined_insert
-
-                bp_report["action"] = "merged"
-                if (not report["updated"] and not report.get("inserted")
-                        and not report.get("modified")):
-                    bp_report["markers_upgraded"] = True
-                user_bp_dir.mkdir(parents=True, exist_ok=True)
-                user_file.write_text(merged_text, encoding="utf-8")
-
-            else:
-                # Non-interactive / dry-run path
-                bp_report["action"] = "merged"
-                if text_changed and not report["updated"] and not report.get("inserted"):
-                    bp_report["markers_upgraded"] = True
-                if not dry_run:
-                    user_bp_dir.mkdir(parents=True, exist_ok=True)
-                    user_file.write_text(merged_text, encoding="utf-8")
-
-            bp_results.append(bp_report)
-
-    # Check if any changes were actually applied
-    has_applied_changes = any(
-        r.get("action") in ("merged", "created", "auto_updated")
-        for r in bp_results
-    )
-    all_declined = bp_results and not has_applied_changes and any(
-        r.get("action") == "declined" for r in bp_results
-    )
-
-    if not has_applied_changes and not version_bump:
-        return {"kit": kit_slug, "status": "current"}
-
-    kit_ver_label = f"v{user_kit_ver} → v{ref_kit_ver}"
-
-    # Update user conf.toml only on version bump with real applied changes;
-    # don't bump version if user declined all changes (re-prompt on next update)
-    if version_bump and not dry_run and not all_declined:
-        src_conf_file = source_dir / "conf.toml"
-        user_conf_file = user_kit_dir / "conf.toml"
-        if src_conf_file.is_file():
-            user_kit_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src_conf_file, user_conf_file)
-
-    result: Dict[str, Any] = {
-        "kit": kit_slug,
-        "status": "migrated",
-        "kit_version": kit_ver_label,
-    }
-    if bp_results:
-        result["blueprints"] = bp_results
-    return result
+    # @cpt-end:cpt-cypilot-algo-kit-update:p1:inst-return-result
 
 def cmd_kit_migrate(argv: List[str]) -> int:
-    """Migrate kit blueprints to latest versions from reference.
+    """Deprecated — use 'cypilot kit update <path>' instead.
 
-    Usage: cypilot kit migrate [--kit SLUG] [--dry-run]
-
-    For each kit where conf.toml versions differ between reference and config:
-    - Copies updated blueprints from reference to config
-    - Updates config conf.toml to match reference versions
-    - Regenerates .gen/ from updated blueprints
+    The migrate command was part of the blueprint-based three-way merge system
+    which has been removed.  File-level updates are now handled by 'kit update'.
     """
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-migrate:p1:inst-user-migrate
-    p = argparse.ArgumentParser(
-        prog="kit migrate",
-        description="Migrate kit blueprints to latest versions",
+    sys.stderr.write(
+        "WARNING: 'cypilot kit migrate' is deprecated.\n"
+        "         Use 'cypilot kit update <path>' instead.\n"
     )
-    p.add_argument("--kit", default=None, help="Kit slug to migrate (default: all)")
-    p.add_argument("--dry-run", action="store_true", help="Show what would be done")
-    p.add_argument("--no-interactive", action="store_true",
-                   help="Disable interactive prompts (auto-skip customized markers)")
-    p.add_argument("-y", "--yes", action="store_true",
-                   help="Auto-approve all prompts (no interaction)")
-    args = p.parse_args(argv)
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-migrate:p1:inst-user-migrate
-
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-migrate:p1:inst-resolve-migrate-kits
-    resolved = _resolve_cypilot_dir()
-    if resolved is None:
-        return 1
-    _, cypilot_dir = resolved
-    config_dir = cypilot_dir / "config"
-    kits_user_dir = cypilot_dir / "kits"
-    config_kits_dir = config_dir / "kits"
-
-    if not kits_user_dir.is_dir():
-        ui.result({"status": "FAIL", "message": "No kits installed", "hint": "Run 'cypilot kit install <path>' first"})
-        return 2
-
-    # Resolve kit dirs
-    if args.kit:
-        kit_dirs = [kits_user_dir / args.kit]
-        if not kit_dirs[0].is_dir():
-            ui.result({"status": "FAIL", "message": f"Kit '{args.kit}' not found in {kits_user_dir}"})
-            return 2
-    else:
-        kit_dirs = [d for d in sorted(kits_user_dir.iterdir()) if d.is_dir()]
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-migrate:p1:inst-resolve-migrate-kits
-
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-migrate:p1:inst-foreach-migrate-kit
-    from .init import CACHE_DIR
-    kits_cache_dir = CACHE_DIR / "kits"
-    results: List[Dict[str, Any]] = []
-
-    for kit_dir in kit_dirs:
-        kit_slug = kit_dir.name
-        config_kit_dir = config_kits_dir / kit_slug
-        interactive = not args.no_interactive and sys.stdin.isatty()
-        # Resolve source from cache; fall back to kit_dir itself
-        source_dir = kits_cache_dir / kit_slug
-        if not source_dir.is_dir():
-            source_dir = kit_dir
-        result = migrate_kit(
-            kit_slug, source_dir, kit_dir,
-            dry_run=args.dry_run,
-            interactive=interactive,
-            auto_approve=args.yes,
-        )
-        # Regenerate config/kits/{slug}/ after successful migration
-        if result["status"] == "migrated" and not args.dry_run:
-            user_bp_dir = kit_dir / "blueprints"
-            if user_bp_dir.is_dir():
-                from ..utils.blueprint import process_kit
-                from ..utils.diff_engine import snapshot_directory, interactive_review
-                try:
-                    old_snapshot = snapshot_directory(config_kit_dir)
-
-                    summary, _errors = process_kit(
-                        kit_slug, user_bp_dir, config_kits_dir, dry_run=False,
-                    )
-                    gen_out = _write_kit_gen_outputs(kit_slug, summary, config_kits_dir)
-                    result["regenerated"] = {
-                        "files_written": summary.get("files_written", 0),
-                        "artifact_kinds": summary.get("artifact_kinds", []),
-                        "workflows_written": gen_out["workflows_written"],
-                    }
-
-                    # Interactive review of generated output changes
-                    review = interactive_review(
-                        config_kit_dir, old_snapshot,
-                        interactive=interactive,
-                        auto_approve=args.yes,
-                    )
-                    if review["diff"].get("added") or review["diff"].get("modified") or review["diff"].get("removed"):
-                        result["gen_diff"] = review["diff"]
-                    if review["rejected"]:
-                        result["gen_rejected"] = review["rejected"]
-                except Exception as err:
-                    result["status"] = "FAIL"
-                    result["regenerated"] = {"error": str(err)}
-                    sys.stderr.write(f"kit-migrate: regen failed for {kit_slug}: {err}\n")
-        results.append(result)
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-migrate:p1:inst-foreach-migrate-kit
-
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-migrate:p1:inst-update-version
-    # (version updated during migrate_kit — conf.toml sync)
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-migrate:p1:inst-update-version
-
-    # @cpt-begin:cpt-cypilot-flow-blueprint-system-kit-migrate:p1:inst-return-migrate-ok
-    migrated_count = sum(1 for r in results if r["status"] == "migrated")
-    aborted_count = sum(1 for r in results if r["status"] == "aborted")
-    has_failures = any(r["status"] == "FAIL" for r in results)
-    output: Dict[str, Any] = {
-        "status": "FAIL" if has_failures else ("ABORTED" if aborted_count and not migrated_count else "PASS"),
-        "kits_migrated": migrated_count,
-        "kits_current": len(results) - migrated_count - aborted_count,
-        "results": results,
-    }
-    if aborted_count:
-        output["kits_aborted"] = aborted_count
-    if args.dry_run:
-        output["dry_run"] = True
-
-    ui.result(output, human_fn=lambda d: _human_kit_migrate(d))
-    return 0
-    # @cpt-end:cpt-cypilot-flow-blueprint-system-kit-migrate:p1:inst-return-migrate-ok
-
-def _human_kit_migrate(data: dict) -> None:
-    status = data.get("status", "")
-    dry = data.get("dry_run", False)
-
-    ui.header("Kit Migrate" + (" (dry run)" if dry else ""))
-    ui.detail("Migrated", str(data.get("kits_migrated", 0)))
-    ui.detail("Current", str(data.get("kits_current", 0)))
-    if data.get("kits_aborted"):
-        ui.detail("Aborted", str(data["kits_aborted"]))
-
-    for r in data.get("results", []):
-        kit_slug = r.get("kit", "?")
-        rs = r.get("status", "?")
-        from_v = r.get("from_version")
-        to_v = r.get("to_version")
-        ver_str = ""
-        if from_v is not None and to_v is not None:
-            ver_str = f" v{from_v} → v{to_v}"
-
-        if rs == "migrated":
-            ui.step(f"{kit_slug}: migrated{ver_str}")
-            regen = r.get("regenerated", {})
-            if regen:
-                fw = regen.get("files_written", 0)
-                ww = regen.get("workflows_written", 0)
-                err = regen.get("error")
-                if err:
-                    ui.warn(f"  Regen failed: {err}")
-                else:
-                    ui.substep(f"  Regenerated: {fw} files, {ww} workflows")
-            # Show merge details
-            merged = r.get("merged_blueprints", [])
-            for mb in merged:
-                bp_name = mb.get("blueprint", "?")
-                accepted = mb.get("accepted", 0)
-                declined = mb.get("declined", 0)
-                inserted = mb.get("inserted", 0)
-                deleted = mb.get("deleted", 0)
-                parts = []
-                if accepted:
-                    parts.append(f"{accepted} accepted")
-                if declined:
-                    parts.append(f"{declined} declined")
-                if inserted:
-                    parts.append(f"{inserted} inserted")
-                if deleted:
-                    parts.append(f"{deleted} deleted")
-                if parts:
-                    ui.substep(f"  {bp_name}: {', '.join(parts)}")
-        elif rs == "current":
-            ui.step(f"{kit_slug}: already current{ver_str}")
-        elif rs == "aborted":
-            ui.warn(f"{kit_slug}: aborted{ver_str}")
-        elif rs == "FAIL":
-            msg = r.get("message", "")
-            ui.warn(f"{kit_slug}: FAILED — {msg}")
-        else:
-            ui.substep(f"{kit_slug}: {rs}")
-
-    if status == "PASS":
-        if dry:
-            ui.success("Dry run complete — no files written.")
-        else:
-            ui.success("Kit migration complete.")
-    elif status == "ABORTED":
-        ui.warn("Migration aborted.")
-    elif status == "FAIL":
-        ui.error("Migration failed.")
-    else:
-        ui.info(f"Status: {status}")
-    ui.blank()
+    return 1
 
 # ---------------------------------------------------------------------------
 # Kit CLI dispatcher (handles `cypilot kit <subcommand>`)
 # ---------------------------------------------------------------------------
 
+# @cpt-flow:cpt-cypilot-flow-kit-dispatch:p1
 def cmd_kit(argv: List[str]) -> int:
     """Kit management command dispatcher.
 
     Usage: cypilot kit <install|update|migrate> [options]
     """
+    # @cpt-begin:cpt-cypilot-flow-kit-dispatch:p1:inst-parse-subcmd
     if not argv:
         ui.result({"status": "ERROR", "message": "Missing kit subcommand", "subcommands": ["install", "update", "migrate"]})
         return 1
 
     subcmd = argv[0]
     rest = argv[1:]
+    # @cpt-end:cpt-cypilot-flow-kit-dispatch:p1:inst-parse-subcmd
 
+    # @cpt-begin:cpt-cypilot-flow-kit-dispatch:p1:inst-route
     if subcmd == "install":
         return cmd_kit_install(rest)
     elif subcmd == "update":
@@ -2518,13 +986,53 @@ def cmd_kit(argv: List[str]) -> int:
     else:
         ui.result({"status": "ERROR", "message": f"Unknown kit subcommand: {subcmd}", "subcommands": ["install", "update", "migrate"]})
         return 1
+    # @cpt-end:cpt-cypilot-flow-kit-dispatch:p1:inst-route
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+# @cpt-algo:cpt-cypilot-algo-kit-config-helpers:p1
+def _read_kit_slug(kit_source: Path) -> str:
+    """Read kit slug from source conf.toml. Returns '' if not found."""
+    # @cpt-begin:cpt-cypilot-algo-kit-config-helpers:p1:inst-read-slug
+    conf_toml = kit_source / "conf.toml"
+    if not conf_toml.is_file():
+        return ""
+    try:
+        import tomllib
+        with open(conf_toml, "rb") as f:
+            data = tomllib.load(f)
+        slug = data.get("slug")
+        if isinstance(slug, str) and slug.strip():
+            return slug.strip()
+    except Exception as exc:
+        sys.stderr.write(f"kit: warning: cannot read {conf_toml}: {exc}\n")
+    return ""
+    # @cpt-end:cpt-cypilot-algo-kit-config-helpers:p1:inst-read-slug
+
+def _read_kit_version_from_core(config_dir: Path, kit_slug: str) -> str:
+    """Read installed kit version from config/core.toml [kits.{slug}].version."""
+    # @cpt-begin:cpt-cypilot-algo-kit-config-helpers:p1:inst-read-version-from-core
+    core_toml = config_dir / "core.toml"
+    if not core_toml.is_file():
+        return ""
+    try:
+        import tomllib
+        with open(core_toml, "rb") as f:
+            data = tomllib.load(f)
+        kit_entry = data.get("kits", {}).get(kit_slug, {})
+        ver = kit_entry.get("version")
+        if ver is not None:
+            return str(ver)
+    except Exception as exc:
+        sys.stderr.write(f"kit: warning: cannot read version for '{kit_slug}' from {core_toml}: {exc}\n")
+    return ""
+    # @cpt-end:cpt-cypilot-algo-kit-config-helpers:p1:inst-read-version-from-core
+
 def _read_kit_version(conf_path: Path) -> str:
     """Read kit version from conf.toml."""
+    # @cpt-begin:cpt-cypilot-algo-kit-config-helpers:p1:inst-read-kit-version
     try:
         import tomllib
         with open(conf_path, "rb") as f:
@@ -2535,6 +1043,7 @@ def _read_kit_version(conf_path: Path) -> str:
     except Exception as exc:
         sys.stderr.write(f"kit: warning: cannot read version from {conf_path}: {exc}\n")
     return ""
+    # @cpt-end:cpt-cypilot-algo-kit-config-helpers:p1:inst-read-kit-version
 
 def _register_kit_in_core_toml(
     config_dir: Path,
@@ -2543,6 +1052,7 @@ def _register_kit_in_core_toml(
     cypilot_dir: Path,
 ) -> None:
     """Register or update a kit entry in config/core.toml."""
+    # @cpt-begin:cpt-cypilot-algo-kit-config-helpers:p1:inst-register-core
     core_toml = config_dir / "core.toml"
     if not core_toml.is_file():
         return
@@ -2568,3 +1078,4 @@ def _register_kit_in_core_toml(
         toml_utils.dump(data, core_toml, header_comment="Cypilot project configuration")
     except Exception as exc:
         sys.stderr.write(f"kit: warning: failed to register {kit_slug} in {core_toml}: {exc}\n")
+    # @cpt-end:cpt-cypilot-algo-kit-config-helpers:p1:inst-register-core

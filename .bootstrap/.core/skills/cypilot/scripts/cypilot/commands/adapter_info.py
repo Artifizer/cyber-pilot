@@ -265,33 +265,43 @@ def cmd_adapter_info(argv: list[str]) -> int:
     if core_data and isinstance(core_data.get("version"), str):
         config["config_version"] = core_data["version"]
 
-    # Kit details: versions, blueprints, drift
+    # Kit details: versions, content, drift
     kit_details = {}
-    kits_user_dir = adapter_dir / "kits"
     config_kits_dir = adapter_dir / "config" / "kits"
-    if kits_user_dir.is_dir():
-        for kit_dir in sorted(kits_user_dir.iterdir()):
+    if config_kits_dir.is_dir():
+        for kit_dir in sorted(config_kits_dir.iterdir()):
             if not kit_dir.is_dir():
                 continue
             slug = kit_dir.name
             kd: dict = {"slug": slug}
-            # User version (from kits/{slug}/conf.toml)
-            user_conf = kit_dir / "conf.toml"
-            if user_conf.is_file():
-                kd.update(_read_kit_conf(user_conf))
-            # Blueprints (from kits/{slug}/blueprints/)
-            bp_dir = kit_dir / "blueprints"
-            if bp_dir.is_dir():
-                bps = sorted(f.stem for f in bp_dir.glob("*.md"))
-                kd["blueprints"] = bps
-            # Generated artifact kinds (from config/kits/{slug}/artifacts/)
-            gen_art_dir = config_kits_dir / slug / "artifacts"
-            if gen_art_dir.is_dir():
-                kd["artifact_kinds"] = sorted(d.name for d in gen_art_dir.iterdir() if d.is_dir())
-            # Generated workflows (from config/kits/{slug}/workflows/)
-            gen_wf_dir = config_kits_dir / slug / "workflows"
-            if gen_wf_dir.is_dir():
-                kd["workflows"] = sorted(f.stem for f in gen_wf_dir.glob("*.md"))
+            # Version from core.toml (single source of truth)
+            if core_data and isinstance(core_data.get("kits"), dict):
+                core_kit = core_data["kits"].get(slug, {})
+                if isinstance(core_kit, dict) and "version" in core_kit:
+                    kd["version"] = core_kit["version"]
+            # Name/slug from kit's conf.toml in source (fallback)
+            kit_conf = kit_dir / "conf.toml"
+            if kit_conf.is_file():
+                conf_info = _read_kit_conf(kit_conf)
+                if "name" in conf_info:
+                    kd["name"] = conf_info["name"]
+                if "slug" in conf_info and "slug" not in kd:
+                    kd["slug"] = conf_info["slug"]
+            # Content directories present
+            content_dirs = sorted(
+                d.name for d in kit_dir.iterdir()
+                if d.is_dir() and d.name in ("artifacts", "codebase", "scripts", "workflows")
+            )
+            if content_dirs:
+                kd["content_dirs"] = content_dirs
+            # Artifact kinds (from config/kits/{slug}/artifacts/)
+            art_dir = kit_dir / "artifacts"
+            if art_dir.is_dir():
+                kd["artifact_kinds"] = sorted(d.name for d in art_dir.iterdir() if d.is_dir())
+            # Workflows (from config/kits/{slug}/workflows/)
+            wf_dir = kit_dir / "workflows"
+            if wf_dir.is_dir():
+                kd["workflows"] = sorted(f.stem for f in wf_dir.glob("*.md"))
             kit_details[slug] = kd
     config["kit_details"] = kit_details
 
@@ -311,7 +321,7 @@ def cmd_adapter_info(argv: list[str]) -> int:
 
     # Directory structure health
     dirs_status = {}
-    for subdir in [".core", ".gen", "config", "kits"]:
+    for subdir in [".core", ".gen", "config"]:
         d = adapter_dir / subdir
         dirs_status[subdir] = d.is_dir()
     config["directories"] = dirs_status
@@ -348,17 +358,12 @@ def _human_info(data: dict) -> None:
         ui.step(f"Kits ({len(kit_details)})")
         for slug, kd in kit_details.items():
             name = kd.get("name", slug)
-            ref_v = kd.get("ref_version", "?")
-            cfg_v = kd.get("config_version")
-            drift = kd.get("drift", False)
-            ver_str = f"v{ref_v}"
-            if cfg_v is not None and drift:
-                ver_str = f"v{cfg_v} → v{ref_v} (migration needed)"
-            ui.substep(f"  {name}  {ver_str}")
+            ver = kd.get("version", "?")
+            ui.substep(f"  {name}  v{ver}")
 
-            bps = kd.get("blueprints", [])
-            if bps:
-                ui.substep(f"    Blueprints ({len(bps)}): {', '.join(bps)}")
+            cdirs = kd.get("content_dirs", [])
+            if cdirs:
+                ui.substep(f"    Content: {', '.join(cdirs)}")
 
             kinds = kd.get("artifact_kinds", [])
             if kinds:

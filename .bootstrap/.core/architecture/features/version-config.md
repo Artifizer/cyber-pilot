@@ -77,7 +77,7 @@ Ensures teams can upgrade Cypilot without losing configuration or customizations
 3. [x] - `p1` - Replace `.core/` from cache (always force-overwrite) - `inst-replace-core`
 4. [x] - `p1` - Detect directory layout; if old layout detected, trigger automatic restructuring using `cpt-cypilot-algo-version-config-layout-restructure` - `inst-detect-layout`
 5. [x] - `p1` - Migrate `{cypilot_path}/config/core.toml` preserving all user settings - `inst-migrate-config`
-6. [ ] - `p1` - For each kit: update via file-level diff using `cpt-cypilot-algo-kit-file-update` (unchanged files skipped, changed files prompt accept/decline/modify) - `inst-update-kits`
+6. [ ] - `p1` - For each kit: update via file-level diff (unchanged files skipped, changed files prompt accept/decline/modify) - `inst-update-kits`
 7. [x] - `p1` - Ensure config scaffold files exist (create only if missing) - `inst-ensure-scaffold`
 8. [x] - `p1` - Regenerate agent entry points - `inst-regenerate-agents`
 9. [x] - `p1` - Run self-check to verify kit integrity (`run_self_check_from_meta`); include result in report, WARN if failed - `inst-self-check`
@@ -108,7 +108,7 @@ Ensures teams can upgrade Cypilot without losing configuration or customizations
 1. [x] - `p1` - Replace `.core/` from cache - `inst-replace-core-algo`
 2. [x] - `p1` - Detect and auto-restructure old directory layout - `inst-detect-layout-algo`
 3. [x] - `p1` - Migrate `{cypilot_path}/config/core.toml` - `inst-migrate-config-algo`
-4. [ ] - `p1` - For each kit: file-level diff using `cpt-cypilot-algo-kit-file-update`, interactive accept/decline/modify per changed file - `inst-update-kits-algo`
+4. [ ] - `p1` - For each kit: file-level diff, interactive accept/decline/modify per changed file - `inst-update-kits-algo`
 5. [ ] - `p1` - (Removed — no separate regen step; kit files are updated directly) - `inst-regen-algo`
 6. [x] - `p1` - Ensure config scaffold - `inst-scaffold-algo`
 
@@ -134,7 +134,7 @@ Ensures teams can upgrade Cypilot without losing configuration or customizations
 
 - [x] `p1` - **ID**: `cpt-cypilot-algo-version-config-compare-versions`
 
-> **LEGACY**: Blueprint version comparison is preserved for backward compatibility with v2/early-v3 installations. New kit updates use file-level diff (`cpt-cypilot-algo-kit-file-update`).
+> **LEGACY**: Blueprint version comparison is preserved for backward compatibility with v2/early-v3 installations. New kit updates use file-level diff.
 
 1. - `p1` - Read `@cpt:blueprint` TOML block from each blueprint to extract version - `inst-read-versions`
 2. - `p1` - Compare cache version vs user version per blueprint - `inst-compare-per-bp`

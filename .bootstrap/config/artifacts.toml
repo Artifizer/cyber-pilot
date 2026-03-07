@@ -11,11 +11,11 @@ patterns = [
 [[systems]]
 name = "Cypilot"
 slug = "cypilot"
-kit = "cypilot-sdlc"
+kit = "sdlc"
 children = []
 
 [[systems.autodetect]]
-kit = "cypilot-sdlc"
+kit = "sdlc"
 system_root = "{project_root}"
 artifacts_root = "architecture"
 
@@ -61,12 +61,12 @@ multiLineComments = [{start = '"""', end = '"""'}]
 [[systems]]
 name = "Examples"
 slug = "ex"
-kit = "cypilot-sdlc"
+kit = "sdlc"
 artifacts_dir = "examples"
 children = []
 
 [[systems.autodetect]]
-kit = "cypilot-sdlc"
+kit = "sdlc"
 system_root = "{project_root}/examples/$system"
 artifacts_root = "{system_root}/architecture"
 

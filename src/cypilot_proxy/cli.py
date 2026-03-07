@@ -136,12 +136,21 @@ def main(argv: Optional[List[str]] = None) -> int:
     if force_update and args and args[0] == "init":
         args.append("--force")
 
-    # For init with --version: update cache first, then forward init to skill
-    if target_version is not None:
-        from cypilot_proxy.cache import download_and_cache
+    # For init: always update cache first, then forward to cached skill
+    if args and args[0] == "init" and not skip_cache and "--help" not in args and "-h" not in args:
+        if source_dir is not None:
+            from cypilot_proxy.cache import copy_from_local
 
-        sys.stderr.write(f"Updating cache to version {target_version}...\n")
-        success, message = download_and_cache(version=target_version, force=force_update)
+            sys.stderr.write("Updating cache from local source...\n")
+            success, message = copy_from_local(source_dir=source_dir, force=force_update)
+        else:
+            from cypilot_proxy.cache import download_and_cache
+
+            if target_version:
+                sys.stderr.write(f"Updating cache to version {target_version}...\n")
+            else:
+                sys.stderr.write("Updating cache to latest version...\n")
+            success, message = download_and_cache(version=target_version, force=force_update, url=custom_url)
         sys.stderr.write(f"{message}\n")
         if not success:
             return 1
@@ -151,11 +160,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     # @cpt-begin:cpt-cypilot-flow-core-infra-cli-invocation:p1:inst-else-no-project
     # @cpt-begin:cpt-cypilot-flow-core-infra-cli-invocation:p1:inst-check-cache
     # @cpt-begin:cpt-cypilot-flow-core-infra-cli-invocation:p1:inst-if-cache
-    # For init --force / --version: use cached skill to avoid chicken-and-egg
-    # (old project skill would run init that copies new code, but old code is in memory)
+    # For init: always use cached skill (we just updated cache above)
     use_cache_for_init = (
         args and args[0] == "init"
-        and (force_update or target_version is not None)
+        and not skip_cache
+        and "--help" not in args and "-h" not in args
     )
     if use_cache_for_init:
         skill_path = find_cached_skill()

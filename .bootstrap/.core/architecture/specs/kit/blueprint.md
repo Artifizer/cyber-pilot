@@ -6,7 +6,6 @@ version: 1.0
 purpose: Define blueprint format, marker syntax, marker reference, placeholder syntax, parsing algorithm, update model, validation rules, and examples
 drivers:
   - cpt-cypilot-fr-core-blueprint
-  - cpt-cypilot-component-blueprint-processor
 ---
 
 # Blueprint Specification
@@ -299,7 +298,7 @@ name: Cypilot PR Review
 description: Review a GitHub PR against configurable checklists and prompts
 ---
 
-Follow the workflow defined in `{cypilot_path}/.gen/kits/sdlc/workflows/pr-review.md`
+Follow the workflow defined in `{cypilot_path}/config/kits/sdlc/workflows/pr-review.md`
 ```
 
 Agent entry points are fully overwritten on every `cpt generate-agents` run. Kit workflow files are regenerated from blueprints on `cpt init`.

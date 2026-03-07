@@ -506,9 +506,9 @@ def _registered_kit_dirs(project_root: Optional[Path]) -> Optional[Set[str]]:
 def _list_workflow_files(cypilot_root: Path, project_root: Optional[Path] = None) -> List[Tuple[str, Path]]:
     """List workflow files from .core/workflows/ and config/kits/*/workflows/.
 
-    Returns list of (filename, full_path) tuples.  Generated workflows
-    from blueprints are discovered alongside core workflows so the agent
-    proxy generator can route to them.
+    Returns list of (filename, full_path) tuples.  Kit workflows
+    are discovered alongside core workflows so the agent proxy
+    generator can route to them.
     """
     seen_names: set = set()
     out: List[Tuple[str, Path]] = []
@@ -537,7 +537,7 @@ def _list_workflow_files(cypilot_root: Path, project_root: Optional[Path] = None
     # 1. Core workflows
     _scan_dir(core_subpath(cypilot_root, "workflows"))
 
-    # 2. Generated workflows from blueprints (config/kits/*/workflows/)
+    # 2. Kit workflows (config/kits/*/workflows/)
     registered = _registered_kit_dirs(project_root)
     config_kits = _resolve_config_kits(cypilot_root, project_root)
     if config_kits.is_dir():

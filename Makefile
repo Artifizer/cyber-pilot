@@ -1,5 +1,5 @@
 # @cpt-algo:cpt-cypilot-spec-init-structure-change-infrastructure:p1
-.PHONY: test test-verbose test-quick test-coverage validate validate-examples validate-feature validate-code validate-code-feature self-check vulture vulture-ci install install-pipx install-proxy clean help check-pytest check-pytest-cov check-pipx check-vulture check-versions update spec-coverage ci lint-ci
+.PHONY: test test-verbose test-quick test-coverage validate validate-examples validate-feature validate-code validate-code-feature self-check validate-kits validate-kits-sdlc vulture vulture-ci install install-pipx install-proxy clean help check-pytest check-pytest-cov check-pipx check-vulture check-versions update spec-coverage ci lint-ci
 
 # Detect container architecture for act (arm64 on Apple Silicon, amd64 otherwise)
 UNAME_M := $(shell uname -m)
@@ -32,6 +32,8 @@ help:
 	@echo "  make validate-examples             - Validate requirements examples under examples/requirements"
 	@echo "  make validate                      - Validate core methodology spec"
 	@echo "  make self-check                    - Validate SDLC examples against their templates"
+	@echo "  make validate-kits                 - Validate all registered kits"
+	@echo "  make validate-kits-sdlc            - Validate kits/sdlc kit by path"
 	@echo "  make check-versions                - Check version consistency across components"
 	@echo "  make spec-coverage                 - Check spec coverage (≥80% overall, ≥70% per file)"
 	@echo "  make vulture                       - Scan python code for dead code (report only, does not fail)"
@@ -151,6 +153,16 @@ validate:
 self-check:
 	@echo "Running self-check: validating SDLC examples against templates..."
 	$(CPT) self-check
+
+# Validate all registered kits
+validate-kits:
+	@echo "Validating all registered kits..."
+	$(CPT) validate-kits
+
+# Validate kits/sdlc kit by path
+validate-kits-sdlc:
+	@echo "Validating kits/sdlc..."
+	$(CPT) validate-kits kits/sdlc
 
 # Install Python dependencies
 install-pipx: check-pipx

@@ -166,14 +166,16 @@ class TestCliInternalHelpers(unittest.TestCase):
 
 class TestCliCommandCoverage(unittest.TestCase):
     def test_self_check_project_root_not_found(self):
+        from cypilot.commands.self_check import cmd_self_check
         with TemporaryDirectory() as td:
             with patch("cypilot.commands.self_check.find_project_root", return_value=None):
                 buf = io.StringIO()
                 with contextlib.redirect_stdout(buf):
-                    code = cypilot_cli._cmd_self_check(["--root", td])
+                    code = cmd_self_check(["--root", td])
         self.assertEqual(code, 1)
 
     def test_self_check_adapter_dir_not_found(self):
+        from cypilot.commands.self_check import cmd_self_check
         with TemporaryDirectory() as td:
             root = Path(td)
             (root / ".git").mkdir()
@@ -181,10 +183,11 @@ class TestCliCommandCoverage(unittest.TestCase):
                 with patch("cypilot.commands.self_check.find_cypilot_directory", return_value=None):
                     buf = io.StringIO()
                     with contextlib.redirect_stdout(buf):
-                        code = cypilot_cli._cmd_self_check(["--root", td])
+                        code = cmd_self_check(["--root", td])
         self.assertEqual(code, 1)
 
     def test_self_check_registry_no_rules(self):
+        from cypilot.commands.self_check import cmd_self_check
         with TemporaryDirectory() as td:
             root = Path(td)
             (root / ".git").mkdir()
@@ -201,10 +204,11 @@ class TestCliCommandCoverage(unittest.TestCase):
                     with patch("cypilot.commands.self_check.load_artifacts_meta", return_value=(meta_mock, None)):
                         buf = io.StringIO()
                         with contextlib.redirect_stdout(buf):
-                            code = cypilot_cli._cmd_self_check(["--root", td])
+                            code = cmd_self_check(["--root", td])
         self.assertEqual(code, 1)
 
     def test_self_check_with_rules_structure(self):
+        from cypilot.commands.self_check import cmd_self_check
         with TemporaryDirectory() as td:
             root = Path(td)
             (root / ".git").mkdir()
@@ -238,7 +242,7 @@ class TestCliCommandCoverage(unittest.TestCase):
                     with patch("cypilot.commands.self_check.load_artifacts_meta", return_value=(meta_mock2, None)):
                         buf = io.StringIO()
                         with contextlib.redirect_stdout(buf):
-                            code = cypilot_cli._cmd_self_check(["--root", td])
+                            code = cmd_self_check(["--root", td])
         # PASS when no examples exist (missing example/template is not an error)
         self.assertEqual(code, 0)
 

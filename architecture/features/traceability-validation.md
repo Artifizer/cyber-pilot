@@ -22,6 +22,8 @@
   - [TOC Utilities](#toc-utilities)
   - [Markdown Parsing Utilities](#markdown-parsing-utilities)
   - [Fixing Prompt Enrichment](#fixing-prompt-enrichment)
+  - [Headings Contract Validation](#headings-contract-validation)
+  - [Load Constraints](#load-constraints)
   - [Language Configuration](#language-configuration)
 - [4. States (CDSL)](#4-states-cdsl)
   - [Validation Report Lifecycle](#validation-report-lifecycle)
@@ -140,6 +142,7 @@ Catches structural and traceability issues that AI agents miss or hallucinate â€
    3. [x] - `p1` - **ELSE** match standalone reference pattern: `\`cpt-...\`` with optional checkbox - `inst-match-ref`
    4. [x] - `p1` - **ELSE** scan for inline backticked `cpt-*` references - `inst-match-inline`
 3. [x] - `p1` - **RETURN** ordered list of hits - `inst-return-hits`
+4. [x] - `p1` - Parse a `cpt-{system}-{kind}-{slug}` identifier: extract system, kind, slug with composite ID support - `inst-parse-cpt`
 
 ### Scan CDSL Instructions
 
@@ -308,6 +311,36 @@ Catches structural and traceability issues that AI agents miss or hallucinate â€
 1. [x] - `p1` - Define probable reasons registry mapping error codes to human-readable templates - `inst-fix-define-reasons`
 2. [x] - `p1` - Build actionable fixing prompt per error code with location, ID, and constraint context - `inst-fix-build-prompt`
 3. [x] - `p1` - Enrich each issue in-place: resolve reasons, attach fixing prompt, normalize location - `inst-fix-enrich`
+
+### Headings Contract Validation
+
+- [x] `p1` - **ID**: `cpt-cypilot-algo-traceability-validation-headings-contract`
+
+**Input**: Artifact path, artifact kind constraints (headings list), registered systems
+
+**Output**: `{errors, warnings}` lists
+
+**Steps**:
+1. [x] - `p1` - Resolve heading constraint IDs by line: match each document heading to a constraint pattern, build per-line active scope stack - `inst-resolve-scope`
+2. [x] - `p1` - Scan headings from markdown lines: parse level, title, numbering prefix (respecting fenced code blocks) - `inst-scan-headings`
+3. [x] - `p1` - Initialize validation context: load heading constraints, build helper lookups, scan document headings - `inst-validate-init`
+4. [x] - `p1` - Check numbering sequence: enforce that sibling sections under the same numeric parent progress consecutively - `inst-check-numbering`
+5. [x] - `p1` - Match headings against constraints: hierarchical scope matching, required/multiple/numbered enforcement, emit errors for missing/duplicate/misnumbered headings - `inst-match-headings`
+
+### Load Constraints
+
+- [x] `p1` - **ID**: `cpt-cypilot-algo-traceability-validation-load-constraints`
+
+**Input**: Kit root path or raw TOML data
+
+**Output**: `KitConstraints` object or list of parse errors
+
+**Steps**:
+1. [x] - `p1` - Load `constraints.toml` from kit root, parse TOML, delegate to `parse_kit_constraints` - `inst-load-toml`
+2. [x] - `p1` - Parse kit constraints: iterate artifact kinds, parse headings, identifiers, TOC flag, normalize heading IDs and prev/next references - `inst-parse-kit`
+3. [x] - `p1` - Parse individual ID constraint: validate kind, required, name, template, examples, task, priority, to_code, headings, references - `inst-parse-id-constraint`
+4. [x] - `p1` - Parse heading constraint: validate level, pattern, description, required, multiple, numbered, id, prev/next, pointer - `inst-parse-heading`
+5. [x] - `p1` - Parse reference rule: validate coverage, task, priority, headings fields - `inst-parse-ref-rule`
 
 ### Language Configuration
 

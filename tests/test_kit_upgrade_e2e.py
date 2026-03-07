@@ -7,9 +7,8 @@ For each version N (1 … latest-1) of the SDLC kit:
   3. Build a cache with the LATEST kit → run ``cmd_update -y``.
   4. Assert:
      - exit code 0
-     - kit migration status is "migrated" or "created"
-     - all blueprint actions are auto_updated / merged / created (no errors)
-     - ``process_kit`` generates resources without errors
+     - kit update status is "migrated", "created", or "updated"
+     - no top-level errors
      - user conf.toml version bumped to latest
 
 The tests are non-interactive (``-y`` auto-approves everything).
@@ -173,6 +172,14 @@ def _init_project(root: Path, cache_dir: Path) -> Path:
 class TestKitUpgradeE2E(unittest.TestCase):
     """Upgrade from every historical kit version to the latest."""
 
+    def setUp(self):
+        from cypilot.utils.ui import set_json_mode
+        set_json_mode(True)
+
+    def tearDown(self):
+        from cypilot.utils.ui import set_json_mode
+        set_json_mode(False)
+
     @classmethod
     def setUpClass(cls):
         """Pre-extract the latest kit into a temp dir (shared across tests)."""
@@ -207,11 +214,11 @@ class TestKitUpgradeE2E(unittest.TestCase):
             root.mkdir()
             adapter = _init_project(root, cache_old)
 
-            # Verify the project was installed at the old version
-            user_conf = adapter / "kits" / "sdlc" / "conf.toml"
+            # Verify the project was installed (kit registered in core.toml)
+            core_toml = adapter / "config" / "core.toml"
             self.assertTrue(
-                user_conf.is_file(),
-                f"conf.toml not created during init (v{from_version})",
+                core_toml.is_file(),
+                f"core.toml not created during init (v{from_version})",
             )
 
             # 3. Build cache-v-latest
@@ -246,7 +253,7 @@ class TestKitUpgradeE2E(unittest.TestCase):
             f"v{from_version}→v{LATEST_VERSION}: unexpected status {out['status']}: {json.dumps(out, indent=2)}",
         )
 
-        # -- kit migration result --
+        # -- kit update result --
         kits = out.get("actions", {}).get("kits", {})
         self.assertIn("sdlc", kits, f"v{from_version}: sdlc not in kits results")
         sdlc = kits["sdlc"]
@@ -254,33 +261,8 @@ class TestKitUpgradeE2E(unittest.TestCase):
         ver = sdlc.get("version", {})
         self.assertIsInstance(ver, dict, f"v{from_version}: version is not a dict: {ver}")
         self.assertIn(
-            ver.get("status"), ("migrated", "created"),
-            f"v{from_version}: version status = {ver.get('status')}, expected migrated/created",
-        )
-
-        # -- no gen_errors --
-        gen_errors = sdlc.get("gen_errors", [])
-        self.assertEqual(
-            gen_errors, [],
-            f"v{from_version}: gen_errors: {gen_errors}",
-        )
-
-        # -- blueprint-level: no "declined" or error actions --
-        bp_results = ver.get("blueprints", [])
-        for bp in bp_results:
-            action = bp.get("action", "")
-            self.assertIn(
-                action,
-                ("auto_updated", "merged", "created", "no_marker_changes"),
-                f"v{from_version}: blueprint {bp.get('blueprint')}: unexpected action '{action}'",
-            )
-
-        # -- generated resources --
-        gen = sdlc.get("gen", {})
-        self.assertIsInstance(gen, dict, f"v{from_version}: gen is not a dict")
-        self.assertGreater(
-            gen.get("files_written", 0), 0,
-            f"v{from_version}: no files generated",
+            ver.get("status"), ("migrated", "created", "updated"),
+            f"v{from_version}: version status = {ver.get('status')}, expected migrated/created/updated",
         )
 
         # -- no top-level errors --

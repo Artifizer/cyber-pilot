@@ -3,7 +3,7 @@
 #
 # Resolution order:
 #   1. {cypilot_path}/config/pr-review.toml   (user-editable, this file)
-#   2. {cypilot_path}/.gen/kits/sdlc/scripts/pr-review.toml  (default)
+#   2. {cypilot_path}/config/kits/sdlc/scripts/pr-review.toml  (default)
 #
 # Paths support {cypilot_path} variable — resolved at runtime.
 
@@ -16,29 +16,29 @@ data_dir = ".prs"
 
 [[prompts]]
 description = "Code Review"
-prompt_file = "{cypilot_path}/.gen/kits/sdlc/scripts/prompts/pr/code-review.md"
-checklist   = "{cypilot_path}/.gen/kits/sdlc/codebase/checklist.md"
+prompt_file = "{cypilot_path}/config/kits/sdlc/scripts/prompts/pr/code-review.md"
+checklist   = "{cypilot_path}/config/kits/sdlc/codebase/checklist.md"
 # coding_guidelines = "docs/coding-guidelines.md"
 # security_guidelines = "docs/security-guidelines.md"
 
 [[prompts]]
 description = "PRD Review"
-prompt_file = "{cypilot_path}/.gen/kits/sdlc/scripts/prompts/pr/prd-review.md"
-checklist   = "{cypilot_path}/.gen/kits/sdlc/artifacts/PRD/checklist.md"
-template    = "{cypilot_path}/.gen/kits/sdlc/artifacts/PRD/template.md"
+prompt_file = "{cypilot_path}/config/kits/sdlc/scripts/prompts/pr/prd-review.md"
+checklist   = "{cypilot_path}/config/kits/sdlc/artifacts/PRD/checklist.md"
+template    = "{cypilot_path}/config/kits/sdlc/artifacts/PRD/template.md"
 # project_domain = ""
 # existing_artifacts = "docs/prd/"
 
 [[prompts]]
 description = "ADR Review"
-prompt_file = "{cypilot_path}/.gen/kits/sdlc/scripts/prompts/pr/adr-review.md"
-checklist   = "{cypilot_path}/.gen/kits/sdlc/artifacts/ADR/checklist.md"
-template    = "{cypilot_path}/.gen/kits/sdlc/artifacts/ADR/template.md"
+prompt_file = "{cypilot_path}/config/kits/sdlc/scripts/prompts/pr/adr-review.md"
+checklist   = "{cypilot_path}/config/kits/sdlc/artifacts/ADR/checklist.md"
+template    = "{cypilot_path}/config/kits/sdlc/artifacts/ADR/template.md"
 # existing_artifacts = "docs/adr/"
 
 [[prompts]]
 description = "Design Review"
-prompt_file = "{cypilot_path}/.gen/kits/sdlc/scripts/prompts/pr/design-review.md"
-checklist   = "{cypilot_path}/.gen/kits/sdlc/artifacts/DESIGN/checklist.md"
-template    = "{cypilot_path}/.gen/kits/sdlc/artifacts/DESIGN/template.md"
+prompt_file = "{cypilot_path}/config/kits/sdlc/scripts/prompts/pr/design-review.md"
+checklist   = "{cypilot_path}/config/kits/sdlc/artifacts/DESIGN/checklist.md"
+template    = "{cypilot_path}/config/kits/sdlc/artifacts/DESIGN/template.md"
 # architecture = "docs/architecture/"

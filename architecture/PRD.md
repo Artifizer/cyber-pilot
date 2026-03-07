@@ -279,7 +279,7 @@ Kit installation MUST register the kit in `{cypilot_path}/config/core.toml` (inc
 
 - [x] `p1` - **ID**: `cpt-cypilot-fr-core-blueprint`
 
-> **DEPRECATED per `cpt-cypilot-adr-remove-blueprint-system`**: This requirement has been removed. Kits are now direct file packages — see `cpt-cypilot-fr-core-kits` and `cpt-cypilot-fr-core-resource-diff`.
+> **DEPRECATED**: This requirement has been removed. Kits are now direct file packages — see `cpt-cypilot-fr-core-kits` and `cpt-cypilot-fr-core-resource-diff`.
 
 **Actors**:
 `cpt-cypilot-actor-user`, `cpt-cypilot-actor-cypilot-cli`

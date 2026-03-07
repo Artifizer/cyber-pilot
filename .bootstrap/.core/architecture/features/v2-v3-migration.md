@@ -265,7 +265,7 @@ This feature addresses the need for a seamless upgrade path from Cypilot v2 to v
    1. [x] - `p1` - Classify kit: check if kit slug matches known vanilla SDLC kit (exact `sdlc` or legacy aliases like `cf-sdlc`) — `inst-classify-kit`
    2. [x] - `p1` - **IF** kit is vanilla SDLC — `inst-kit-is-vanilla`
       1. [x] - `p1` - Remap legacy slug to `sdlc` — `inst-remap-kit-slug`
-      2. [x] - `p1` - Map kit `path` to v3 location: `{cypilot_path}/.gen/kits/sdlc` — `inst-map-kit-path`
+      2. [x] - `p1` - Map kit `path` to v3 location: `{cypilot_path}/config/kits/sdlc` — `inst-map-kit-path`
       3. [x] - `p1` - Drop kit-level `artifacts{}` template/examples references (v3 uses direct file packages) — `inst-drop-kit-artifact-refs`
    3. [x] - `p1` - **ELSE** (custom/unknown kit) — `inst-kit-is-custom`
       1. [x] - `p1` - Preserve original kit slug verbatim — `inst-preserve-custom-slug`
@@ -289,7 +289,7 @@ This feature addresses the need for a seamless upgrade path from Cypilot v2 to v
 1. [x] - `p1` - **FOR EACH** kit in v2 kits{} — `inst-iterate-kits-migrate`
    1. [x] - `p1` - **IF** kit is vanilla SDLC (slug `sdlc` or legacy alias) — `inst-kit-vanilla-check`
       1. [x] - `p1` - Install SDLC kit files from cache into `{cypilot_path}/config/kits/sdlc/` — `inst-install-sdlc-files`
-      2. [x] - `p1` - Copy kit outputs into `{cypilot_path}/.gen/kits/sdlc/` (for backward compat during migration) — `inst-copy-sdlc-outputs`
+      2. [x] - `p1` - Copy kit outputs into `{cypilot_path}/config/kits/sdlc/` (for backward compat during migration) — `inst-copy-sdlc-outputs`
       3. [x] - `p1` - Add to vanilla_kits[] — `inst-add-vanilla-kit`
    2. [x] - `p1` - **ELSE** (custom/unknown kit) — `inst-kit-custom-migrate`
       1. [x] - `p1` - Copy v2 kit directory from `{adapter_path}/kits/{v2_slug}/` to `{cypilot_path}/config/kits/{slug}/` — `inst-copy-custom-kit-config`
@@ -593,7 +593,7 @@ The system **MUST** inject or update the `<!-- @cpt:root-agents -->` managed blo
 
 The system **MUST** distinguish between vanilla SDLC kits and custom/unknown kits during migration:
 
-1. **Vanilla SDLC kit** (slug `sdlc` or legacy aliases like `cf-sdlc`): The system **MUST** install kit files from cache into `{cypilot_path}/config/kits/sdlc/` and copy outputs into `{cypilot_path}/.gen/kits/sdlc/`. Legacy `constraints.json` files **MUST NOT** be migrated — they are replaced by the kit's `constraints.toml`.
+1. **Vanilla SDLC kit** (slug `sdlc` or legacy aliases like `cf-sdlc`): The system **MUST** install kit files from cache into `{cypilot_path}/config/kits/sdlc/` and copy outputs into `{cypilot_path}/config/kits/sdlc/`. Legacy `constraints.json` files **MUST NOT** be migrated — they are replaced by the kit's `constraints.toml`.
 2. **Custom/unknown kits**: The system **MUST** copy the v2 kit directory as-is into `{cypilot_path}/config/kits/{slug}/` and copy existing outputs (artifacts/, codebase/, rules) into `{cypilot_path}/.gen/kits/{slug}/` without regeneration. If the custom kit contains `constraints.json`, the system **MUST** convert it to `constraints.toml` (JSON parse → TOML serialize) — this is a pure format conversion with no semantic interpretation. The system **MUST** emit a warning that the custom kit was not regenerated and requires manual review.
 
 The system **MUST NOT** attempt to interpret custom kit content — it has no knowledge of custom kit structure or semantics. The `constraints.json` → `constraints.toml` conversion is the only transformation applied to custom kits.

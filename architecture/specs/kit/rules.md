@@ -368,7 +368,7 @@ Optional VALID/INVALID sub-items:
 
 ## Example: Generated rules.md
 
-For a PRD artifact, `{cypilot_path}/.gen/kits/sdlc/artifacts/PRD/rules.md`:
+For a PRD artifact, `{cypilot_path}/config/kits/sdlc/artifacts/PRD/rules.md`:
 
 ```markdown
 # PRD Rules

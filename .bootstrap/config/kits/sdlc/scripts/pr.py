@@ -125,7 +125,7 @@ def _load_pr_config():
 
     Resolution order:
     1. {cypilot_path}/config/pr-review.toml   (user-editable)
-    2. {cypilot_path}/.gen/kits/sdlc/scripts/pr-review.toml  (kit default)
+    2. {cypilot_path}/config/kits/sdlc/scripts/pr-review.toml  (kit default)
     3. {cypilot_path}/config/pr-review.json   (legacy JSON)
     4. .cypilot-adapter/pr-review.json        (legacy v1)
     """

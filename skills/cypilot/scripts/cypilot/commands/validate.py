@@ -53,20 +53,19 @@ def cmd_validate(argv: List[str]) -> int:
     # @cpt-begin:cpt-cypilot-flow-traceability-validation-validate:p1:inst-self-check
     if getattr(meta, "kits", None):
         try:
-            from .self_check import run_self_check_from_meta
+            from .validate_kits import run_validate_kits
 
-            rc, report = run_self_check_from_meta(
+            rc, report = run_validate_kits(
                 project_root=project_root,
                 adapter_dir=ctx.adapter_dir,
-                artifacts_meta=meta,
                 kit_filter=None,
                 verbose=bool(args.verbose),
             )
             if rc != 0 or str(report.get("status")) != "PASS":
                 out = {
                     "status": "FAIL" if rc == 2 else "ERROR",
-                    "message": "self-check failed (templates/examples are inconsistent)",
-                    "self_check": report,
+                    "message": "validate-kits failed (kit structure or templates are inconsistent)",
+                    "validate_kits": report,
                 }
                 ui.result(out)
                 return 2 if rc == 2 else 1

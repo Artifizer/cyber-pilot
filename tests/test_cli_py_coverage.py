@@ -12,6 +12,16 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parent.parent / "skills" / "cypilot" / "scripts"))
 
 
+def setUpModule():
+    from cypilot.utils.ui import set_json_mode
+    set_json_mode(True)
+
+
+def tearDownModule():
+    from cypilot.utils.ui import set_json_mode
+    set_json_mode(False)
+
+
 def _write_json(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -87,9 +97,9 @@ class TestCLIPyCoverageSelfCheck(unittest.TestCase):
                 self.assertEqual(exit_code, 0)
                 out = json.loads(stdout.getvalue())
                 self.assertEqual(out.get("status"), "PASS")
-                self.assertEqual(out.get("kits_checked"), 1)
+                self.assertEqual(out.get("kits_validated"), 1)
                 self.assertEqual(out.get("templates_checked"), 1)
-                self.assertEqual(out["results"][0]["status"], "PASS")
+                self.assertEqual(out["self_check_results"][0]["status"], "PASS")
             finally:
                 os.chdir(cwd)
 
@@ -1325,9 +1335,10 @@ class TestCLIPyCoverageSelfCheckSkipBranches(unittest.TestCase):
                         meta_m.kits = reg.get("kits", {})
                         mock_lam.return_value = (meta_m, None)
                     with patch("cypilot.commands.self_check.load_artifacts_meta", return_value=(meta_m, None)):
+                        from cypilot.commands.self_check import cmd_self_check
                         buf = io.StringIO()
                         with redirect_stdout(buf):
-                            rc = cypilot_cli._cmd_self_check(["--root", td])
+                            rc = cmd_self_check(["--root", td])
 
             self.assertEqual(rc, 0)
             out = json.loads(buf.getvalue())
@@ -1351,8 +1362,8 @@ class TestCLIPyCoverageSelfCheckSkipBranches(unittest.TestCase):
                 self.assertEqual(exit_code, 2)
                 out = json.loads(stdout.getvalue())
                 self.assertEqual(out.get("status"), "FAIL")
-                self.assertEqual(out["results"][0]["status"], "FAIL")
-                self.assertIn("errors", out["results"][0])
+                self.assertEqual(out["self_check_results"][0]["status"], "FAIL")
+                self.assertIn("errors", out["self_check_results"][0])
             finally:
                 os.chdir(cwd)
 
@@ -1389,7 +1400,8 @@ class TestCLIPyCoverageSelfCheckSkipBranches(unittest.TestCase):
                 os.chdir(root)
                 stdout = io.StringIO()
                 with redirect_stdout(stdout):
-                    exit_code = cypilot_cli._cmd_self_check([])
+                    from cypilot.commands.self_check import cmd_self_check
+                    exit_code = cmd_self_check([])
                 self.assertEqual(exit_code, 0)
                 out = json.loads(stdout.getvalue())
                 self.assertEqual(out.get("status"), "PASS")
@@ -1529,7 +1541,7 @@ class TestCLIPyCoverageSelfCheckFiltering(unittest.TestCase):
                     exit_code = main(["self-check", "--kit", "nonexistent-kit"])
                 self.assertEqual(exit_code, 0)
                 out = json.loads(stdout.getvalue())
-                self.assertEqual(out.get("kits_checked"), 0)
+                self.assertEqual(out.get("kits_validated"), 0)
             finally:
                 os.chdir(cwd)
 
@@ -1550,7 +1562,7 @@ class TestCLIPyCoverageSelfCheckFiltering(unittest.TestCase):
                     exit_code = main(["self-check", "--kit", "cypilot-sdlc"])
                 self.assertEqual(exit_code, 0)
                 out = json.loads(stdout.getvalue())
-                self.assertEqual(out.get("kits_checked"), 1)
+                self.assertEqual(out.get("kits_validated"), 1)
             finally:
                 os.chdir(cwd)
 
@@ -1925,7 +1937,11 @@ class TestCLIPyCoverageSlugValidation(unittest.TestCase):
     """Tests for slug validation errors in self-check (lines 301-306)."""
 
     def test_self_check_invalid_slugs(self):
-        """self-check reports invalid slugs in artifacts.json."""
+        """self-check (now routed to validate-kits) does not fail on invalid slugs.
+
+        Slug validation is the ``validate`` command's responsibility, not
+        ``validate-kits``.
+        """
         from cypilot.cli import main
 
         with TemporaryDirectory() as tmpdir:
@@ -1963,10 +1979,8 @@ class TestCLIPyCoverageSlugValidation(unittest.TestCase):
                 stdout = io.StringIO()
                 with redirect_stdout(stdout):
                     exit_code = main(["self-check"])
-                self.assertEqual(exit_code, 1)
-                out = json.loads(stdout.getvalue())
-                self.assertEqual(out.get("status"), "ERROR")
-                self.assertIn("slug_errors", out)
+                # validate-kits does not enforce slug validation
+                self.assertEqual(exit_code, 0)
             finally:
                 os.chdir(cwd)
 

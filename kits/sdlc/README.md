@@ -63,7 +63,7 @@ All resources below are **generated from blueprints** in `config/kits/sdlc/bluep
 
 ## Generated Output
 
-After running `cpt update`, `cpt kit migrate`, or `cpt generate-resources`, the generated kit output is available here: **[.bootstrap/.gen/kits/sdlc/](../../.bootstrap/.gen/kits/sdlc/)** (in other projects: `{cypilot_path}/.gen/kits/sdlc/`).
+After running `cpt update`, `cpt kit migrate`, or `cpt generate-resources`, the generated kit output is available here: **[.bootstrap/.gen/kits/sdlc/](../../.bootstrap/.gen/kits/sdlc/)** (in other projects: `{cypilot_path}/config/kits/sdlc/`).
 
 ## References
 

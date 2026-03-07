@@ -878,7 +878,6 @@ def migrate_kits(
     for v2_slug in v2_kits:
         # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-migrate-kits:p1:inst-locate-kit-dir
         v2_kit_dir = adapter_dir / "kits" / v2_slug
-        user_kit_dir = cypilot_dir / "kits" / v2_slug
         config_kit_dir = config_dir / "kits" / v2_slug
         # @cpt-end:cpt-cypilot-algo-v2-v3-migration-migrate-kits:p1:inst-locate-kit-dir
 
@@ -891,22 +890,12 @@ def migrate_kits(
             continue
 
         # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-migrate-kits:p1:inst-copy-kit-config
-        # Copy blueprints + conf.toml → kits/{slug}/ (user-editable)
-        user_kit_dir.mkdir(parents=True, exist_ok=True)
-        v2_bp = v2_kit_dir / "blueprints"
-        if v2_bp.is_dir():
-            dst_bp = user_kit_dir / "blueprints"
-            if dst_bp.exists():
-                shutil.rmtree(dst_bp)
-            shutil.copytree(v2_bp, dst_bp)
-        v2_conf = v2_kit_dir / "conf.toml"
-        if v2_conf.is_file():
-            shutil.copy2(v2_conf, user_kit_dir / "conf.toml")
-        # Copy remaining files (scripts, guides, etc.) → config/kits/{slug}/
+        # Copy all kit content → config/kits/{slug}/ (new model: direct file packages)
+        # Skip blueprints/ and blueprint_hashes.toml — no longer used.
         config_kit_dir.mkdir(parents=True, exist_ok=True)
         for item in v2_kit_dir.iterdir():
-            if item.name in ("blueprints", "conf.toml"):
-                continue  # already copied to kits/{slug}/
+            if item.name in ("blueprints", "blueprint_hashes.toml", "__pycache__", ".prev"):
+                continue  # legacy artifacts — skip
             dst = config_kit_dir / item.name
             if item.is_dir():
                 if dst.exists():
@@ -949,6 +938,11 @@ def migrate_kits(
         migrated_kits.append(v2_slug)
         # @cpt-end:cpt-cypilot-algo-v2-v3-migration-migrate-kits:p1:inst-add-migrated-kit
     # @cpt-end:cpt-cypilot-algo-v2-v3-migration-migrate-kits:p1:inst-iterate-kits-migrate
+
+    # Remove legacy kits/ directory — no longer used in new model
+    kits_user_dir = cypilot_dir / "kits"
+    if kits_user_dir.is_dir():
+        shutil.rmtree(kits_user_dir)
 
     # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-migrate-kits:p1:inst-return-kits-result
     return {
@@ -1115,8 +1109,8 @@ def _install_default_kit_from_cache(
     Returns update_kit result dict, or None if kit already present or
     cache doesn't have the default kit.
     """
-    kits_dir = cypilot_dir / "kits"
-    if kits_dir.is_dir() and any(kits_dir.iterdir()):
+    config_kits_dir = cypilot_dir / "config" / "kits"
+    if config_kits_dir.is_dir() and any(config_kits_dir.iterdir()):
         return None  # kits already present
 
     cache_kit_src = cache_dir / "kits" / default_slug
@@ -1575,10 +1569,10 @@ def run_migrate(
             for f in adapter_removed:
                 ui.detail("removed", f)
 
-        # Step 8c: Regenerate config/kits/ from migrated blueprints
+        # Step 8c: Verify config/kits/ after migration
         # (must happen before cmd_agents so workflow proxies resolve)
         _regenerate_gen_from_config(config_dir, gen_dir, cypilot_dir=cypilot_dir)
-        ui.step("config/kits/ regenerated from migrated blueprints")
+        ui.step("config/kits/ verified after migration")
 
         # Step 8d: Write .gen/AGENTS.md (generated navigation rules)
         # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-write-gen-agents
@@ -1712,63 +1706,42 @@ def run_migrate(
 
 # @cpt-algo:cpt-cypilot-algo-v2-v3-migration-regenerate-gen:p1
 def _regenerate_gen_from_config(config_dir: Path, gen_dir: Path, cypilot_dir: Optional[Path] = None) -> None:
-    """Process migrated blueprints to populate config/kits/{slug}/.
+    """Ensure config/kits/{slug}/ is populated after v2→v3 migration.
 
-    Mirrors cpt-update step 4: for each kit in kits/{slug}/ that has
-    blueprints/, run process_kit to generate artifacts, workflows, SKILL.md
-    into config/kits/{slug}/.
+    In the new direct-file-package model, kit files are ready to use —
+    no blueprint processing needed.  The migration already copies kit
+    content into config/kits/{slug}/.  Running ``cpt update`` afterwards
+    will apply any upstream changes from cache via file-level diff.
 
     Args:
         config_dir: config/ directory
         gen_dir: .gen/ directory (kept for aggregate files)
         cypilot_dir: cypilot adapter root (if None, derived from config_dir parent)
-
-    Raises:
-        RuntimeError: If process_kit reports any errors for any kit.
     """
-    from ..utils.blueprint import process_kit
-    from .kit import _write_kit_gen_outputs
-
     if cypilot_dir is None:
         cypilot_dir = config_dir.parent
 
-    kits_user_dir = cypilot_dir / "kits"
     config_kits_dir = config_dir / "kits"
-
-    if not kits_user_dir.is_dir():
+    if not config_kits_dir.is_dir():
         return
 
-    all_errors: List[str] = []
-
     # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-regenerate-gen:p1:inst-foreach-kit-regen
-    for kit_dir in sorted(kits_user_dir.iterdir()):
-        bp_dir = kit_dir / "blueprints"
-        if not bp_dir.is_dir():
+    # Kit files are direct packages — no generation needed.
+    # Verify kit directories exist in config/kits/.
+    for kit_dir in sorted(config_kits_dir.iterdir()):
+        if not kit_dir.is_dir():
             continue
-        kit_slug = kit_dir.name
-        config_kit_dir = config_kits_dir / kit_slug
-
-        # Copy scripts to config/kits/{slug}/scripts/
-        scripts_src = config_kit_dir / "scripts"
-        # Scripts already in config/kits/ from migrate_kits — no extra copy needed
-
-        # Process blueprints → artifacts, workflows, SKILL.md into config/kits/
-        summary, errors = process_kit(
-            kit_slug, bp_dir, config_kits_dir, dry_run=False,
-        )
-        if errors:
-            all_errors.extend(f"[{kit_slug}] {e}" for e in errors)
-
-        # Write per-kit SKILL.md + workflow files
-        _write_kit_gen_outputs(kit_slug, summary, config_kits_dir)
+        # conf.toml should be present after migration
+        conf = kit_dir / "conf.toml"
+        if not conf.is_file():
+            sys.stderr.write(
+                f"migrate: kit '{kit_dir.name}' missing conf.toml, "
+                "run 'cpt update' to refresh from cache\n"
+            )
     # @cpt-end:cpt-cypilot-algo-v2-v3-migration-regenerate-gen:p1:inst-foreach-kit-regen
 
     # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-regenerate-gen:p1:inst-raise-regen-errors
-    if all_errors:
-        raise RuntimeError(
-            f"Generation from config failed with {len(all_errors)} error(s):\n"
-            + "\n".join(all_errors)
-        )
+    # No errors to raise — kit files are direct packages, no generation step.
     # @cpt-end:cpt-cypilot-algo-v2-v3-migration-regenerate-gen:p1:inst-raise-regen-errors
 
 # @cpt-algo:cpt-cypilot-algo-v2-v3-migration-write-gen-agents:p1

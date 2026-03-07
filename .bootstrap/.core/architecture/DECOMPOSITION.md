@@ -7,7 +7,7 @@
 - [1. Overview](#1-overview)
 - [2. Entries](#2-entries)
   - [2.1 Core Infrastructure ⏳ HIGH](#21-core-infrastructure-high)
-  - [2.2 Blueprint System ⏳ HIGH](#22-blueprint-system-high)
+  - [2.2 Kit Management ⏳ HIGH](#22-kit-management-high)
   - [2.3 Traceability & Validation ⏳ HIGH](#23-traceability-validation-high)
   - [2.4 SDLC Kit & Artifact Pipeline ⏳ HIGH](#24-sdlc-kit-artifact-pipeline-high)
   - [2.5 Agent Integration & Workflows ✅ DONE](#25-agent-integration-workflows-done)
@@ -103,11 +103,11 @@ Cypilot DESIGN is decomposed into 10 features organized around architectural lay
   - `{cypilot_path}/config/artifacts.toml` — artifact registry with autodetect rules
 
 
-### 2.2 [Blueprint System](features/blueprint-system.md) ⏳ HIGH
+### 2.2 Kit Management ⏳ HIGH
 
 - [x] `p1` - **ID**: `cpt-cypilot-feature-blueprint-system`
 
-- **Purpose**: Manage kit lifecycle — installation, file-level diff updates, interactive conflict resolution, SKILL/AGENTS composition, and kit structural validation. (Blueprint Processor removed per `cpt-cypilot-adr-remove-blueprint-system`; kits are direct file packages.)
+- **Purpose**: Manage kit lifecycle — installation, file-level diff updates, interactive conflict resolution, SKILL/AGENTS composition, and kit structural validation. Kits are direct file packages (per `cpt-cypilot-adr-remove-blueprint-system`).
 
 - **Depends On**: `cpt-cypilot-feature-core-infra`
 
@@ -126,7 +126,6 @@ Cypilot DESIGN is decomposed into 10 features organized around architectural lay
 
 - **Requirements Covered**:
 
-  - `p1` - `cpt-cypilot-fr-core-blueprint` (DEPRECATED)
   - `p1` - `cpt-cypilot-fr-core-kits`
   - `p1` - `cpt-cypilot-fr-core-resource-diff`
 
@@ -148,7 +147,6 @@ Cypilot DESIGN is decomposed into 10 features organized around architectural lay
 
 - **Design Components**:
 
-  - `p1` - `cpt-cypilot-component-blueprint-processor` (DEPRECATED)
   - `p1` - `cpt-cypilot-component-kit-manager`
 
 - **API**:
@@ -242,7 +240,7 @@ Cypilot DESIGN is decomposed into 10 features organized around architectural lay
 
 - **Purpose**: Provide the primary domain kit — SDLC file package for PRD, DESIGN, ADR, DECOMPOSITION, and FEATURE — enabling the artifact-first development pipeline.
 
-- **Depends On**: `cpt-cypilot-feature-blueprint-system`, `cpt-cypilot-feature-traceability-validation`
+- **Depends On**: `cpt-cypilot-feature-core-infra`, `cpt-cypilot-feature-traceability-validation`
 
 - **Scope**:
   - Per-artifact files: `rules.md`, `template.md`, `checklist.md`, `examples/example.md` for each artifact kind
@@ -295,7 +293,7 @@ Cypilot DESIGN is decomposed into 10 features organized around architectural lay
 
 - **Purpose**: Bridge Cypilot's unified skill system to diverse AI coding assistants by generating agent-native entry points and providing generic generate/analyze workflows.
 
-- **Depends On**: `cpt-cypilot-feature-core-infra`, `cpt-cypilot-feature-blueprint-system`
+- **Depends On**: `cpt-cypilot-feature-core-infra`
 
 - **Scope**:
   - Agent Generator: produce entry points in each agent's native format
@@ -400,7 +398,7 @@ Cypilot DESIGN is decomposed into 10 features organized around architectural lay
 
 - **Purpose**: Enable project skill updates with config migration, and provide CLI commands for managing system definitions, ignore lists, and kit registrations.
 
-- **Depends On**: `cpt-cypilot-feature-core-infra`, `cpt-cypilot-feature-blueprint-system`
+- **Depends On**: `cpt-cypilot-feature-core-infra`
 
 - **Scope**:
   - Update command: copy cached skill to project, detect and auto-restructure old directory layout, migrate `{cypilot_path}/config/core.toml`, update kits via file-level diff with interactive prompts, regenerate agent entry points, run automatic self-check to verify kit integrity
@@ -573,7 +571,7 @@ Cypilot DESIGN is decomposed into 10 features organized around architectural lay
 
 - **Purpose**: Migrate existing Cypilot v2 projects (adapter-based, `artifacts.toml`, legacy kit structure) to v3 (file-package kits, `artifacts.toml`, global CLI installer, `config/` directory) with zero data loss.
 
-- **Depends On**: `cpt-cypilot-feature-core-infra`, `cpt-cypilot-feature-blueprint-system`, `cpt-cypilot-feature-traceability-validation`
+- **Depends On**: `cpt-cypilot-feature-core-infra`, `cpt-cypilot-feature-traceability-validation`
 
 - **Scope**:
   - Detect v2 installation: identify `.cypilot-adapter/` directory, `artifacts.toml`, legacy kit paths
@@ -694,17 +692,15 @@ Cypilot DESIGN is decomposed into 10 features organized around architectural lay
 ```text
 cpt-cypilot-feature-core-infra
     ↓
-    ├─→ cpt-cypilot-feature-blueprint-system
+    ├─→ cpt-cypilot-feature-sdlc-kit ←── cpt-cypilot-feature-traceability-validation
     │    ↓
-    │    ├─→ cpt-cypilot-feature-sdlc-kit ←── cpt-cypilot-feature-traceability-validation
-    │    │    ↓
-    │    │    └─→ cpt-cypilot-feature-pr-workflows ←── cpt-cypilot-feature-agent-integration
-    │    │         ↓
-    │    │         └─→ cpt-cypilot-feature-advanced-sdlc
-    │    │
-    │    ├─→ cpt-cypilot-feature-agent-integration
-    │    │
-    │    └─→ cpt-cypilot-feature-version-config ←── cpt-cypilot-feature-core-infra
+    │    └─→ cpt-cypilot-feature-pr-workflows ←── cpt-cypilot-feature-agent-integration
+    │         ↓
+    │         └─→ cpt-cypilot-feature-advanced-sdlc
+    │
+    ├─→ cpt-cypilot-feature-agent-integration
+    │
+    ├─→ cpt-cypilot-feature-version-config
     │
     ├─→ cpt-cypilot-feature-traceability-validation
     │    ↓
@@ -712,19 +708,17 @@ cpt-cypilot-feature-core-infra
     │    │
     │    └─→ cpt-cypilot-feature-spec-coverage
     │
-    └─→ cpt-cypilot-feature-v2-v3-migration ←── cpt-cypilot-feature-blueprint-system, cpt-cypilot-feature-traceability-validation
+    └─→ cpt-cypilot-feature-v2-v3-migration ←── cpt-cypilot-feature-traceability-validation
 ```
 
 **Dependency Rationale**:
 
-- `cpt-cypilot-feature-blueprint-system` requires `cpt-cypilot-feature-core-infra`: kit manager needs config manager for kit registration and skill engine for command routing
 - `cpt-cypilot-feature-traceability-validation` requires `cpt-cypilot-feature-core-infra`: validator needs config manager for system/artifact resolution
-- `cpt-cypilot-feature-sdlc-kit` requires `cpt-cypilot-feature-blueprint-system` and `cpt-cypilot-feature-traceability-validation`: SDLC kit files are managed by the kit manager, and constraints need the validator for enforcement
-- `cpt-cypilot-feature-agent-integration` requires `cpt-cypilot-feature-blueprint-system`: agent generator consumes kit SKILL.md and workflow files managed by the kit system
+- `cpt-cypilot-feature-sdlc-kit` requires `cpt-cypilot-feature-core-infra` and `cpt-cypilot-feature-traceability-validation`: SDLC kit files need config infrastructure, constraints need the validator for enforcement
+- `cpt-cypilot-feature-agent-integration` requires `cpt-cypilot-feature-core-infra`: agent generator consumes kit SKILL.md and workflow files
 - `cpt-cypilot-feature-pr-workflows` requires `cpt-cypilot-feature-sdlc-kit` and `cpt-cypilot-feature-agent-integration`: PR workflows use SDLC kit's prompts/checklists and are exposed via agent entry points
-- `cpt-cypilot-feature-version-config` requires `cpt-cypilot-feature-core-infra` and `cpt-cypilot-feature-blueprint-system`: update command needs config migration and kit file-level diff updates
+- `cpt-cypilot-feature-version-config` requires `cpt-cypilot-feature-core-infra`: update command needs config migration and kit file-level diff updates
 - `cpt-cypilot-feature-developer-experience` requires `cpt-cypilot-feature-traceability-validation`: VS Code plugin and doctor delegate to validator and traceability engine
 - `cpt-cypilot-feature-advanced-sdlc` requires `cpt-cypilot-feature-sdlc-kit` and `cpt-cypilot-feature-pr-workflows`: code generation uses SDLC kit artifacts, PR config extends PR review
-- `cpt-cypilot-feature-v2-v3-migration` requires `cpt-cypilot-feature-core-infra`, `cpt-cypilot-feature-blueprint-system`, and `cpt-cypilot-feature-traceability-validation`: migration needs v3 infrastructure, kit system to install kit files, and validation to verify completeness
-- `cpt-cypilot-feature-blueprint-system` and `cpt-cypilot-feature-traceability-validation` are independent of each other and can be developed in parallel
+- `cpt-cypilot-feature-v2-v3-migration` requires `cpt-cypilot-feature-core-infra` and `cpt-cypilot-feature-traceability-validation`: migration needs v3 infrastructure and validation to verify completeness
 - `cpt-cypilot-feature-agent-integration` and `cpt-cypilot-feature-sdlc-kit` are independent of each other and can be developed in parallel

@@ -9,6 +9,7 @@ slug = "cypilot"
 kit = "cypilot-sdlc"
 
 [kits]
-[kits.cypilot-sdlc]
+[kits.sdlc]
 format = "Cypilot"
 path = "config/kits/sdlc"
+version = "6"

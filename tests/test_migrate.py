@@ -128,20 +128,25 @@ def _make_cache(cache_dir: Path) -> None:
     for d in ("architecture", "requirements", "schemas", "workflows", "skills"):
         (cache_dir / d).mkdir(parents=True, exist_ok=True)
         (cache_dir / d / "README.md").write_text(f"# {d}\n", encoding="utf-8")
-    bp_dir = cache_dir / "kits" / "sdlc" / "blueprints"
-    bp_dir.mkdir(parents=True, exist_ok=True)
-    (bp_dir / "prd.md").write_text(
-        "<!-- @cpt:blueprint -->\n```toml\n"
-        'artifact = "PRD"\nkit = "sdlc"\nversion = 1\n'
-        "```\n<!-- /@cpt:blueprint -->\n\n"
-        "<!-- @cpt:heading -->\n# Product Requirements\n<!-- /@cpt:heading -->\n",
-        encoding="utf-8",
+    # Kit as direct file package (no blueprints)
+    kit_dir = cache_dir / "kits" / "sdlc"
+    kit_dir.mkdir(parents=True, exist_ok=True)
+    (kit_dir / "artifacts" / "PRD").mkdir(parents=True)
+    (kit_dir / "artifacts" / "PRD" / "template.md").write_text(
+        "# Product Requirements\n", encoding="utf-8",
     )
-    scripts_dir = cache_dir / "kits" / "sdlc" / "scripts"
+    (kit_dir / "workflows").mkdir(exist_ok=True)
+    scripts_dir = kit_dir / "scripts"
     scripts_dir.mkdir(parents=True, exist_ok=True)
     (scripts_dir / "helper.py").write_text("# helper\n", encoding="utf-8")
+    (kit_dir / "SKILL.md").write_text(
+        "# Kit sdlc\nKit skill instructions.\n", encoding="utf-8",
+    )
+    (kit_dir / "constraints.toml").write_text(
+        "[naming]\npattern = 'sdlc-*'\n", encoding="utf-8",
+    )
     from cypilot.utils import toml_utils
-    toml_utils.dump({"version": 1, "blueprints": {"prd": 1}}, cache_dir / "kits" / "sdlc" / "conf.toml")
+    toml_utils.dump({"version": 1}, kit_dir / "conf.toml")
     # Skill source needed by cmd_agents during migration
     skill_src = cache_dir / "skills" / "cypilot" / "SKILL.md"
     skill_src.parent.mkdir(parents=True, exist_ok=True)
@@ -849,6 +854,14 @@ class TestRunMigrateConfig(unittest.TestCase):
 # ===========================================================================
 
 class TestCmdMigrate(unittest.TestCase):
+    def setUp(self):
+        from cypilot.utils.ui import set_json_mode
+        set_json_mode(True)
+
+    def tearDown(self):
+        from cypilot.utils.ui import set_json_mode
+        set_json_mode(False)
+
     def test_help(self):
         with self.assertRaises(SystemExit) as ctx:
             cmd_migrate(["--help"])
@@ -876,6 +889,14 @@ class TestCmdMigrate(unittest.TestCase):
 
 
 class TestCmdMigrateConfig(unittest.TestCase):
+    def setUp(self):
+        from cypilot.utils.ui import set_json_mode
+        set_json_mode(True)
+
+    def tearDown(self):
+        from cypilot.utils.ui import set_json_mode
+        set_json_mode(False)
+
     def test_help(self):
         with self.assertRaises(SystemExit) as ctx:
             cmd_migrate_config(["--help"])
@@ -1722,6 +1743,14 @@ class TestRunMigrateConfigPrReview(unittest.TestCase):
 # ===========================================================================
 
 class TestCmdMigrateExitCodes(unittest.TestCase):
+    def setUp(self):
+        from cypilot.utils.ui import set_json_mode
+        set_json_mode(True)
+
+    def tearDown(self):
+        from cypilot.utils.ui import set_json_mode
+        set_json_mode(False)
+
     def test_cancelled_returns_0(self):
         with TemporaryDirectory() as d:
             root = Path(d)
@@ -1900,23 +1929,22 @@ class TestRegenerateGenFromConfig(unittest.TestCase):
             _regenerate_gen_from_config(config_dir, gen_dir, cypilot_dir=cypilot_dir)
             # Should not crash
 
-    def test_processes_kit_with_blueprints(self):
-        """Kit with blueprints/ in kits/{slug}/ is processed."""
+    def test_processes_kit_content(self):
+        """Kit with content in config/kits/{slug}/ is processed."""
         from cypilot.commands.migrate import _regenerate_gen_from_config
         with TemporaryDirectory() as td:
             cypilot_dir = Path(td)
             config_dir = cypilot_dir / "config"
             config_dir.mkdir(parents=True)
-            bp_dir = cypilot_dir / "kits" / "testkit" / "blueprints"
-            bp_dir.mkdir(parents=True)
-            (bp_dir / "FEAT.md").write_text(
-                '`@cpt:blueprint`\n```toml\nartifact = "FEAT"\nkit = "testkit"\n```\n`@/cpt:blueprint`\n\n'
-                '`@cpt:heading`\n```toml\nlevel = 1\ntemplate = "Feature"\n```\n`@/cpt:heading`\n',
-                encoding="utf-8",
+            # Create kit content in config/kits/ (new model)
+            kit_dir = config_dir / "kits" / "testkit"
+            kit_dir.mkdir(parents=True)
+            (kit_dir / "SKILL.md").write_text(
+                "# Kit testkit\nInstructions.\n", encoding="utf-8",
             )
             gen_dir = cypilot_dir / ".gen"
             _regenerate_gen_from_config(config_dir, gen_dir, cypilot_dir=cypilot_dir)
-            # Should create gen output in config/kits/
+            # Kit dir should still exist in config/kits/
             self.assertTrue((config_dir / "kits" / "testkit").is_dir())
 
     def test_scripts_stay_in_config(self):
@@ -1939,22 +1967,6 @@ class TestRegenerateGenFromConfig(unittest.TestCase):
             # Scripts stay in config/kits/, not copied to .gen/
             self.assertTrue((config_dir / "kits" / "skit" / "scripts" / "helper.py").is_file())
 
-    def test_process_kit_errors_raise(self):
-        """Errors from process_kit raise RuntimeError."""
-        from cypilot.commands.migrate import _regenerate_gen_from_config
-        with TemporaryDirectory() as td:
-            cypilot_dir = Path(td)
-            config_dir = cypilot_dir / "config"
-            config_dir.mkdir(parents=True)
-            bp_dir = cypilot_dir / "kits" / "badkit" / "blueprints"
-            bp_dir.mkdir(parents=True)
-            (bp_dir / "BAD.md").write_text("not a valid blueprint", encoding="utf-8")
-            gen_dir = cypilot_dir / ".gen"
-            with patch("cypilot.utils.blueprint.process_kit",
-                       return_value=({"files_written": 0}, ["parse error"])):
-                with self.assertRaises(RuntimeError) as ctx:
-                    _regenerate_gen_from_config(config_dir, gen_dir, cypilot_dir=cypilot_dir)
-                self.assertIn("parse error", str(ctx.exception))
 
 
 # ===========================================================================
@@ -2459,23 +2471,24 @@ class TestInstallDefaultKitFromCache(unittest.TestCase):
     """Cover _install_default_kit_from_cache — installs default kit if none present."""
 
     def test_installs_when_no_kits(self):
-        """Default kit installed when kits/ is empty."""
+        """Default kit installed when config/kits/ is empty."""
         with TemporaryDirectory() as d:
             cypilot_dir = Path(d) / "cypilot"
             cypilot_dir.mkdir()
+            (cypilot_dir / "config").mkdir()
             cache = Path(d) / "cache"
             _make_cache(cache)
             result = _install_default_kit_from_cache(cypilot_dir, cache)
             self.assertIsNotNone(result)
             self.assertEqual(result["kit"], "sdlc")
-            # Blueprints should be installed
-            self.assertTrue((cypilot_dir / "kits" / "sdlc" / "blueprints").is_dir())
+            # Kit content should be installed in config/kits/
+            self.assertTrue((cypilot_dir / "config" / "kits" / "sdlc").is_dir())
 
     def test_skips_when_kits_exist(self):
-        """Returns None when kits/ already has content."""
+        """Returns None when config/kits/ already has content."""
         with TemporaryDirectory() as d:
             cypilot_dir = Path(d) / "cypilot"
-            (cypilot_dir / "kits" / "mykit").mkdir(parents=True)
+            (cypilot_dir / "config" / "kits" / "mykit").mkdir(parents=True)
             cache = Path(d) / "cache"
             _make_cache(cache)
             result = _install_default_kit_from_cache(cypilot_dir, cache)

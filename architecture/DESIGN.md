@@ -488,12 +488,6 @@ Does NOT contain any skill logic, workflow logic, or command implementations. Do
 
 - `cpt-cypilot-component-skill-engine` — proxies all commands to this component
 
-#### Blueprint Processor (DEPRECATED)
-
-- [x] `p1` - **ID**: `cpt-cypilot-component-blueprint-processor`
-
-> **DEPRECATED per `cpt-cypilot-adr-remove-blueprint-system`**: This component has been removed. Kits are now direct file packages — no blueprint parsing, no marker extraction, no resource generation. Kit files are maintained directly in `{cypilot_path}/config/kits/<slug>/`. Kit updates are handled by the Kit Manager via file-level diff (see `cpt-cypilot-component-kit-manager`). SKILL and AGENTS.md composition is handled by the Kit Manager during install/update.
-
 #### Skill Engine
 
 - [x] `p1` - **ID**: `cpt-cypilot-component-skill-engine`
@@ -1095,14 +1089,14 @@ The following design domains are not applicable to Cypilot and are explicitly ex
 
 - **PRD**: [PRD.md](./PRD.md)
 - **ADRs**: [ADR/](./ADR/) — `cpt-cypilot-adr-remove-blueprint-system` (replace blueprint system with direct file package model)
-- **Features**: [features/](./features/) — `core-infra.md`, `blueprint-system.md`, `traceability-validation.md`, `sdlc-kit.md`, `agent-integration.md`, `pr-workflows.md`, `version-config.md`, `developer-experience.md`, `spec-coverage.md`, `v2-v3-migration.md`
+- **Features**: [features/](./features/) — `core-infra.md`, `traceability-validation.md`, `sdlc-kit.md`, `agent-integration.md`, `pr-workflows.md`, `version-config.md`, `developer-experience.md`, `spec-coverage.md`, `v2-v3-migration.md`
 
 ### Specifications
 
 | Spec | File | Drives |
 |------|------|--------|
 | CLI Interface | [specs/cli.md](./specs/cli.md) | `cpt-cypilot-interface-cli-json`, `cpt-cypilot-fr-core-installer`, `cpt-cypilot-fr-core-init`, `cpt-cypilot-fr-core-cli-config` |
-| Kit Specification | [specs/kit/](./specs/kit/) | `cpt-cypilot-fr-core-blueprint` (DEPRECATED), `cpt-cypilot-fr-core-kits`, `cpt-cypilot-component-kit-manager`, `cpt-cypilot-component-validator` |
+| Kit Specification | [specs/kit/](./specs/kit/) | `cpt-cypilot-fr-core-kits`, `cpt-cypilot-component-kit-manager`, `cpt-cypilot-component-validator` |
 | Identifiers & Traceability | [specs/traceability.md](./specs/traceability.md) | `cpt-cypilot-fr-core-traceability`, `cpt-cypilot-component-traceability-engine` |
 | CDSL | [specs/CDSL.md](./specs/CDSL.md) | `cpt-cypilot-fr-core-cdsl` |
 | Artifacts Registry | [specs/artifacts-registry.md](./specs/artifacts-registry.md) | `cpt-cypilot-fr-core-config`, `cpt-cypilot-component-config-manager` |

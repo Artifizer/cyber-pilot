@@ -124,3 +124,29 @@ jobs:
 
       - name: Self-check SDLC examples
         run: make self-check
+
+  validate-kits:
+    name: Validate Kits (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12', '3.13', '3.14']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install cpt proxy
+        run: |
+          make install-proxy
+          pipx ensurepath
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Validate kits/sdlc by path
+        run: make validate-kits-sdlc
+
+      - name: Validate all registered kits
+        run: make validate-kits
