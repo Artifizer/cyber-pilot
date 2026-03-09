@@ -9,7 +9,7 @@
   - [4. References](#4-references)
 - [2. Actor Flows (CDSL)](#2-actor-flows-cdsl)
   - [Run Spec Coverage Report](#run-spec-coverage-report)
-- [3. Processes / Business Logic (CDSL)](#3-processes-business-logic-cdsl)
+- [3. Processes / Business Logic (CDSL)](#3-processes--business-logic-cdsl)
   - [Scan Code Coverage](#scan-code-coverage)
   - [Calculate Coverage Metrics](#calculate-coverage-metrics)
   - [Calculate Granularity Score](#calculate-granularity-score)

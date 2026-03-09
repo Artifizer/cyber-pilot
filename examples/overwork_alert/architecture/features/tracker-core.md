@@ -10,7 +10,7 @@
   - [4. References](#4-references)
 - [2. Actor Flows (CDSL)](#2-actor-flows-cdsl)
   - [Run tracking tick loop](#run-tracking-tick-loop)
-- [3. Processes / Business Logic (CDSL)](#3-processes-business-logic-cdsl)
+- [3. Processes / Business Logic (CDSL)](#3-processes--business-logic-cdsl)
   - [Accumulate active time](#accumulate-active-time)
 - [4. States (CDSL)](#4-states-cdsl)
   - [Tracker runtime status](#tracker-runtime-status)

@@ -12,7 +12,7 @@
   - [Kit Update CLI](#kit-update-cli)
   - [Kit Validate CLI](#kit-validate-cli)
   - [Kit CLI Dispatcher](#kit-cli-dispatcher)
-- [3. Processes / Business Logic (CDSL)](#3-processes-business-logic-cdsl)
+- [3. Processes / Business Logic (CDSL)](#3-processes--business-logic-cdsl)
   - [Kit Content Management](#kit-content-management)
   - [Gen Aggregation](#gen-aggregation)
   - [Kit Installation](#kit-installation)

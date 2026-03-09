@@ -11,7 +11,7 @@
 - [2. Actor Flows (CDSL)](#2-actor-flows-cdsl)
   - [Generate Agent Entry Points](#generate-agent-entry-points)
   - [Execute Generic Workflow](#execute-generic-workflow)
-- [3. Processes / Business Logic (CDSL)](#3-processes-business-logic-cdsl)
+- [3. Processes / Business Logic (CDSL)](#3-processes--business-logic-cdsl)
   - [Discover Supported Agents](#discover-supported-agents)
   - [Generate Agent Shims](#generate-agent-shims)
   - [Compose SKILL.md](#compose-skillmd)

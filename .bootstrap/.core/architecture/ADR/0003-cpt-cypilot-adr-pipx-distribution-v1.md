@@ -17,8 +17,8 @@ decision-makers: project maintainer
   - [Confirmation](#confirmation)
 - [Pros and Cons of the Options](#pros-and-cons-of-the-options)
   - [pipx](#pipx)
-  - [pip install --user](#pip-install-user)
-  - [Platform package managers (Homebrew / apt)](#platform-package-managers-homebrew-apt)
+  - [pip install --user](#pip-install---user)
+  - [Platform package managers (Homebrew / apt)](#platform-package-managers-homebrew--apt)
 - [Traceability](#traceability)
 
 <!-- /toc -->

@@ -18,7 +18,7 @@ decision-makers: project maintainer
 - [Pros and Cons of the Options](#pros-and-cons-of-the-options)
   - [Option 1: Keep Blueprint System As-Is](#option-1-keep-blueprint-system-as-is)
   - [Option 2: Move Blueprint Processor to Dev-Only Script](#option-2-move-blueprint-processor-to-dev-only-script)
-  - [Option 3: Remove Blueprints Entirely, Kit = Ready Files](#option-3-remove-blueprints-entirely-kit-ready-files)
+  - [Option 3: Remove Blueprints Entirely, Kit = Ready Files](#option-3-remove-blueprints-entirely-kit--ready-files)
 - [More Information](#more-information)
 - [Traceability](#traceability)
 

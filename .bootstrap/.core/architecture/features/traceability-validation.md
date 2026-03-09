@@ -10,7 +10,7 @@
 - [2. Actor Flows (CDSL)](#2-actor-flows-cdsl)
   - [Validate Artifacts](#validate-artifacts)
   - [Query Traceability](#query-traceability)
-- [3. Processes / Business Logic (CDSL)](#3-processes-business-logic-cdsl)
+- [3. Processes / Business Logic (CDSL)](#3-processes--business-logic-cdsl)
   - [Scan Artifact IDs](#scan-artifact-ids)
   - [Scan CDSL Instructions](#scan-cdsl-instructions)
   - [Validate Artifact Structure](#validate-artifact-structure)

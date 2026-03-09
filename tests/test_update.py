@@ -50,20 +50,47 @@ def _make_cache(cache_dir: Path, kit_version: int = 1) -> None:
 
 
 def _init_project(root: Path, cache_dir: Path) -> Path:
-    """Run init to create a fully initialized project."""
+    """Run init to create a fully initialized project.
+
+    Mocks GitHub download to use cache kit source (via a temp copy so init's
+    cleanup of the download dir doesn't destroy the cache).
+    Strips GitHub source from core.toml so cmd_update uses cache fallback.
+    """
     from cypilot.cli import main
+    import tempfile
     (root / ".git").mkdir(exist_ok=True)
+    # Copy kit source to a temp dir — init will delete kit_src.parent after install
+    tmp_dl = Path(tempfile.mkdtemp())
+    kit_copy = tmp_dl / "sdlc"
+    shutil.copytree(cache_dir / "kits" / "sdlc", kit_copy)
     cwd = os.getcwd()
     try:
         os.chdir(str(root))
-        with patch("cypilot.commands.init.CACHE_DIR", cache_dir):
+        with (
+            patch("cypilot.commands.init.CACHE_DIR", cache_dir),
+            patch(
+                "cypilot.commands.kit._download_kit_from_github",
+                return_value=(kit_copy, "1.0.0"),
+            ),
+        ):
             buf = io.StringIO()
             with redirect_stdout(buf):
                 rc = main(["init", "--yes"])
             assert rc == 0, f"init failed: {buf.getvalue()}"
     finally:
         os.chdir(cwd)
-    return root / "cypilot"
+    # Remove GitHub source from core.toml so cmd_update uses cache fallback
+    adapter = root / "cypilot"
+    core_toml = adapter / "config" / "core.toml"
+    if core_toml.is_file():
+        import tomllib
+        from cypilot.utils import toml_utils
+        with open(core_toml, "rb") as f:
+            data = tomllib.load(f)
+        for kit_data in data.get("kits", {}).values():
+            kit_data.pop("source", None)
+        toml_utils.dump(data, core_toml)
+    return adapter
 
 
 # =========================================================================
@@ -306,11 +333,18 @@ class TestCmdUpdatePipeline(unittest.TestCase):
             # Now update cache to v2
             cache_v2 = Path(td) / "cache_v2"
             _make_cache(cache_v2, kit_version=2)
+            kit_src_v2 = cache_v2 / "kits" / "sdlc"
 
             cwd = os.getcwd()
             try:
                 os.chdir(str(root))
-                with patch("cypilot.commands.update.CACHE_DIR", cache_v2):
+                with (
+                    patch("cypilot.commands.update.CACHE_DIR", cache_v2),
+                    patch(
+                        "cypilot.commands.kit._download_kit_from_github",
+                        return_value=(kit_src_v2, "2"),
+                    ),
+                ):
                     buf = io.StringIO()
                     err = io.StringIO()
                     with redirect_stdout(buf), redirect_stderr(err):
@@ -373,10 +407,17 @@ class TestCmdUpdatePipeline(unittest.TestCase):
             if config_kit.exists():
                 shutil.rmtree(config_kit)
 
+            kit_src = cache / "kits" / "sdlc"
             cwd = os.getcwd()
             try:
                 os.chdir(str(root))
-                with patch("cypilot.commands.update.CACHE_DIR", cache):
+                with (
+                    patch("cypilot.commands.update.CACHE_DIR", cache),
+                    patch(
+                        "cypilot.commands.kit._download_kit_from_github",
+                        return_value=(kit_src, "1"),
+                    ),
+                ):
                     buf = io.StringIO()
                     err = io.StringIO()
                     with redirect_stdout(buf), redirect_stderr(err):
@@ -988,6 +1029,323 @@ class TestHumanUpdateOk(unittest.TestCase):
         self.assertIn("sdlc", out)
         self.assertIn("extra_list", out)
         self.assertIn("item1", out)
+
+
+# ---------------------------------------------------------------------------
+# _deduplicate_legacy_kits
+# ---------------------------------------------------------------------------
+
+class TestDeduplicateLegacyKits(unittest.TestCase):
+    def test_no_core_toml(self):
+        from cypilot.commands.update import _deduplicate_legacy_kits
+        self.assertEqual(_deduplicate_legacy_kits(Path("/nonexistent")), {})
+
+    def test_no_legacy_slugs(self):
+        from cypilot.commands.update import _deduplicate_legacy_kits
+        from cypilot.utils import toml_utils
+        with TemporaryDirectory() as td:
+            config = Path(td)
+            toml_utils.dump({"kits": {"sdlc": {"path": "config/kits/sdlc"}}}, config / "core.toml")
+            self.assertEqual(_deduplicate_legacy_kits(config), {})
+
+    def test_dedup_same_path(self):
+        """When cypilot-sdlc and sdlc both exist with same path, legacy is removed."""
+        from cypilot.commands.update import _deduplicate_legacy_kits
+        from cypilot.utils import toml_utils
+        import tomllib
+        with TemporaryDirectory() as td:
+            config = Path(td)
+            toml_utils.dump({
+                "system": {"kit": "cypilot-sdlc"},
+                "kits": {
+                    "cypilot-sdlc": {"path": "config/kits/sdlc", "format": "Cypilot"},
+                    "sdlc": {"path": "config/kits/sdlc", "format": "Cypilot"},
+                },
+            }, config / "core.toml")
+            result = _deduplicate_legacy_kits(config)
+            self.assertEqual(result, {"cypilot-sdlc": "sdlc"})
+            with open(config / "core.toml", "rb") as f:
+                data = tomllib.load(f)
+            self.assertNotIn("cypilot-sdlc", data["kits"])
+            self.assertIn("sdlc", data["kits"])
+            self.assertEqual(data["system"]["kit"], "sdlc")
+
+    def test_dedup_different_paths_skipped(self):
+        from cypilot.commands.update import _deduplicate_legacy_kits
+        from cypilot.utils import toml_utils
+        with TemporaryDirectory() as td:
+            config = Path(td)
+            toml_utils.dump({
+                "kits": {
+                    "cypilot-sdlc": {"path": "kits/cypilot-sdlc"},
+                    "sdlc": {"path": "config/kits/sdlc"},
+                },
+            }, config / "core.toml")
+            result = _deduplicate_legacy_kits(config)
+            self.assertEqual(result, {})
+
+    def test_dedup_updates_artifacts_toml(self):
+        from cypilot.commands.update import _deduplicate_legacy_kits
+        from cypilot.utils import toml_utils
+        import tomllib
+        with TemporaryDirectory() as td:
+            config = Path(td)
+            toml_utils.dump({
+                "kits": {
+                    "cypilot-sdlc": {"path": "config/kits/sdlc"},
+                    "sdlc": {"path": "config/kits/sdlc"},
+                },
+            }, config / "core.toml")
+            toml_utils.dump({
+                "systems": [{"name": "default", "kit": "cypilot-sdlc"}],
+            }, config / "artifacts.toml")
+            _deduplicate_legacy_kits(config)
+            with open(config / "artifacts.toml", "rb") as f:
+                art = tomllib.load(f)
+            self.assertEqual(art["systems"][0]["kit"], "sdlc")
+
+
+# ---------------------------------------------------------------------------
+# _migrate_kit_sources
+# ---------------------------------------------------------------------------
+
+class TestMigrateKitSources(unittest.TestCase):
+    def test_no_core_toml(self):
+        from cypilot.commands.update import _migrate_kit_sources
+        self.assertEqual(_migrate_kit_sources(Path("/nonexistent")), {})
+
+    def test_already_has_source(self):
+        from cypilot.commands.update import _migrate_kit_sources
+        from cypilot.utils import toml_utils
+        with TemporaryDirectory() as td:
+            config = Path(td)
+            toml_utils.dump({
+                "kits": {"sdlc": {"source": "github:cyberfabric/cyber-pilot-kit-sdlc"}},
+            }, config / "core.toml")
+            self.assertEqual(_migrate_kit_sources(config), {})
+
+    def test_adds_known_source(self):
+        from cypilot.commands.update import _migrate_kit_sources
+        from cypilot.utils import toml_utils
+        import tomllib
+        with TemporaryDirectory() as td:
+            config = Path(td)
+            toml_utils.dump({
+                "kits": {"sdlc": {"path": "config/kits/sdlc"}},
+            }, config / "core.toml")
+            result = _migrate_kit_sources(config)
+            self.assertEqual(result, {"sdlc": "github:cyberfabric/cyber-pilot-kit-sdlc"})
+            with open(config / "core.toml", "rb") as f:
+                data = tomllib.load(f)
+            self.assertEqual(data["kits"]["sdlc"]["source"], "github:cyberfabric/cyber-pilot-kit-sdlc")
+
+    def test_unknown_kit_skipped(self):
+        from cypilot.commands.update import _migrate_kit_sources
+        from cypilot.utils import toml_utils
+        with TemporaryDirectory() as td:
+            config = Path(td)
+            toml_utils.dump({
+                "kits": {"custom": {"path": "config/kits/custom"}},
+            }, config / "core.toml")
+            self.assertEqual(_migrate_kit_sources(config), {})
+
+    def test_corrupt_core_toml(self):
+        from cypilot.commands.update import _migrate_kit_sources
+        with TemporaryDirectory() as td:
+            (Path(td) / "core.toml").write_text("{{bad", encoding="utf-8")
+            self.assertEqual(_migrate_kit_sources(Path(td)), {})
+
+
+# ---------------------------------------------------------------------------
+# Human formatter edge cases
+# ---------------------------------------------------------------------------
+
+class TestHumanUpdateOkEdgeCases(unittest.TestCase):
+    def setUp(self):
+        from cypilot.utils.ui import set_json_mode
+        set_json_mode(False)
+
+    def test_kit_updated_status(self):
+        from cypilot.commands.update import _human_update_ok
+        buf = io.StringIO()
+        with redirect_stderr(buf):
+            _human_update_ok({
+                "status": "PASS",
+                "project_root": "/tmp/proj",
+                "cypilot_dir": "/tmp/proj/cypilot",
+                "dry_run": False,
+                "actions": {
+                    "kits": {
+                        "sdlc": {
+                            "version": {"status": "updated"},
+                            "gen": {"files_written": 2, "accepted_files": ["a.md", "b.md"]},
+                            "gen_rejected": ["c.md"],
+                        },
+                    },
+                },
+            })
+        out = buf.getvalue()
+        self.assertIn("updated", out)
+        self.assertIn("a.md", out)
+        self.assertIn("c.md", out)
+
+    def test_kit_partial_status(self):
+        from cypilot.commands.update import _human_update_ok
+        buf = io.StringIO()
+        with redirect_stderr(buf):
+            _human_update_ok({
+                "status": "WARN",
+                "project_root": "/tmp/proj",
+                "cypilot_dir": "/tmp/proj/cypilot",
+                "dry_run": False,
+                "actions": {
+                    "kits": {
+                        "sdlc": {
+                            "version": {"status": "partial"},
+                            "gen": {"files_written": 1, "accepted_files": ["a.md"]},
+                            "gen_rejected": ["b.md", "c.md"],
+                        },
+                    },
+                },
+                "warnings": ["some warning"],
+            })
+        out = buf.getvalue()
+        self.assertIn("partial", out)
+        self.assertIn("declined", out)
+
+    def test_dry_run_output(self):
+        from cypilot.commands.update import _human_update_ok
+        buf = io.StringIO()
+        with redirect_stderr(buf):
+            _human_update_ok({
+                "status": "PASS",
+                "project_root": "/tmp/proj",
+                "cypilot_dir": "/tmp/proj/cypilot",
+                "dry_run": True,
+                "actions": {},
+            })
+        out = buf.getvalue()
+        self.assertIn("Dry run", out)
+
+    def test_nested_dict_action(self):
+        from cypilot.commands.update import _human_update_ok
+        buf = io.StringIO()
+        with redirect_stderr(buf):
+            _human_update_ok({
+                "status": "PASS",
+                "project_root": "/tmp/proj",
+                "cypilot_dir": "/tmp/proj/cypilot",
+                "dry_run": False,
+                "actions": {
+                    "layout_migration": {"sdlc": "migrated"},
+                    "some_list": ["item1"],
+                    "nested_complex": {"sub": {"deep": True}},
+                },
+            })
+        out = buf.getvalue()
+        self.assertIn("layout_migration", out)
+        self.assertIn("some_list", out)
+
+    def test_errors_in_output(self):
+        from cypilot.commands.update import _human_update_ok
+        buf = io.StringIO()
+        with redirect_stderr(buf):
+            _human_update_ok({
+                "status": "WARN",
+                "project_root": "/tmp/proj",
+                "cypilot_dir": "/tmp/proj/cypilot",
+                "dry_run": False,
+                "actions": {},
+                "errors": [
+                    {"path": "sdlc", "error": "download failed"},
+                    "plain error string",
+                ],
+                "warnings": ["w1"],
+            })
+        out = buf.getvalue()
+        self.assertIn("download failed", out)
+        self.assertIn("plain error string", out)
+
+
+# ---------------------------------------------------------------------------
+# cmd_update with layout migration + kit source migration paths
+# ---------------------------------------------------------------------------
+
+class TestCmdUpdateLayoutMigration(unittest.TestCase):
+    def setUp(self):
+        from cypilot.utils.ui import set_json_mode
+        set_json_mode(True)
+
+    def tearDown(self):
+        from cypilot.utils.ui import set_json_mode
+        set_json_mode(False)
+
+    def test_update_triggers_layout_migration(self):
+        """cmd_update migrates old kits/ layout to config/kits/."""
+        from cypilot.commands.update import cmd_update
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            root.mkdir()
+            cache = Path(td) / "cache"
+            _make_cache(cache)
+            adapter = _init_project(root, cache)
+
+            # Create old layout: cypilot/kits/sdlc/ directory
+            old_kits = adapter / "kits" / "sdlc"
+            old_kits.mkdir(parents=True)
+            (old_kits / "conf.toml").write_text("version = 1\n", encoding="utf-8")
+            (old_kits / "artifacts").mkdir()
+            (old_kits / "artifacts" / "old.md").write_text("# old\n", encoding="utf-8")
+
+            kit_src = cache / "kits" / "sdlc"
+            cwd = os.getcwd()
+            try:
+                os.chdir(str(root))
+                with (
+                    patch("cypilot.commands.update.CACHE_DIR", cache),
+                    patch(
+                        "cypilot.commands.kit._download_kit_from_github",
+                        return_value=(kit_src, "1"),
+                    ),
+                ):
+                    buf = io.StringIO()
+                    err = io.StringIO()
+                    with redirect_stdout(buf), redirect_stderr(err):
+                        rc = cmd_update([])
+                self.assertEqual(rc, 0)
+                # Old kits/ dir should be removed
+                self.assertFalse(old_kits.exists())
+            finally:
+                os.chdir(cwd)
+
+    def test_update_download_failure(self):
+        """When GitHub download fails, update continues with errors."""
+        from cypilot.commands.update import cmd_update
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            root.mkdir()
+            cache = Path(td) / "cache"
+            _make_cache(cache)
+            adapter = _init_project(root, cache)
+
+            cwd = os.getcwd()
+            try:
+                os.chdir(str(root))
+                with (
+                    patch("cypilot.commands.update.CACHE_DIR", cache),
+                    patch(
+                        "cypilot.commands.kit._download_kit_from_github",
+                        side_effect=RuntimeError("rate limit"),
+                    ),
+                ):
+                    buf = io.StringIO()
+                    err = io.StringIO()
+                    with redirect_stdout(buf), redirect_stderr(err):
+                        rc = cmd_update([])
+                # May warn but shouldn't crash
+                self.assertIn(rc, [0, 1])
+            finally:
+                os.chdir(cwd)
 
 
 if __name__ == "__main__":

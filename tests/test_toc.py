@@ -38,7 +38,7 @@ class TestSlugify:
         assert _slugify("Quick Reference") == "quick-reference"
 
     def test_special_chars_stripped(self):
-        assert _slugify("Part I — Identifiers") == "part-i-identifiers"
+        assert _slugify("Part I — Identifiers") == "part-i--identifiers"
 
     def test_backticks_removed(self):
         assert _slugify("`code` stuff") == "code-stuff"
@@ -50,7 +50,7 @@ class TestSlugify:
         assert _slugify("**Bold** and *italic*") == "bold-and-italic"
 
     def test_ampersand_stripped(self):
-        assert _slugify("Scope & Boundaries") == "scope-boundaries"
+        assert _slugify("Scope & Boundaries") == "scope--boundaries"
 
 
 # ---------------------------------------------------------------------------
@@ -240,8 +240,8 @@ class TestGithubAnchor:
     def test_link_text_kept(self):
         assert github_anchor("[Link](http://example.com) here") == "link-here"
 
-    def test_consecutive_hyphens_collapsed(self):
-        assert github_anchor("A — B") == "a-b"
+    def test_consecutive_hyphens_preserved(self):
+        assert github_anchor("A — B") == "a--b"
 
     def test_unicode_preserved(self):
         assert github_anchor("Привет мир") == "привет-мир"

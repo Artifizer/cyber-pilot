@@ -11,7 +11,7 @@
 - [2. Actor Flows (CDSL)](#2-actor-flows-cdsl)
   - [Send first over-limit alert](#send-first-over-limit-alert)
   - [Send repeat reminder while still over limit](#send-repeat-reminder-while-still-over-limit)
-- [3. Processes / Business Logic (CDSL)](#3-processes-business-logic-cdsl)
+- [3. Processes / Business Logic (CDSL)](#3-processes--business-logic-cdsl)
   - [Determine whether to send a notification](#determine-whether-to-send-a-notification)
 - [4. States (CDSL)](#4-states-cdsl)
   - [Over-limit notification state](#over-limit-notification-state)

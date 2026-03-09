@@ -7,6 +7,7 @@ Kits are direct file packages — no blueprint processing or generation.
 
 import argparse
 import json
+import os
 import shutil
 import sys
 import tarfile
@@ -22,6 +23,21 @@ from ..utils.ui import ui
 # ---------------------------------------------------------------------------
 # GitHub source helpers
 # ---------------------------------------------------------------------------
+
+def _github_headers() -> Dict[str, str]:
+    """Build common headers for GitHub API requests.
+
+    Includes Authorization if GITHUB_TOKEN is set in the environment.
+    """
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "cypilot-kit-installer",
+    }
+    token = os.environ.get("GITHUB_TOKEN", "")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
 
 def _parse_github_source(source: str) -> Tuple[str, str, str]:
     """Parse 'owner/repo[@version]' into (owner, repo, version).
@@ -67,11 +83,7 @@ def _download_kit_from_github(
 
     # Download tarball
     url = f"https://api.github.com/repos/{owner}/{repo}/tarball/{version}"
-    headers = {
-        "Accept": "application/vnd.github+json",
-        "User-Agent": "cypilot-kit-installer",
-    }
-    req = urllib.request.Request(url, headers=headers)
+    req = urllib.request.Request(url, headers=_github_headers())
 
     tmp_dir = Path(tempfile.mkdtemp(prefix="cypilot-kit-"))
     tar_path = tmp_dir / "kit.tar.gz"
@@ -115,11 +127,7 @@ def _resolve_latest_github_release(owner: str, repo: str) -> str:
     Falls back to default branch if no releases exist.
     """
     url = f"https://api.github.com/repos/{owner}/{repo}/releases/latest"
-    headers = {
-        "Accept": "application/vnd.github+json",
-        "User-Agent": "cypilot-kit-installer",
-    }
-    req = urllib.request.Request(url, headers=headers)
+    req = urllib.request.Request(url, headers=_github_headers())
 
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
@@ -510,7 +518,7 @@ def cmd_kit_install(argv: List[str]) -> int:
         p.error("Cannot use both positional source and --path")
     # @cpt-end:cpt-cypilot-flow-kit-install-cli:p1:inst-parse-args
 
-    # @cpt-begin:cpt-cypilot-flow-kit-install-cli:p1:inst-resolve-source
+    # @cpt-begin:cpt-cypilot-flow-kit-install-cli:p1:inst-validate-source
     github_source = ""  # "github:owner/repo" for registration
     tmp_dir_to_clean: Optional[Path] = None
 
@@ -524,8 +532,6 @@ def cmd_kit_install(argv: List[str]) -> int:
                 "hint": "Provide a path to a valid kit directory",
             })
             return 2
-        kit_slug = _read_kit_slug(kit_source) or kit_source.name
-        kit_version = _read_kit_version(kit_source / _KIT_CONF_FILE) if (kit_source / _KIT_CONF_FILE).is_file() else ""
     else:
         # GitHub source (default)
         try:
@@ -548,12 +554,18 @@ def cmd_kit_install(argv: List[str]) -> int:
                 "message": str(exc),
             })
             return 1
+    # @cpt-end:cpt-cypilot-flow-kit-install-cli:p1:inst-validate-source
 
+    # @cpt-begin:cpt-cypilot-flow-kit-install-cli:p1:inst-read-slug-version
+    if args.local_path:
+        kit_slug = _read_kit_slug(kit_source) or kit_source.name
+        kit_version = _read_kit_version(kit_source / _KIT_CONF_FILE) if (kit_source / _KIT_CONF_FILE).is_file() else ""
+    else:
         kit_slug = _read_kit_slug(kit_source) or repo.removeprefix("cyber-pilot-kit-")
         kit_version = resolved_version or _read_kit_version(kit_source / _KIT_CONF_FILE) if (kit_source / _KIT_CONF_FILE).is_file() else resolved_version
         github_source = f"github:{owner}/{repo}"
         ui.substep(f"Resolved: {kit_slug}@{kit_version or '(dev)'}")
-    # @cpt-end:cpt-cypilot-flow-kit-install-cli:p1:inst-resolve-source
+    # @cpt-end:cpt-cypilot-flow-kit-install-cli:p1:inst-read-slug-version
 
     try:
         # @cpt-begin:cpt-cypilot-flow-kit-install-cli:p1:inst-resolve-project
@@ -711,7 +723,7 @@ def cmd_kit_update(argv: List[str]) -> int:
 
     interactive = not args.no_interactive and sys.stdin.isatty()
 
-    # @cpt-begin:cpt-cypilot-flow-kit-update-cli:p1:inst-resolve-source
+    # @cpt-begin:cpt-cypilot-flow-kit-update-cli:p1:inst-validate-source
     # Build list of (slug, source_dir, github_source, tmp_dir) to update
     update_targets: List[Tuple[str, Path, str, Optional[Path]]] = []
 
@@ -725,8 +737,6 @@ def cmd_kit_update(argv: List[str]) -> int:
                 "hint": "Provide a path to a valid kit directory",
             })
             return 2
-        kit_slug = args.slug or _read_kit_slug(kit_source) or kit_source.name
-        update_targets.append((kit_slug, kit_source, "", None))
     else:
         # Read kits from core.toml
         kits_map = _read_kits_from_core_toml(config_dir)
@@ -748,7 +758,13 @@ def cmd_kit_update(argv: List[str]) -> int:
                 })
                 return 2
             kits_map = {args.slug: kits_map[args.slug]}
+    # @cpt-end:cpt-cypilot-flow-kit-update-cli:p1:inst-validate-source
 
+    # @cpt-begin:cpt-cypilot-flow-kit-update-cli:p1:inst-read-slug
+    if args.local_path:
+        kit_slug = args.slug or _read_kit_slug(kit_source) or kit_source.name
+        update_targets.append((kit_slug, kit_source, "", None))
+    else:
         # Resolve GitHub sources
         for slug, kit_data in kits_map.items():
             source_str = kit_data.get("source", "")
@@ -780,7 +796,7 @@ def cmd_kit_update(argv: List[str]) -> int:
                 "message": "No kits to update (no valid sources found)",
             })
             return 2
-    # @cpt-end:cpt-cypilot-flow-kit-update-cli:p1:inst-resolve-source
+    # @cpt-end:cpt-cypilot-flow-kit-update-cli:p1:inst-read-slug
 
     # @cpt-begin:cpt-cypilot-flow-kit-update-cli:p1:inst-delegate-update
     all_results: List[Dict[str, Any]] = []
@@ -1235,11 +1251,11 @@ def cmd_kit_migrate(argv: List[str]) -> int:
 def cmd_kit(argv: List[str]) -> int:
     """Kit management command dispatcher.
 
-    Usage: cypilot kit <install|update|migrate> [options]
+    Usage: cypilot kit <install|update|validate|migrate> [options]
     """
     # @cpt-begin:cpt-cypilot-flow-kit-dispatch:p1:inst-parse-subcmd
     if not argv:
-        ui.result({"status": "ERROR", "message": "Missing kit subcommand", "subcommands": ["install", "update", "migrate"]})
+        ui.result({"status": "ERROR", "message": "Missing kit subcommand", "subcommands": ["install", "update", "validate", "migrate"]})
         return 1
 
     subcmd = argv[0]
@@ -1251,10 +1267,13 @@ def cmd_kit(argv: List[str]) -> int:
         return cmd_kit_install(rest)
     elif subcmd == "update":
         return cmd_kit_update(rest)
+    elif subcmd == "validate":
+        from .validate_kits import cmd_validate_kits
+        return cmd_validate_kits(rest)
     elif subcmd == "migrate":
         return cmd_kit_migrate(rest)
     else:
-        ui.result({"status": "ERROR", "message": f"Unknown kit subcommand: {subcmd}", "subcommands": ["install", "update", "migrate"]})
+        ui.result({"status": "ERROR", "message": f"Unknown kit subcommand: {subcmd}", "subcommands": ["install", "update", "validate", "migrate"]})
         return 1
     # @cpt-end:cpt-cypilot-flow-kit-dispatch:p1:inst-route
 

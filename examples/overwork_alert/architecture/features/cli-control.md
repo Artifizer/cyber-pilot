@@ -14,7 +14,7 @@
   - [Pause tracking](#pause-tracking)
   - [Resume tracking](#resume-tracking)
   - [Stop daemon](#stop-daemon)
-- [3. Processes / Business Logic (CDSL)](#3-processes-business-logic-cdsl)
+- [3. Processes / Business Logic (CDSL)](#3-processes--business-logic-cdsl)
   - [Handle control command](#handle-control-command)
 - [4. States (CDSL)](#4-states-cdsl)
   - [Control channel request lifecycle](#control-channel-request-lifecycle)

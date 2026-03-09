@@ -11,7 +11,7 @@
 - [2. Actor Flows (CDSL)](#2-actor-flows-cdsl)
   - [Update Project Installation](#update-project-installation)
   - [Manage Config via CLI](#manage-config-via-cli)
-- [3. Processes / Business Logic (CDSL)](#3-processes-business-logic-cdsl)
+- [3. Processes / Business Logic (CDSL)](#3-processes--business-logic-cdsl)
   - [Update Pipeline](#update-pipeline)
   - [Layout Restructuring](#layout-restructuring)
   - [Compare Blueprint Versions (LEGACY)](#compare-blueprint-versions-legacy)

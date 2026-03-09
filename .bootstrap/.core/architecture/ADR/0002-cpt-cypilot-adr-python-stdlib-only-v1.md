@@ -17,8 +17,8 @@ decision-makers: project maintainer
   - [Confirmation](#confirmation)
 - [Pros and Cons of the Options](#pros-and-cons-of-the-options)
   - [Python 3.11+ stdlib-only](#python-311-stdlib-only)
-  - [Python + pip dependencies](#python-pip-dependencies)
-  - [Go / Rust compiled binary](#go-rust-compiled-binary)
+  - [Python + pip dependencies](#python--pip-dependencies)
+  - [Go / Rust compiled binary](#go--rust-compiled-binary)
 - [Traceability](#traceability)
 
 <!-- /toc -->

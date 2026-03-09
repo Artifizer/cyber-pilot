@@ -10,7 +10,7 @@
 - [2. Actor Flows (CDSL)](#2-actor-flows-cdsl)
   - [Global CLI Invocation](#global-cli-invocation)
   - [Project Initialization](#project-initialization)
-- [3. Processes / Business Logic (CDSL)](#3-processes-business-logic-cdsl)
+- [3. Processes / Business Logic (CDSL)](#3-processes--business-logic-cdsl)
   - [Resolve Skill Target](#resolve-skill-target)
   - [Route Command](#route-command)
   - [Define Root System](#define-root-system)

@@ -36,6 +36,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "skills" / "cypilot" / "sc
 REPO_ROOT = Path(__file__).resolve().parent.parent
 KIT_SOURCE = REPO_ROOT / "kits" / "sdlc"
 
+if not (KIT_SOURCE / "conf.toml").is_file():
+    raise unittest.SkipTest(
+        "kits/sdlc/ not present locally (kit moved to separate repo)"
+    )
+
 # Git commits that introduced each conf.toml version.
 # Used to extract historical kit snapshots from the repo's own history.
 _VERSION_COMMITS: Dict[int, str] = {

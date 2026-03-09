@@ -542,7 +542,6 @@ def cmd_init(argv: List[str]) -> int:
 
     _DEFAULT_KIT_SOURCE = "cyberfabric/cyber-pilot-kit-sdlc"
     kit_results: Dict[str, Any] = {}
-    kit_installed = False
 
     if not args.dry_run:
         install_kit_flag = False
@@ -587,7 +586,6 @@ def cmd_init(argv: List[str]) -> int:
                 for key, val in kit_result.get("actions", {}).items():
                     actions[f"kit_{kit_slug}_{key}"] = val
 
-                kit_installed = True
                 ui.substep(f"Kit '{kit_slug}' installed (v{resolved_version or 'dev'})")
 
                 shutil.rmtree(tmp_to_clean, ignore_errors=True)

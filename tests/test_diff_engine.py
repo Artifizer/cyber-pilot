@@ -839,8 +839,8 @@ class TestFileLevelKitUpdateTocIntegration(unittest.TestCase):
             toc_area = written.split("## Alpha")[0]
             self.assertIn("New", toc_area)
 
-    def test_interactive_toc_prompt_no(self):
-        """Interactive: user says 'n' to TOC regen — file has no TOC."""
+    def test_interactive_accepted_has_source_toc(self):
+        """Interactive: accepted file writes raw source content (includes TOC)."""
         from cypilot.utils.diff_engine import file_level_kit_update
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -858,8 +858,8 @@ class TestFileLevelKitUpdateTocIntegration(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            # Accept file, decline TOC regen
-            with patch("builtins.input", side_effect=["a", "n"]):
+            # Accept file — raw source (with TOC) is written, no TOC regen prompt
+            with patch("builtins.input", side_effect=["a"]):
                 result = file_level_kit_update(
                     src, usr, interactive=True, auto_approve=False
                 )
@@ -867,8 +867,8 @@ class TestFileLevelKitUpdateTocIntegration(unittest.TestCase):
             self.assertEqual(result["modified"][0]["action"], "accepted")
             written = (usr / "rules.md").read_text(encoding="utf-8")
             self.assertIn("## New", written)
-            # No TOC heading should be present (stripped, not regenerated)
-            self.assertNotIn("Table of Contents", written)
+            # Raw source written — TOC is already present from source
+            self.assertIn("Table of Contents", written)
 
     def test_toc_regen_error_rollback_continue(self):
         """TOC regen failure restores previous content; user continues."""
@@ -880,16 +880,20 @@ class TestFileLevelKitUpdateTocIntegration(unittest.TestCase):
             src.mkdir()
             usr.mkdir()
 
-            (src / "rules.md").write_text(
-                self._make_md_with_toc("Rules", ["Alpha", "New"]),
-                encoding="utf-8",
-            )
+            src_content = self._make_md_with_toc("Rules", ["Alpha", "New"])
+            (src / "rules.md").write_text(src_content, encoding="utf-8")
             original_user = self._make_md_with_toc("Rules", ["Alpha"])
             (usr / "rules.md").write_text(original_user, encoding="utf-8")
 
-            # Accept file, say yes to TOC regen, then continue after error
+            # Use "modify" path so wrote_raw=False, triggering TOC regen.
+            # Input: "m" (modify) → "y" (regen TOC) → "c" (continue after error)
+            edited = self._make_md_no_toc("Rules", ["Alpha", "New"]).encode("utf-8")
             with (
-                patch("builtins.input", side_effect=["a", "y", "c"]),
+                patch("builtins.input", side_effect=["m", "y", "c"]),
+                patch(
+                    "cypilot.utils.diff_engine._open_editor_for_file",
+                    return_value=edited,
+                ),
                 patch(
                     "cypilot.utils.diff_engine._regenerate_toc",
                     side_effect=RuntimeError("toc broken"),
@@ -927,9 +931,15 @@ class TestFileLevelKitUpdateTocIntegration(unittest.TestCase):
                 self._make_md_with_toc("B", ["P"]), encoding="utf-8"
             )
 
-            # First file: accept + yes to toc + stop on error
+            # Use "modify" so wrote_raw=False, triggering TOC regen.
+            # First file: "m" (modify) → "y" (regen TOC) → "s" (stop on error)
+            edited_a = self._make_md_no_toc("A", ["X", "Y"]).encode("utf-8")
             with (
-                patch("builtins.input", side_effect=["a", "y", "s"]),
+                patch("builtins.input", side_effect=["m", "y", "s"]),
+                patch(
+                    "cypilot.utils.diff_engine._open_editor_for_file",
+                    return_value=edited_a,
+                ),
                 patch(
                     "cypilot.utils.diff_engine._regenerate_toc",
                     side_effect=RuntimeError("toc broken"),

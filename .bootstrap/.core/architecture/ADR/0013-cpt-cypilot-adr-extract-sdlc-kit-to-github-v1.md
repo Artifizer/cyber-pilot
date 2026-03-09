@@ -22,7 +22,7 @@ decision-makers: project maintainer
   - [Option 3: Extract Kit to Separate Package Registry](#option-3-extract-kit-to-separate-package-registry)
 - [More Information](#more-information)
   - [Changes to Cypilot Core](#changes-to-cypilot-core)
-  - [Migration Plan (versions < 3.0.8 → GitHub v1.0.0)](#migration-plan-versions-308-github-v100)
+  - [Migration Plan (versions < 3.0.8 → GitHub v1.0.0)](#migration-plan-versions--308--github-v100)
   - [`core.toml` Kit Section (new format)](#coretoml-kit-section-new-format)
   - [`cpt init` Kit Prompt](#cpt-init-kit-prompt)
 - [Traceability](#traceability)

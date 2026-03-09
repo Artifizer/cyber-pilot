@@ -16,7 +16,7 @@ decision-makers: project maintainer
   - [Consequences](#consequences)
   - [Confirmation](#confirmation)
 - [Pros and Cons of the Options](#pros-and-cons-of-the-options)
-  - [Structured `cpt-*` IDs with `@cpt-*` code tags](#structured-cpt-ids-with-cpt-code-tags)
+  - [Structured `cpt-*` IDs with `@cpt-*` code tags](#structured-cpt--ids-with-cpt--code-tags)
   - [UUID-based IDs](#uuid-based-ids)
   - [File path references](#file-path-references)
 - [Traceability](#traceability)

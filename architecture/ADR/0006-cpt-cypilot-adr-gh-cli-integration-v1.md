@@ -18,7 +18,7 @@ decision-makers: project maintainer
 - [Pros and Cons of the Options](#pros-and-cons-of-the-options)
   - [`gh` CLI](#gh-cli)
   - [Direct HTTP (urllib)](#direct-http-urllib)
-  - [PyGithub / octokit](#pygithub-octokit)
+  - [PyGithub / octokit](#pygithub--octokit)
 - [Traceability](#traceability)
 
 <!-- /toc -->

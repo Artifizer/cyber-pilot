@@ -11,7 +11,7 @@
 - [2. Actor Flows (CDSL)](#2-actor-flows-cdsl)
   - [Install autostart](#install-autostart)
   - [Uninstall autostart](#uninstall-autostart)
-- [3. Processes / Business Logic (CDSL)](#3-processes-business-logic-cdsl)
+- [3. Processes / Business Logic (CDSL)](#3-processes--business-logic-cdsl)
   - [Build LaunchAgent plist](#build-launchagent-plist)
 - [4. States (CDSL)](#4-states-cdsl)
   - [LaunchAgent installation state](#launchagent-installation-state)

@@ -5,10 +5,10 @@
 
 - [1. Overview](#1-overview)
 - [2. Entries](#2-entries)
-  - [1. Tracking Core - HIGH](#1-tracking-core-high)
-  - [2. Notifications - HIGH](#2-notifications-high)
-  - [3. CLI Control + Local IPC - MEDIUM](#3-cli-control-local-ipc-medium)
-  - [4. Autostart (LaunchAgent) - MEDIUM](#4-autostart-launchagent-medium)
+  - [1. Tracking Core - HIGH](#1-tracking-core---high)
+  - [2. Notifications - HIGH](#2-notifications---high)
+  - [3. CLI Control + Local IPC - MEDIUM](#3-cli-control--local-ipc---medium)
+  - [4. Autostart (LaunchAgent) - MEDIUM](#4-autostart-launchagent---medium)
 - [3. Feature Dependencies](#3-feature-dependencies)
 
 <!-- /toc -->

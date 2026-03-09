@@ -316,9 +316,18 @@ class TestCLIInitCommand(unittest.TestCase):
 
             fake_cache = Path(tmpdir) / "cache"
             fake_cache.mkdir()
+            # Create minimal kit source for the mock
+            fake_kit = Path(tmpdir) / "dl" / "sdlc"
+            fake_kit.mkdir(parents=True)
 
             stdout = io.StringIO()
-            with patch("cypilot.commands.init.CACHE_DIR", fake_cache):
+            with (
+                patch("cypilot.commands.init.CACHE_DIR", fake_cache),
+                patch(
+                    "cypilot.commands.kit._download_kit_from_github",
+                    return_value=(fake_kit, "1.0.0"),
+                ),
+            ):
                 with redirect_stdout(stdout):
                     exit_code = main([
                         "init",
@@ -2173,6 +2182,35 @@ class TestCLIValidateKitsCommand(unittest.TestCase):
                 out = json.loads(stdout.getvalue())
                 self.assertEqual(out.get("status"), "PASS")
                 self.assertEqual(out.get("kits_validated"), 0)
+            finally:
+                os.chdir(cwd)
+
+    def test_kit_validate_alias(self):
+        """Test 'kit validate' dispatches to validate-kits."""
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+
+            (root / "kits" / "sdlc").mkdir(parents=True)
+            from _test_helpers import write_constraints_toml
+            write_constraints_toml(root / "kits" / "sdlc", {"PRD": {"identifiers": {"flow": {"to_code": True}}}})
+
+            _bootstrap_registry_new_format(
+                root,
+                kits={"cypilot-sdlc": {"format": "Cypilot", "path": "kits/sdlc"}},
+                systems=[],
+            )
+
+            cwd = os.getcwd()
+            try:
+                os.chdir(str(root))
+                stdout = io.StringIO()
+                with redirect_stdout(stdout):
+                    exit_code = main(["kit", "validate"])
+
+                self.assertEqual(exit_code, 0)
+                out = json.loads(stdout.getvalue())
+                self.assertEqual(out.get("status"), "PASS")
+                self.assertEqual(out.get("kits_validated"), 1)
             finally:
                 os.chdir(cwd)
 

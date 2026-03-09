@@ -11,7 +11,7 @@
   - [Confirmation](#confirmation)
 - [Pros and Cons of the Options](#pros-and-cons-of-the-options)
   - [Menubar application](#menubar-application)
-  - [CLI daemon + LaunchAgent (chosen)](#cli-daemon-launchagent-chosen)
+  - [CLI daemon + LaunchAgent (chosen)](#cli-daemon--launchagent-chosen)
   - [Scheduled launchd job (periodic execution)](#scheduled-launchd-job-periodic-execution)
 - [More Information](#more-information)
 - [Traceability](#traceability)

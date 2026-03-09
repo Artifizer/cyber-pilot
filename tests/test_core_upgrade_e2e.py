@@ -145,6 +145,18 @@ def _build_head_cache(dest: Path) -> None:
         src = REPO_ROOT / fname
         if src.is_file():
             shutil.copy2(src, dest / fname)
+    # If kits/sdlc/ doesn't exist locally (kit moved to separate repo),
+    # create a minimal synthetic kit so update tests have a cache source.
+    kit_dir = dest / "kits" / "sdlc"
+    if not kit_dir.is_dir():
+        kit_dir.mkdir(parents=True, exist_ok=True)
+        (kit_dir / "artifacts" / "PRD").mkdir(parents=True)
+        (kit_dir / "artifacts" / "PRD" / "template.md").write_text(
+            "# Product Requirements\n", encoding="utf-8",
+        )
+        import tomllib
+        from cypilot.utils import toml_utils
+        toml_utils.dump({"version": 99}, kit_dir / "conf.toml")
 
 
 # ---------------------------------------------------------------------------
@@ -154,14 +166,32 @@ def _build_head_cache(dest: Path) -> None:
 def _init_project(root: Path, cache_dir: Path) -> Path:
     """Run ``cpt init --yes`` inside *root* using *cache_dir*.
 
+    Mocks GitHub download to use cache kit source.
+    Strips GitHub source from core.toml so cmd_update uses cache fallback.
     Returns the adapter directory (root / "cypilot").
     """
+    import tempfile
     from cypilot.commands.init import cmd_init
     (root / ".git").mkdir(exist_ok=True)
+    # Copy kit source to a temp dir — init deletes kit_src.parent after install
+    kit_cache = cache_dir / "kits" / "sdlc"
+    tmp_dl = Path(tempfile.mkdtemp())
+    if kit_cache.is_dir():
+        kit_copy = tmp_dl / "sdlc"
+        shutil.copytree(kit_cache, kit_copy)
+    else:
+        kit_copy = tmp_dl / "sdlc"
+        kit_copy.mkdir(parents=True)
     cwd = os.getcwd()
     try:
         os.chdir(str(root))
-        with patch("cypilot.commands.init.CACHE_DIR", cache_dir):
+        with (
+            patch("cypilot.commands.init.CACHE_DIR", cache_dir),
+            patch(
+                "cypilot.commands.kit._download_kit_from_github",
+                return_value=(kit_copy, "1.0.0"),
+            ),
+        ):
             buf = io.StringIO()
             err = io.StringIO()
             with redirect_stdout(buf), redirect_stderr(err):
@@ -171,7 +201,18 @@ def _init_project(root: Path, cache_dir: Path) -> Path:
             )
     finally:
         os.chdir(cwd)
-    return root / "cypilot"
+    # Remove GitHub source from core.toml so cmd_update uses cache fallback
+    adapter = root / "cypilot"
+    core_toml = adapter / "config" / "core.toml"
+    if core_toml.is_file():
+        import tomllib
+        from cypilot.utils import toml_utils
+        with open(core_toml, "rb") as f:
+            data = tomllib.load(f)
+        for kit_data in data.get("kits", {}).values():
+            kit_data.pop("source", None)
+        toml_utils.dump(data, core_toml)
+    return adapter
 
 
 # ---------------------------------------------------------------------------
@@ -212,10 +253,18 @@ class TestCoreUpgradeE2E(unittest.TestCase):
             self.assertTrue(adapter.is_dir(), f"adapter dir not created for {tag}")
 
             # 3. Run cmd_update -y with HEAD cache
+            # Mock GitHub download to use head_cache kit (avoids API rate limits)
+            head_kit = self.head_cache / "kits" / "sdlc"
             cwd = os.getcwd()
             try:
                 os.chdir(str(root))
-                with patch("cypilot.commands.update.CACHE_DIR", self.head_cache):
+                with (
+                    patch("cypilot.commands.update.CACHE_DIR", self.head_cache),
+                    patch(
+                        "cypilot.commands.kit._download_kit_from_github",
+                        return_value=(head_kit, "99"),
+                    ),
+                ):
                     buf = io.StringIO()
                     err = io.StringIO()
                     with redirect_stdout(buf), redirect_stderr(err):

@@ -179,6 +179,13 @@ def cmd_update(argv: List[str]) -> int:
     # @cpt-end:cpt-cypilot-flow-version-config-update:p1:inst-detect-layout
     # @cpt-end:cpt-cypilot-algo-version-config-update-pipeline:p1:inst-detect-layout-algo
 
+    # @cpt-begin:cpt-cypilot-algo-version-config-update-pipeline:p1:inst-migrate-config-algo
+    # @cpt-begin:cpt-cypilot-flow-version-config-update:p1:inst-migrate-config
+    # ── Step 1b2: Migrate core.toml (preserve user settings) ─────────────
+    # Currently a no-op: core.toml schema is stable; future migrations go here.
+    # @cpt-end:cpt-cypilot-flow-version-config-update:p1:inst-migrate-config
+    # @cpt-end:cpt-cypilot-algo-version-config-update-pipeline:p1:inst-migrate-config-algo
+
     # @cpt-begin:cpt-cypilot-algo-version-config-update-pipeline:p1:inst-migrate-kit-sources-algo
     # @cpt-begin:cpt-cypilot-flow-version-config-update:p1:inst-migrate-kit-sources
     # ── Step 1c: Deduplicate legacy kit slugs + migrate sources ──────────
@@ -297,6 +304,10 @@ def cmd_update(argv: List[str]) -> int:
         gen_result = regenerate_gen_aggregates(cypilot_dir)
         actions.update(gen_result)
     # (end kit updates)
+
+    # @cpt-begin:cpt-cypilot-algo-version-config-update-pipeline:p1:inst-regen-algo
+    # Removed — no separate regen step; kit files are updated directly by update_kit.
+    # @cpt-end:cpt-cypilot-algo-version-config-update-pipeline:p1:inst-regen-algo
 
     # @cpt-begin:cpt-cypilot-algo-version-config-update-pipeline:p1:inst-scaffold-algo
     # @cpt-begin:cpt-cypilot-flow-version-config-update:p1:inst-ensure-scaffold

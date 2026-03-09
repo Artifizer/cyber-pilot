@@ -1519,10 +1519,18 @@ class TestCLIPyCoverageInitUnchanged(unittest.TestCase):
             fake_cache.mkdir()
 
             # First init to create files (use --yes to avoid prompts)
+            fake_kit = Path(tmpdir) / "dl" / "sdlc"
+            fake_kit.mkdir(parents=True)
             cwd = os.getcwd()
             try:
                 os.chdir(root)
-                with patch("cypilot.commands.init.CACHE_DIR", fake_cache):
+                with (
+                    patch("cypilot.commands.init.CACHE_DIR", fake_cache),
+                    patch(
+                        "cypilot.commands.kit._download_kit_from_github",
+                        return_value=(fake_kit, "1.0.0"),
+                    ),
+                ):
                     stdout = io.StringIO()
                     with redirect_stdout(stdout):
                         exit_code = main(["init", "--yes"])
@@ -1691,10 +1699,21 @@ class TestInitForceReinit(unittest.TestCase):
             (root / ".git").mkdir()
             cache = Path(td) / "cache"
             _make_test_cache(cache)
+            import tempfile
+            def _fake_download(*a, **kw):
+                t = Path(tempfile.mkdtemp())
+                k = t / "sdlc"; k.mkdir()
+                return (k, "1.0.0")
             cwd = os.getcwd()
             try:
                 os.chdir(root)
-                with patch("cypilot.commands.init.CACHE_DIR", cache):
+                with (
+                    patch("cypilot.commands.init.CACHE_DIR", cache),
+                    patch(
+                        "cypilot.commands.kit._download_kit_from_github",
+                        side_effect=_fake_download,
+                    ),
+                ):
                     # First init
                     buf = io.StringIO()
                     with redirect_stdout(buf):

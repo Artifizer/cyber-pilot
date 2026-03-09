@@ -111,7 +111,7 @@ class TestCmdKitUpdate(unittest.TestCase):
         with TemporaryDirectory() as td:
             buf = io.StringIO()
             with redirect_stdout(buf):
-                rc = cmd_kit_update([str(Path(td) / "nonexistent")])
+                rc = cmd_kit_update(["--path", str(Path(td) / "nonexistent")])
             self.assertEqual(rc, 2)
             out = json.loads(buf.getvalue())
             self.assertIn("not found", out["message"])
@@ -125,7 +125,7 @@ class TestCmdKitUpdate(unittest.TestCase):
                 os.chdir(td)
                 buf = io.StringIO()
                 with redirect_stdout(buf):
-                    rc = cmd_kit_update([str(kit_src)])
+                    rc = cmd_kit_update(["--path", str(kit_src)])
                 self.assertEqual(rc, 1)
             finally:
                 os.chdir(cwd)
@@ -142,7 +142,7 @@ class TestCmdKitUpdate(unittest.TestCase):
                 os.chdir(str(root))
                 buf = io.StringIO()
                 with redirect_stdout(buf):
-                    rc = cmd_kit_update([str(kit_src)])
+                    rc = cmd_kit_update(["--path", str(kit_src)])
                 self.assertEqual(rc, 0)
                 out = json.loads(buf.getvalue())
                 self.assertEqual(out["results"][0]["action"], "created")
@@ -161,7 +161,7 @@ class TestCmdKitUpdate(unittest.TestCase):
                 os.chdir(str(root))
                 buf = io.StringIO()
                 with redirect_stdout(buf):
-                    rc = cmd_kit_update([str(kit_src), "--dry-run"])
+                    rc = cmd_kit_update(["--path", str(kit_src), "--dry-run"])
                 self.assertEqual(rc, 0)
                 out = json.loads(buf.getvalue())
                 self.assertEqual(out["status"], "PASS")
@@ -180,7 +180,7 @@ class TestCmdKitUpdate(unittest.TestCase):
                 os.chdir(str(root))
                 buf = io.StringIO()
                 with redirect_stdout(buf):
-                    rc = cmd_kit_update([str(kit_src), "--no-interactive", "-y"])
+                    rc = cmd_kit_update(["--path", str(kit_src), "--no-interactive", "-y"])
                 self.assertEqual(rc, 0)
                 out = json.loads(buf.getvalue())
                 self.assertEqual(out["status"], "PASS")
@@ -200,7 +200,7 @@ class TestCmdKitUpdate(unittest.TestCase):
                 os.chdir(str(root))
                 buf = io.StringIO()
                 with redirect_stdout(buf):
-                    rc = cmd_kit_update([str(kit_src)])
+                    rc = cmd_kit_update(["--path", str(kit_src)])
                 self.assertEqual(rc, 0)
                 out = json.loads(buf.getvalue())
                 self.assertEqual(out["results"][0]["action"], "current")
@@ -220,7 +220,7 @@ class TestCmdKitUpdate(unittest.TestCase):
                 os.chdir(str(root))
                 buf = io.StringIO()
                 with redirect_stdout(buf):
-                    rc = cmd_kit_update([str(kit_src), "--force"])
+                    rc = cmd_kit_update(["--path", str(kit_src), "--force"])
                 self.assertEqual(rc, 0)
                 out = json.loads(buf.getvalue())
                 # With identical files, force still reports "current" (no actual diff)
@@ -296,7 +296,7 @@ class TestCmdKitInstall(unittest.TestCase):
         from cypilot.commands.kit import cmd_kit_install
         buf = io.StringIO()
         with redirect_stdout(buf):
-            rc = cmd_kit_install(["/nonexistent/path/to/kit"])
+            rc = cmd_kit_install(["--path", "/nonexistent/path/to/kit"])
         self.assertEqual(rc, 2)
         out = json.loads(buf.getvalue())
         self.assertEqual(out["status"], "FAIL")
@@ -311,7 +311,7 @@ class TestCmdKitInstall(unittest.TestCase):
                 # Remove .git so no project root is found
                 buf = io.StringIO()
                 with redirect_stdout(buf):
-                    rc = cmd_kit_install([str(kit_src)])
+                    rc = cmd_kit_install(["--path", str(kit_src)])
                 self.assertEqual(rc, 1)
             finally:
                 os.chdir(cwd)
@@ -329,7 +329,7 @@ class TestCmdKitInstall(unittest.TestCase):
                 os.chdir(str(root))
                 buf = io.StringIO()
                 with redirect_stdout(buf):
-                    rc = cmd_kit_install([str(kit_src)])
+                    rc = cmd_kit_install(["--path", str(kit_src)])
                 self.assertEqual(rc, 1)
             finally:
                 os.chdir(cwd)
@@ -346,7 +346,7 @@ class TestCmdKitInstall(unittest.TestCase):
                 os.chdir(str(root))
                 buf = io.StringIO()
                 with redirect_stdout(buf):
-                    rc = cmd_kit_install([str(kit_src)])
+                    rc = cmd_kit_install(["--path", str(kit_src)])
                 self.assertEqual(rc, 2)
                 out = json.loads(buf.getvalue())
                 self.assertIn("already installed", out["message"])
@@ -364,7 +364,7 @@ class TestCmdKitInstall(unittest.TestCase):
                 os.chdir(str(root))
                 buf = io.StringIO()
                 with redirect_stdout(buf):
-                    rc = cmd_kit_install([str(kit_src), "--dry-run"])
+                    rc = cmd_kit_install(["--path", str(kit_src), "--dry-run"])
                 self.assertEqual(rc, 0)
                 out = json.loads(buf.getvalue())
                 self.assertEqual(out["status"], "DRY_RUN")
@@ -382,7 +382,7 @@ class TestCmdKitInstall(unittest.TestCase):
                 os.chdir(str(root))
                 buf = io.StringIO()
                 with redirect_stdout(buf):
-                    rc = cmd_kit_install([str(kit_src)])
+                    rc = cmd_kit_install(["--path", str(kit_src)])
                 self.assertEqual(rc, 0)
                 out = json.loads(buf.getvalue())
                 self.assertEqual(out["status"], "PASS")
@@ -402,7 +402,7 @@ class TestCmdKitInstall(unittest.TestCase):
                 os.chdir(str(root))
                 buf = io.StringIO()
                 with redirect_stdout(buf):
-                    rc = cmd_kit_install([str(kit_src), "--force"])
+                    rc = cmd_kit_install(["--path", str(kit_src), "--force"])
                 self.assertEqual(rc, 0)
                 out = json.loads(buf.getvalue())
                 self.assertEqual(out["status"], "PASS")
@@ -423,7 +423,7 @@ class TestCmdKitInstall(unittest.TestCase):
                 os.chdir(str(root))
                 buf = io.StringIO()
                 with redirect_stdout(buf):
-                    rc = cmd_kit_install([str(kit_src)])
+                    rc = cmd_kit_install(["--path", str(kit_src)])
                 self.assertEqual(rc, 0)
                 out = json.loads(buf.getvalue())
                 self.assertEqual(out["kit"], "custom-slug")
@@ -572,14 +572,14 @@ class TestCmdKitDispatcherRoutes(unittest.TestCase):
         from cypilot.commands.kit import cmd_kit
         buf = io.StringIO()
         with redirect_stdout(buf):
-            rc = cmd_kit(["install", "/nonexistent"])
+            rc = cmd_kit(["install", "--path", "/nonexistent"])
         self.assertEqual(rc, 2)
 
     def test_route_update(self):
         from cypilot.commands.kit import cmd_kit
         buf = io.StringIO()
         with redirect_stdout(buf):
-            rc = cmd_kit(["update", "/nonexistent"])
+            rc = cmd_kit(["update", "--path", "/nonexistent"])
         self.assertEqual(rc, 2)
 
     def test_route_migrate(self):
@@ -669,7 +669,7 @@ class TestUpdateKitExistingBranch(unittest.TestCase):
                     os.chdir(str(root))
                     buf = io.StringIO()
                     with redirect_stdout(buf):
-                        rc = cmd_kit_update([str(kit_src)])
+                        rc = cmd_kit_update(["--path", str(kit_src)])
                     self.assertEqual(rc, 0)
                     out = json.loads(buf.getvalue())
                     self.assertEqual(out["results"][0]["action"], "created")
@@ -815,6 +815,713 @@ class TestReadConfVersion(unittest.TestCase):
             p = Path(td) / "conf.toml"
             p.write_text("{{invalid", encoding="utf-8")
             self.assertEqual(_read_conf_version(p), 0)
+
+
+# ---------------------------------------------------------------------------
+# GitHub source parsing
+# ---------------------------------------------------------------------------
+
+class TestParseGithubSource(unittest.TestCase):
+    def test_basic(self):
+        from cypilot.commands.kit import _parse_github_source
+        o, r, v = _parse_github_source("owner/repo")
+        self.assertEqual((o, r, v), ("owner", "repo", ""))
+
+    def test_with_version(self):
+        from cypilot.commands.kit import _parse_github_source
+        o, r, v = _parse_github_source("owner/repo@v1.2.3")
+        self.assertEqual((o, r, v), ("owner", "repo", "v1.2.3"))
+
+    def test_invalid(self):
+        from cypilot.commands.kit import _parse_github_source
+        with self.assertRaises(ValueError):
+            _parse_github_source("invalid-no-slash")
+
+
+# ---------------------------------------------------------------------------
+# GitHub download (mocked)
+# ---------------------------------------------------------------------------
+
+class TestDownloadKitFromGithub(unittest.TestCase):
+    def test_success(self):
+        """Mocked download: creates tarball, extracts to temp dir."""
+        import tarfile, tempfile
+        from cypilot.commands.kit import _download_kit_from_github
+
+        # Build a real tarball in memory
+        tar_bytes = io.BytesIO()
+        with tarfile.open(fileobj=tar_bytes, mode="w:gz") as tar:
+            # GitHub tarballs have one top-level dir
+            info = tarfile.TarInfo(name="owner-repo-abc123/")
+            info.type = tarfile.DIRTYPE
+            tar.addfile(info)
+            data = b"version = 1\n"
+            info2 = tarfile.TarInfo(name="owner-repo-abc123/conf.toml")
+            info2.size = len(data)
+            tar.addfile(info2, io.BytesIO(data))
+        tar_bytes.seek(0)
+
+        class FakeResp:
+            def read(self, n=-1):
+                return tar_bytes.read(n)
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                pass
+
+        with patch("cypilot.commands.kit.urllib.request.urlopen", return_value=FakeResp()):
+            result_dir, ver = _download_kit_from_github("owner", "repo", "v1.0")
+            self.assertTrue(result_dir.is_dir())
+            self.assertEqual(ver, "v1.0")
+            # Cleanup
+            shutil.rmtree(result_dir.parent, ignore_errors=True)
+
+    def test_network_error(self):
+        from cypilot.commands.kit import _download_kit_from_github
+        with patch("cypilot.commands.kit.urllib.request.urlopen", side_effect=Exception("timeout")):
+            with self.assertRaises(RuntimeError):
+                _download_kit_from_github("owner", "repo", "v1")
+
+    def test_bad_archive(self):
+        """Download succeeds but tarball is corrupt."""
+        from cypilot.commands.kit import _download_kit_from_github
+
+        class FakeResp:
+            def __init__(self):
+                self._data = io.BytesIO(b"not a tarball")
+            def read(self, n=-1):
+                return self._data.read(n)
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                pass
+
+        with patch("cypilot.commands.kit.urllib.request.urlopen", return_value=FakeResp()):
+            with self.assertRaises(RuntimeError):
+                _download_kit_from_github("owner", "repo", "v1")
+
+
+class TestGithubHeaders(unittest.TestCase):
+    def test_no_token(self):
+        from cypilot.commands.kit import _github_headers
+        with patch.dict("os.environ", {}, clear=True):
+            h = _github_headers()
+            self.assertEqual(h["User-Agent"], "cypilot-kit-installer")
+            self.assertNotIn("Authorization", h)
+
+    def test_with_token(self):
+        from cypilot.commands.kit import _github_headers
+        with patch.dict("os.environ", {"GITHUB_TOKEN": "ghp_test123"}):
+            h = _github_headers()
+            self.assertEqual(h["Authorization"], "Bearer ghp_test123")
+
+
+class TestResolveLatestRelease(unittest.TestCase):
+    def test_success(self):
+        from cypilot.commands.kit import _resolve_latest_github_release
+
+        class FakeResp:
+            def read(self):
+                return json.dumps({"tag_name": "v2.0"}).encode()
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                pass
+
+        with patch("cypilot.commands.kit.urllib.request.urlopen", return_value=FakeResp()):
+            tag = _resolve_latest_github_release("o", "r")
+            self.assertEqual(tag, "v2.0")
+
+    def test_no_releases_404(self):
+        import urllib.error
+        from cypilot.commands.kit import _resolve_latest_github_release
+
+        exc = urllib.error.HTTPError("url", 404, "Not Found", {}, None)
+        with patch("cypilot.commands.kit.urllib.request.urlopen", side_effect=exc):
+            tag = _resolve_latest_github_release("o", "r")
+            self.assertEqual(tag, "")
+
+    def test_api_error_raises(self):
+        import urllib.error
+        from cypilot.commands.kit import _resolve_latest_github_release
+
+        exc = urllib.error.HTTPError("url", 403, "rate limit", {}, None)
+        with patch("cypilot.commands.kit.urllib.request.urlopen", side_effect=exc):
+            with self.assertRaises(RuntimeError):
+                _resolve_latest_github_release("o", "r")
+
+    def test_network_error_raises(self):
+        from cypilot.commands.kit import _resolve_latest_github_release
+        with patch("cypilot.commands.kit.urllib.request.urlopen", side_effect=OSError("dns")):
+            with self.assertRaises(RuntimeError):
+                _resolve_latest_github_release("o", "r")
+
+
+# ---------------------------------------------------------------------------
+# Layout migration
+# ---------------------------------------------------------------------------
+
+class TestDetectAndMigrateLayout(unittest.TestCase):
+    def test_no_legacy_dirs(self):
+        from cypilot.commands.kit import _detect_and_migrate_layout
+        with TemporaryDirectory() as td:
+            cypilot = Path(td) / "cypilot"
+            cypilot.mkdir()
+            result = _detect_and_migrate_layout(cypilot)
+            self.assertEqual(result, {})
+
+    def test_migrate_kits_dir(self):
+        """kits/{slug}/ content migrates to config/kits/{slug}/."""
+        from cypilot.commands.kit import _detect_and_migrate_layout
+        with TemporaryDirectory() as td:
+            cypilot = Path(td) / "cypilot"
+            # Create old layout: kits/sdlc/ with content
+            kits_dir = cypilot / "kits" / "sdlc"
+            kits_dir.mkdir(parents=True)
+            (kits_dir / "conf.toml").write_text("version = 1\n", encoding="utf-8")
+            (kits_dir / "artifacts").mkdir()
+            (kits_dir / "artifacts" / "PRD.md").write_text("# PRD\n", encoding="utf-8")
+            # blueprints should be skipped
+            (kits_dir / "blueprints").mkdir()
+            (kits_dir / "blueprints" / "old.md").write_text("old", encoding="utf-8")
+
+            result = _detect_and_migrate_layout(cypilot)
+
+            self.assertEqual(result.get("sdlc"), "migrated")
+            config_kit = cypilot / "config" / "kits" / "sdlc"
+            self.assertTrue((config_kit / "conf.toml").is_file())
+            self.assertTrue((config_kit / "artifacts" / "PRD.md").is_file())
+            # blueprints should NOT be copied
+            self.assertFalse((config_kit / "blueprints").exists())
+            # Old kits/ dir should be removed
+            self.assertFalse((cypilot / "kits").exists())
+
+    def test_migrate_gen_kits(self):
+        """.gen/kits/{slug}/ content migrates to config/kits/{slug}/."""
+        from cypilot.commands.kit import _detect_and_migrate_layout
+        with TemporaryDirectory() as td:
+            cypilot = Path(td) / "cypilot"
+            gen_kit = cypilot / ".gen" / "kits" / "sdlc"
+            gen_kit.mkdir(parents=True)
+            (gen_kit / "SKILL.md").write_text("# Skill\n", encoding="utf-8")
+
+            result = _detect_and_migrate_layout(cypilot)
+
+            self.assertIn("sdlc", result)
+            config_kit = cypilot / "config" / "kits" / "sdlc"
+            self.assertTrue((config_kit / "SKILL.md").is_file())
+            # .gen/kits/ should be removed
+            self.assertFalse((cypilot / ".gen" / "kits").exists())
+
+    def test_dry_run(self):
+        from cypilot.commands.kit import _detect_and_migrate_layout
+        with TemporaryDirectory() as td:
+            cypilot = Path(td) / "cypilot"
+            kits_dir = cypilot / "kits" / "sdlc"
+            kits_dir.mkdir(parents=True)
+            (kits_dir / "conf.toml").write_text("v=1\n", encoding="utf-8")
+
+            result = _detect_and_migrate_layout(cypilot, dry_run=True)
+            self.assertEqual(result.get("sdlc"), "would_migrate")
+            # Files should NOT be moved
+            self.assertTrue(kits_dir.exists())
+
+    def test_updates_core_toml_paths(self):
+        from cypilot.commands.kit import _detect_and_migrate_layout
+        from cypilot.utils import toml_utils
+        with TemporaryDirectory() as td:
+            cypilot = Path(td) / "cypilot"
+            kits_dir = cypilot / "kits" / "sdlc"
+            kits_dir.mkdir(parents=True)
+            (kits_dir / "conf.toml").write_text("v=1\n", encoding="utf-8")
+            config_dir = cypilot / "config"
+            config_dir.mkdir(parents=True, exist_ok=True)
+            toml_utils.dump({
+                "kits": {"sdlc": {"path": "kits/sdlc", "format": "Cypilot"}},
+            }, config_dir / "core.toml")
+
+            _detect_and_migrate_layout(cypilot)
+
+            import tomllib
+            with open(config_dir / "core.toml", "rb") as f:
+                data = tomllib.load(f)
+            self.assertEqual(data["kits"]["sdlc"]["path"], "config/kits/sdlc")
+
+    def test_overwrite_existing_dir(self):
+        """When config/kits/{slug}/artifacts/ already exists, it gets overwritten."""
+        from cypilot.commands.kit import _detect_and_migrate_layout
+        with TemporaryDirectory() as td:
+            cypilot = Path(td) / "cypilot"
+            # Old layout
+            kits_dir = cypilot / "kits" / "sdlc"
+            (kits_dir / "artifacts").mkdir(parents=True)
+            (kits_dir / "artifacts" / "new.md").write_text("new", encoding="utf-8")
+            # Existing config
+            config_art = cypilot / "config" / "kits" / "sdlc" / "artifacts"
+            config_art.mkdir(parents=True)
+            (config_art / "old.md").write_text("old", encoding="utf-8")
+
+            _detect_and_migrate_layout(cypilot)
+            # artifacts dir should have the NEW content
+            self.assertTrue((config_art / "new.md").is_file())
+
+
+# ---------------------------------------------------------------------------
+# install_kit validation
+# ---------------------------------------------------------------------------
+
+class TestInstallKitValidation(unittest.TestCase):
+    def test_nonexistent_source(self):
+        from cypilot.commands.kit import install_kit
+        result = install_kit(Path("/no/such/dir"), Path("/tmp"), "x")
+        self.assertEqual(result["status"], "FAIL")
+
+
+# ---------------------------------------------------------------------------
+# _copy_kit_content overwrite path
+# ---------------------------------------------------------------------------
+
+class TestCopyKitContentOverwrite(unittest.TestCase):
+    def test_existing_dir_overwritten(self):
+        from cypilot.commands.kit import _copy_kit_content
+        with TemporaryDirectory() as td:
+            src = Path(td) / "src"
+            dst = Path(td) / "dst"
+            (src / "artifacts" / "PRD").mkdir(parents=True)
+            (src / "artifacts" / "PRD" / "new.md").write_text("new", encoding="utf-8")
+            # Existing target with different content
+            (dst / "artifacts" / "PRD").mkdir(parents=True)
+            (dst / "artifacts" / "PRD" / "old.md").write_text("old", encoding="utf-8")
+
+            actions = _copy_kit_content(src, dst)
+            self.assertEqual(actions.get("artifacts"), "copied")
+            # new.md should exist, old.md should NOT (dir was replaced)
+            self.assertTrue((dst / "artifacts" / "PRD" / "new.md").is_file())
+            self.assertFalse((dst / "artifacts" / "PRD" / "old.md").exists())
+
+
+# ---------------------------------------------------------------------------
+# _collect_kit_metadata OSError
+# ---------------------------------------------------------------------------
+
+class TestCollectKitMetadataOsError(unittest.TestCase):
+    def test_agents_read_oserror(self):
+        from cypilot.commands.kit import _collect_kit_metadata
+        with TemporaryDirectory() as td:
+            kit_dir = Path(td) / "sdlc"
+            kit_dir.mkdir()
+            agents = kit_dir / "AGENTS.md"
+            agents.mkdir()  # directory, not file — read will fail
+            meta = _collect_kit_metadata(kit_dir, "sdlc")
+            self.assertEqual(meta["agents_content"], "")
+
+
+# ---------------------------------------------------------------------------
+# _read_project_name_from_core
+# ---------------------------------------------------------------------------
+
+class TestReadProjectNameFromCore(unittest.TestCase):
+    def test_missing_file(self):
+        from cypilot.commands.kit import _read_project_name_from_core
+        self.assertIsNone(_read_project_name_from_core(Path("/nonexistent")))
+
+    def test_corrupt_toml(self):
+        from cypilot.commands.kit import _read_project_name_from_core
+        with TemporaryDirectory() as td:
+            p = Path(td) / "core.toml"
+            p.write_text("{{bad", encoding="utf-8")
+            self.assertIsNone(_read_project_name_from_core(Path(td)))
+
+    def test_empty_name(self):
+        from cypilot.commands.kit import _read_project_name_from_core
+        from cypilot.utils import toml_utils
+        with TemporaryDirectory() as td:
+            toml_utils.dump({"system": {"name": "  "}}, Path(td) / "core.toml")
+            self.assertIsNone(_read_project_name_from_core(Path(td)))
+
+
+# ---------------------------------------------------------------------------
+# _read_kits_from_core_toml edge cases
+# ---------------------------------------------------------------------------
+
+class TestReadKitsFromCoreToml(unittest.TestCase):
+    def test_missing_file(self):
+        from cypilot.commands.kit import _read_kits_from_core_toml
+        self.assertEqual(_read_kits_from_core_toml(Path("/nonexistent")), {})
+
+    def test_corrupt(self):
+        from cypilot.commands.kit import _read_kits_from_core_toml
+        with TemporaryDirectory() as td:
+            (Path(td) / "core.toml").write_text("{{bad", encoding="utf-8")
+            self.assertEqual(_read_kits_from_core_toml(Path(td)), {})
+
+    def test_non_dict_kits(self):
+        from cypilot.commands.kit import _read_kits_from_core_toml
+        from cypilot.utils import toml_utils
+        with TemporaryDirectory() as td:
+            toml_utils.dump({"kits": "not_a_dict"}, Path(td) / "core.toml")
+            self.assertEqual(_read_kits_from_core_toml(Path(td)), {})
+
+    def test_filters_non_dict_entries(self):
+        from cypilot.commands.kit import _read_kits_from_core_toml
+        from cypilot.utils import toml_utils
+        with TemporaryDirectory() as td:
+            toml_utils.dump({
+                "kits": {"good": {"path": "x"}, "bad": "string_val"},
+            }, Path(td) / "core.toml")
+            result = _read_kits_from_core_toml(Path(td))
+            self.assertIn("good", result)
+            self.assertNotIn("bad", result)
+
+
+# ---------------------------------------------------------------------------
+# _register_kit_in_core_toml
+# ---------------------------------------------------------------------------
+
+class TestRegisterKitInCoreToml(unittest.TestCase):
+    def test_new_kit(self):
+        from cypilot.commands.kit import _register_kit_in_core_toml
+        from cypilot.utils import toml_utils
+        import tomllib
+        with TemporaryDirectory() as td:
+            config = Path(td)
+            toml_utils.dump({"kits": {}}, config / "core.toml")
+            _register_kit_in_core_toml(config, "mykit", "1.0", Path(td) / "cyp")
+            with open(config / "core.toml", "rb") as f:
+                data = tomllib.load(f)
+            self.assertEqual(data["kits"]["mykit"]["version"], "1.0")
+            self.assertEqual(data["kits"]["mykit"]["format"], "Cypilot")
+            self.assertEqual(data["kits"]["mykit"]["path"], "config/kits/mykit")
+
+    def test_with_source(self):
+        from cypilot.commands.kit import _register_kit_in_core_toml
+        from cypilot.utils import toml_utils
+        import tomllib
+        with TemporaryDirectory() as td:
+            config = Path(td)
+            toml_utils.dump({"kits": {}}, config / "core.toml")
+            _register_kit_in_core_toml(config, "mykit", "2.0", Path(td), source="github:o/r")
+            with open(config / "core.toml", "rb") as f:
+                data = tomllib.load(f)
+            self.assertEqual(data["kits"]["mykit"]["source"], "github:o/r")
+
+    def test_missing_core_toml(self):
+        from cypilot.commands.kit import _register_kit_in_core_toml
+        # Should not raise
+        _register_kit_in_core_toml(Path("/nonexistent"), "k", "1", Path("/x"))
+
+
+# ---------------------------------------------------------------------------
+# _read_kit_version_from_core
+# ---------------------------------------------------------------------------
+
+class TestReadKitVersionFromCore(unittest.TestCase):
+    def test_missing(self):
+        from cypilot.commands.kit import _read_kit_version_from_core
+        self.assertEqual(_read_kit_version_from_core(Path("/nonexistent"), "x"), "")
+
+    def test_found(self):
+        from cypilot.commands.kit import _read_kit_version_from_core
+        from cypilot.utils import toml_utils
+        with TemporaryDirectory() as td:
+            toml_utils.dump({"kits": {"sdlc": {"version": "3"}}}, Path(td) / "core.toml")
+            self.assertEqual(_read_kit_version_from_core(Path(td), "sdlc"), "3")
+
+
+# ---------------------------------------------------------------------------
+# cmd_kit_install CLI GitHub path (mocked)
+# ---------------------------------------------------------------------------
+
+class TestCmdKitInstallGithubPath(unittest.TestCase):
+    def setUp(self):
+        from cypilot.utils.ui import set_json_mode
+        set_json_mode(True)
+
+    def tearDown(self):
+        from cypilot.utils.ui import set_json_mode
+        set_json_mode(False)
+
+    def test_install_from_github_mocked(self):
+        from cypilot.commands.kit import cmd_kit_install
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            adapter = _bootstrap_project(root)
+            kit_src = _make_kit_source(Path(td) / "dl", "sdlc")
+
+            cwd = os.getcwd()
+            try:
+                os.chdir(root)
+                with patch(
+                    "cypilot.commands.kit._download_kit_from_github",
+                    return_value=(kit_src, "1.0"),
+                ):
+                    buf = io.StringIO()
+                    with redirect_stdout(buf):
+                        rc = cmd_kit_install(["cyberfabric/cyber-pilot-kit-sdlc"])
+                self.assertEqual(rc, 0)
+                out = json.loads(buf.getvalue())
+                self.assertIn(out["status"], ["PASS", "OK"])
+            finally:
+                os.chdir(cwd)
+
+    def test_invalid_source_format(self):
+        from cypilot.commands.kit import cmd_kit_install
+        buf = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(io.StringIO()):
+            rc = cmd_kit_install(["bad-no-slash"])
+        self.assertEqual(rc, 2)
+
+    def test_download_failure(self):
+        from cypilot.commands.kit import cmd_kit_install
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _bootstrap_project(root)
+            cwd = os.getcwd()
+            try:
+                os.chdir(root)
+                with patch(
+                    "cypilot.commands.kit._download_kit_from_github",
+                    side_effect=RuntimeError("rate limit"),
+                ):
+                    buf = io.StringIO()
+                    with redirect_stdout(buf):
+                        rc = cmd_kit_install(["owner/repo"])
+                self.assertEqual(rc, 1)
+            finally:
+                os.chdir(cwd)
+
+
+# ---------------------------------------------------------------------------
+# cmd_kit_update CLI paths
+# ---------------------------------------------------------------------------
+
+class TestCmdKitUpdateCli(unittest.TestCase):
+    def setUp(self):
+        from cypilot.utils.ui import set_json_mode
+        set_json_mode(True)
+
+    def tearDown(self):
+        from cypilot.utils.ui import set_json_mode
+        set_json_mode(False)
+
+    def test_update_local_path(self):
+        from cypilot.commands.kit import cmd_kit_update
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            adapter = _bootstrap_project(root)
+            kit_src = _make_kit_source(Path(td) / "src", "testkit")
+            # Register kit in core.toml so it's installed
+            from cypilot.utils import toml_utils
+            toml_utils.dump({
+                "version": "1.0",
+                "project_root": "..",
+                "system": {"name": "Test", "slug": "test", "kit": "testkit"},
+                "kits": {"testkit": {"format": "Cypilot", "path": "config/kits/testkit"}},
+            }, adapter / "config" / "core.toml")
+            # Create installed kit dir
+            config_kit = adapter / "config" / "kits" / "testkit"
+            config_kit.mkdir(parents=True)
+            (config_kit / "SKILL.md").write_text("old\n", encoding="utf-8")
+
+            cwd = os.getcwd()
+            try:
+                os.chdir(root)
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    rc = cmd_kit_update(["--path", str(kit_src), "--force", "-y"])
+                self.assertEqual(rc, 0)
+            finally:
+                os.chdir(cwd)
+
+    def test_update_local_path_not_found(self):
+        from cypilot.commands.kit import cmd_kit_update
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            _bootstrap_project(root)
+            cwd = os.getcwd()
+            try:
+                os.chdir(root)
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    rc = cmd_kit_update(["--path", "/no/such/dir"])
+                self.assertEqual(rc, 2)
+            finally:
+                os.chdir(cwd)
+
+    def test_update_no_kits_registered(self):
+        from cypilot.commands.kit import cmd_kit_update
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            adapter = _bootstrap_project(root)
+            # core.toml with empty kits
+            from cypilot.utils import toml_utils
+            toml_utils.dump({
+                "version": "1.0",
+                "project_root": "..",
+                "system": {"name": "Test"},
+                "kits": {},
+            }, adapter / "config" / "core.toml")
+            cwd = os.getcwd()
+            try:
+                os.chdir(root)
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    rc = cmd_kit_update([])
+                self.assertEqual(rc, 2)
+            finally:
+                os.chdir(cwd)
+
+    def test_update_slug_not_found(self):
+        from cypilot.commands.kit import cmd_kit_update
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            adapter = _bootstrap_project(root)
+            from cypilot.utils import toml_utils
+            toml_utils.dump({
+                "version": "1.0",
+                "project_root": "..",
+                "system": {"name": "Test"},
+                "kits": {"sdlc": {"format": "Cypilot", "path": "config/kits/sdlc", "source": "github:o/r"}},
+            }, adapter / "config" / "core.toml")
+            cwd = os.getcwd()
+            try:
+                os.chdir(root)
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    rc = cmd_kit_update(["nosuchkit"])
+                self.assertEqual(rc, 2)
+            finally:
+                os.chdir(cwd)
+
+    def test_update_from_github_source(self):
+        from cypilot.commands.kit import cmd_kit_update
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            adapter = _bootstrap_project(root)
+            kit_src = _make_kit_source(Path(td) / "dl", "sdlc")
+            from cypilot.utils import toml_utils
+            toml_utils.dump({
+                "version": "1.0",
+                "project_root": "..",
+                "system": {"name": "Test", "kit": "sdlc"},
+                "kits": {"sdlc": {"format": "Cypilot", "path": "config/kits/sdlc", "source": "github:cyberfabric/cyber-pilot-kit-sdlc"}},
+            }, adapter / "config" / "core.toml")
+
+            cwd = os.getcwd()
+            try:
+                os.chdir(root)
+                with patch(
+                    "cypilot.commands.kit._download_kit_from_github",
+                    return_value=(kit_src, "1.0"),
+                ):
+                    buf = io.StringIO()
+                    with redirect_stdout(buf):
+                        rc = cmd_kit_update(["sdlc", "--force", "-y"])
+                self.assertEqual(rc, 0)
+            finally:
+                os.chdir(cwd)
+
+    def test_update_github_download_failure(self):
+        from cypilot.commands.kit import cmd_kit_update
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            adapter = _bootstrap_project(root)
+            from cypilot.utils import toml_utils
+            toml_utils.dump({
+                "version": "1.0",
+                "project_root": "..",
+                "system": {"name": "Test", "kit": "sdlc"},
+                "kits": {"sdlc": {"format": "Cypilot", "path": "config/kits/sdlc", "source": "github:o/r"}},
+            }, adapter / "config" / "core.toml")
+            cwd = os.getcwd()
+            try:
+                os.chdir(root)
+                with patch(
+                    "cypilot.commands.kit._download_kit_from_github",
+                    side_effect=RuntimeError("rate limit"),
+                ):
+                    buf = io.StringIO()
+                    with redirect_stdout(buf):
+                        rc = cmd_kit_update([])
+                self.assertEqual(rc, 2)
+            finally:
+                os.chdir(cwd)
+
+    def test_update_unsupported_source(self):
+        from cypilot.commands.kit import cmd_kit_update
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            adapter = _bootstrap_project(root)
+            from cypilot.utils import toml_utils
+            toml_utils.dump({
+                "version": "1.0",
+                "project_root": "..",
+                "system": {"name": "Test"},
+                "kits": {"mykit": {"format": "Cypilot", "path": "config/kits/mykit", "source": "ftp://bad"}},
+            }, adapter / "config" / "core.toml")
+            cwd = os.getcwd()
+            try:
+                os.chdir(root)
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    rc = cmd_kit_update([])
+                self.assertEqual(rc, 2)
+            finally:
+                os.chdir(cwd)
+
+    def test_update_no_source_skipped(self):
+        from cypilot.commands.kit import cmd_kit_update
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            adapter = _bootstrap_project(root)
+            from cypilot.utils import toml_utils
+            toml_utils.dump({
+                "version": "1.0",
+                "project_root": "..",
+                "system": {"name": "Test"},
+                "kits": {"mykit": {"format": "Cypilot", "path": "config/kits/mykit"}},
+            }, adapter / "config" / "core.toml")
+            cwd = os.getcwd()
+            try:
+                os.chdir(root)
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    rc = cmd_kit_update([])
+                self.assertEqual(rc, 2)
+            finally:
+                os.chdir(cwd)
+
+
+# ---------------------------------------------------------------------------
+# update_kit version-check + partial/declined paths
+# ---------------------------------------------------------------------------
+
+class TestUpdateKitVersionPaths(unittest.TestCase):
+    def test_dry_run(self):
+        from cypilot.commands.kit import update_kit
+        with TemporaryDirectory() as td:
+            src = _make_kit_source(Path(td) / "src", "tk")
+            cyp = Path(td) / "cyp"
+            (cyp / "config" / "kits" / "tk").mkdir(parents=True)
+            r = update_kit("tk", src, cyp, dry_run=True)
+            self.assertEqual(r["version"]["status"], "dry_run")
+
+    def test_version_current_skips(self):
+        from cypilot.commands.kit import update_kit
+        from cypilot.utils import toml_utils
+        with TemporaryDirectory() as td:
+            src = _make_kit_source(Path(td) / "src", "tk")
+            cyp = Path(td) / "cyp"
+            config_kit = cyp / "config" / "kits" / "tk"
+            config_kit.mkdir(parents=True)
+            (config_kit / "SKILL.md").write_text("# Skill\n", encoding="utf-8")
+            toml_utils.dump({
+                "kits": {"tk": {"version": "1", "path": "config/kits/tk"}},
+            }, cyp / "config" / "core.toml")
+            # Source has version=1 via conf.toml
+            r = update_kit("tk", src, cyp, force=False)
+            self.assertEqual(r["version"]["status"], "current")
+            self.assertIn("skill_nav", r)
 
 
 if __name__ == "__main__":

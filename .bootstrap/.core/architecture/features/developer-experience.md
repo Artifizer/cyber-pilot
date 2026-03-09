@@ -13,7 +13,7 @@
   - [Pre-Commit Hooks](#pre-commit-hooks)
   - [TOC Generation](#toc-generation)
   - [Shell Completions](#shell-completions)
-- [3. Processes / Business Logic (CDSL)](#3-processes-business-logic-cdsl)
+- [3. Processes / Business Logic (CDSL)](#3-processes--business-logic-cdsl)
   - [Run Doctor Checks](#run-doctor-checks)
   - [Run Self-Check](#run-self-check)
 - [4. States (CDSL)](#4-states-cdsl)
