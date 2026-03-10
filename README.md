@@ -27,7 +27,7 @@ Everything that can be validated, checked, or enforced without an LLM is handled
 
 Two layers of functionality:
 
-- **Core** — deterministic skill engine, generic workflows (generate/analyze), multi-agent integrations (Windsurf, Cursor, Claude, Copilot, OpenAI), global CLI (`cypilot`/`cpt`), config directory management, extensible kit system with blueprint-based resource generation, ID/traceability infrastructure, and Cypilot DSL (CDSL) for behavioral specifications
+- **Core** — deterministic skill engine, generic workflows (generate/analyze), multi-agent integrations (Windsurf, Cursor, Claude, Copilot, OpenAI), global CLI (`cypilot`/`cpt`), config directory management, extensible kit system, ID/traceability infrastructure, and Cypilot DSL (CDSL) for behavioral specifications
 - **SDLC Kit** — artifact-first development pipeline (PRD → DESIGN → ADR → DECOMPOSITION → FEATURE → CODE) with templates, checklists, examples, deterministic validation, cross-artifact consistency checks, and GitHub PR review/status workflows
 
 Works with any language, stack, or repository.
@@ -53,7 +53,7 @@ Works with any language, stack, or repository.
     - [Update](#update)
   - [Architecture](#architecture)
     - [Directory Structure](#directory-structure)
-    - [Blueprint System](#blueprint-system)
+    - [Kit System](#kit-system)
   - [Extensibility](#extensibility)
     - [Kit: **Cypilot SDLC**](#kit-cypilot-sdlc)
   - [Contributing](#contributing)
@@ -100,13 +100,13 @@ cpt generate-agents
 | Directory | Purpose | Editable? |
 |-----------|---------|-----------|
 | `.core/` | Read-only core files (skills, workflows, schemas, architecture, requirements) copied from cache | No |
-| `.gen/` | Auto-generated files (SKILL.md, AGENTS.md, kit outputs, constraints) from blueprints | No |
-| `config/` | User-editable config (`core.toml`, `artifacts.toml`, AGENTS.md, kit blueprints) | Yes |
+| `.gen/` | Auto-generated aggregate files (SKILL.md, AGENTS.md, README.md) | No |
+| `config/` | User-editable config (`core.toml`, `artifacts.toml`, AGENTS.md) and kit outputs | Yes |
 
 The command also:
 - Defines a root system (name/slug derived from the project directory)
 - Creates `config/core.toml` and `config/artifacts.toml`
-- Installs all available kits and generates resources from blueprints
+- Installs all available kits (copies kit files to `config/kits/{slug}/`)
 - Injects a managed `<!-- @cpt:root-agents -->` block into the root `AGENTS.md`
 
 Supported agents: `windsurf`, `cursor`, `claude`, `copilot`, `openai`.
@@ -186,11 +186,11 @@ Cypilot has exactly **two** universal workflows:
 | `/cypilot-generate` | `generate.md` | Write: create, edit, fix, update, implement, refactor, configure |
 | `/cypilot-analyze` | `analyze.md` | Read: validate, review, check, inspect, audit, compare |
 
-Kit-specific workflows (e.g., PR review, PR status) are generated from blueprint `@cpt:workflow` markers and exposed as agent entry points automatically.
+Kit-specific workflows (e.g., PR review, PR status) are provided by kits and exposed as agent entry points automatically.
 
 ### Checklists and Quality Gates
 
-**Artifact checklists** (generated from SDLC kit blueprints):
+**Artifact checklists** (from SDLC kit):
 - **PRD** — 300+ criteria for requirements completeness
 - **DESIGN** — 380+ criteria for architecture validation
 - **DECOMPOSITION** — 130+ criteria for feature breakdown quality
@@ -209,7 +209,7 @@ Kit-specific workflows (e.g., PR review, PR status) are generated from blueprint
 cpt update
 ```
 
-Updates `.core/` from cache, regenerates `.gen/` from user blueprints, and ensures `config/` scaffold integrity. User-editable files in `config/` are never overwritten.
+Updates `.core/` from cache, regenerates `.gen/` aggregates, and updates kit files in `config/kits/` with interactive diff prompts for modified files.
 
 
 ---
@@ -229,18 +229,21 @@ project/
 │   │   ├── schemas/            # JSON schemas
 │   │   ├── architecture/       # Core architecture docs (PRD, DESIGN, specs)
 │   │   └── requirements/       # Core requirements + checklists
-│   ├── .gen/                   # Auto-generated (from blueprints)
-│   │   ├── AGENTS.md           # Generated WHEN rules + sysprompt content
+│   ├── .gen/                   # Auto-generated aggregates
+│   │   ├── AGENTS.md           # Aggregated WHEN rules from kits
 │   │   ├── SKILL.md            # Composed skill with kit extensions
-│   │   └── kits/sdlc/          # Generated artifacts, workflows, constraints
-│   ├── kits/sdlc/              # Reference kit copies (from cache, read-only)
+│   │   └── README.md           # Aggregated kit documentation
 │   └── config/                 # User-editable
 │       ├── core.toml           # System definitions, kit registrations
 │       ├── artifacts.toml      # Artifact registry, autodetect rules
 │       ├── AGENTS.md           # User WHEN rules
 │       ├── SKILL.md            # User skill extensions
-│       └── kits/sdlc/          # User-editable blueprints
-│           └── blueprints/
+│       └── kits/sdlc/          # Kit files (artifacts, workflows, constraints)
+│           ├── artifacts/      # Templates, rules, checklists, examples
+│           ├── workflows/      # Kit-specific workflows
+│           ├── constraints.toml
+│           ├── SKILL.md
+│           └── AGENTS.md
 ├── AGENTS.md                   # Root entry (managed block → cypilot/.gen/)
 ├── .windsurf/                  # Agent entry points (generated)
 ├── .cursor/
@@ -248,22 +251,22 @@ project/
 └── .github/prompts/
 ```
 
-### Blueprint System
+### Kit System
 
-Each kit is a **blueprint package** — a `blueprints/` directory containing one `.md` file per artifact kind. Blueprints are the single source of truth from which all kit resources are generated:
+Each kit is a **direct file package** containing ready-to-use resources:
 
-| Blueprint Marker | Generated Output |
-|-----------------|-----------------|
-| `@cpt:heading` + `@cpt:id` | `constraints.toml` (heading/ID constraints) |
-| `@cpt:rules` + `@cpt:rule` | `rules.md` (validation rules) |
-| `@cpt:check` | `checklist.md` (quality criteria) |
-| `@cpt:prompt` | `template.md` (writing instructions) |
-| `@cpt:example` | `examples/example.md` |
-| `@cpt:skill` | `SKILL.md` (kit skill extensions) |
-| `@cpt:system-prompt` | `AGENTS.md` (agent system prompt content) |
-| `@cpt:workflow` | `workflows/{name}.md` (kit-specific workflows) |
+| Kit Content | Purpose |
+|-------------|----------|
+| `artifacts/{KIND}/template.md` | Writing instructions for artifact kind |
+| `artifacts/{KIND}/rules.md` | Validation rules |
+| `artifacts/{KIND}/checklist.md` | Quality criteria |
+| `artifacts/{KIND}/examples/` | Example artifacts |
+| `constraints.toml` | Heading/ID constraints for validation |
+| `workflows/` | Kit-specific workflows (e.g., PR review) |
+| `SKILL.md` | Kit skill extensions |
+| `AGENTS.md` | Agent system prompt content |
 
-Users can customize blueprints in `config/kits/{slug}/blueprints/`. Running `cpt update` regenerates `.gen/` from user blueprints while preserving user config.
+Kits are installed to `config/kits/{slug}/`. Running `cpt update` updates kit files with interactive diff prompts for any user modifications.
 
 ---
 
@@ -283,7 +286,7 @@ The built-in SDLC Kit provides an artifact-first development pipeline with end-t
 
 Each artifact kind has templates, rules, checklists (300+ criteria), and examples. The kit also provides PR review and PR status workflows for GitHub.
 
-See the [SDLC Kit README](kits/sdlc/README.md) for the full pipeline overview, artifact kinds, and guides.
+See the [SDLC Kit repository](https://github.com/cyberfabric/cyber-pilot-kit-sdlc) for the full pipeline overview, artifact kinds, and guides.
 
 ---
 
