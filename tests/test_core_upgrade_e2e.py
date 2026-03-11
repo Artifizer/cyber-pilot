@@ -42,47 +42,24 @@ _CACHE_DIRS = ["architecture", "requirements", "schemas", "workflows", "skills"]
 # Extra top-level files that may exist in cache.
 _CACHE_FILES = ["whatsnew.toml"]
 
-# Git tags for each v3.x release.  Update this dict when a new tag is cut.
-_VERSION_TAGS: Dict[str, str] = {
-    "v3.0.0-beta": "v3.0.0-beta",
-    "v3.0.1-beta": "v3.0.1-beta",
-    "v3.0.2-beta": "v3.0.2-beta",
-    "v3.0.3-beta": "v3.0.3-beta",
-    "v3.0.4-beta": "v3.0.4-beta",
-    "v3.0.5-beta": "v3.0.5-beta",
-    "v3.0.6-beta": "v3.0.6-beta",
-    "v3.0.7-beta": "v3.0.7-beta",
-    "v3.0.8-beta": "v3.0.8-beta",
-    "v3.0.9-beta": "v3.0.9-beta",
-}
-
-
 def _get_all_v3_tags() -> List[str]:
     """Return sorted list of all v3.* git tags in the repo."""
-    out = subprocess.check_output(
-        ["git", "tag", "--list", "v3.*", "--sort=version:refname"],
-        cwd=str(REPO_ROOT),
-        text=True,
-    )
-    return [t.strip() for t in out.strip().splitlines() if t.strip()]
-
-
-def _check_version_tags_complete() -> None:
-    """Fail fast if _VERSION_TAGS is missing any v3.x git tag."""
-    actual_tags = set(_get_all_v3_tags())
-    registered = set(_VERSION_TAGS.keys())
-    missing = sorted(actual_tags - registered)
-    if missing:
-        raise RuntimeError(
-            f"_VERSION_TAGS is incomplete: missing tags {missing}. "
-            f"Registered: {sorted(registered)}. "
-            f"Add the missing git tags to _VERSION_TAGS."
+    try:
+        out = subprocess.check_output(
+            ["git", "tag", "--list", "v3.*", "--sort=version:refname"],
+            cwd=str(REPO_ROOT),
+            text=True,
+            stderr=subprocess.DEVNULL,
         )
+        return [t.strip() for t in out.strip().splitlines() if t.strip()]
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return []
 
 
-_check_version_tags_complete()
+# Auto-populated from git tags — no manual maintenance needed.
+_VERSION_TAGS: Dict[str, str] = {tag: tag for tag in _get_all_v3_tags()}
 
-_HAS_TAGS = bool(_get_all_v3_tags())
+_HAS_TAGS = bool(_VERSION_TAGS)
 
 
 # ---------------------------------------------------------------------------
@@ -314,34 +291,18 @@ class TestCoreUpgradeE2E(unittest.TestCase):
         gen_errors = sdlc.get("gen_errors", [])
         self.assertEqual(gen_errors, [], f"{tag}: kit gen_errors: {gen_errors}")
 
-    # -- one test per tag for clear reporting --------------------------------
 
-    def test_upgrade_from_v3_0_0(self):
-        self._assert_upgrade_ok("v3.0.0-beta")
+# -- Dynamically generate one test per tag for clear reporting ----------------
+def _make_upgrade_test(tag: str):
+    """Factory to create a test method for a specific tag."""
+    def test_method(self):
+        self._assert_upgrade_ok(tag)
+    return test_method
 
-    def test_upgrade_from_v3_0_1(self):
-        self._assert_upgrade_ok("v3.0.1-beta")
 
-    def test_upgrade_from_v3_0_2(self):
-        self._assert_upgrade_ok("v3.0.2-beta")
-
-    def test_upgrade_from_v3_0_3(self):
-        self._assert_upgrade_ok("v3.0.3-beta")
-
-    def test_upgrade_from_v3_0_4(self):
-        self._assert_upgrade_ok("v3.0.4-beta")
-
-    def test_upgrade_from_v3_0_5(self):
-        self._assert_upgrade_ok("v3.0.5-beta")
-
-    def test_upgrade_from_v3_0_6(self):
-        self._assert_upgrade_ok("v3.0.6-beta")
-
-    def test_upgrade_from_v3_0_7(self):
-        self._assert_upgrade_ok("v3.0.7-beta")
-
-    def test_upgrade_from_v3_0_8(self):
-        self._assert_upgrade_ok("v3.0.8-beta")
+for _tag in _VERSION_TAGS:
+    _test_name = f"test_upgrade_from_{_tag.replace('.', '_').replace('-', '_')}"
+    setattr(TestCoreUpgradeE2E, _test_name, _make_upgrade_test(_tag))
 
 
 if __name__ == "__main__":
