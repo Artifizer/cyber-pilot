@@ -1257,17 +1257,17 @@ class TestRedactUrl:
         assert _redact_url("git@gitlab.com:org/repo.git") == "***@gitlab.com:org/repo.git"
 
     def test_strips_user_password(self):
-        url = "https://user:token@gitlab.com/org/repo.git"  # noqa: S105
+        url = "https://user:token@gitlab.com/org/repo.git"  # noqa: S105  # NOSONAR
         result = _redact_url(url)
         assert result == "https://gitlab.com/org/repo.git"
 
     def test_strips_token_only(self):
-        url = "https://x-access-token:ghp_abc123@github.com/org/repo.git"  # noqa: S105
+        url = "https://x-access-token:ghp_abc123@github.com/org/repo.git"  # noqa: S105  # NOSONAR
         result = _redact_url(url)
         assert result == "https://github.com/org/repo.git"
 
     def test_preserves_port(self):
-        url = "https://user:pass@gitlab.example.com:8443/org/repo.git"  # noqa: S105
+        url = "https://user:pass@gitlab.example.com:8443/org/repo.git"  # noqa: S105  # NOSONAR
         result = _redact_url(url)
         assert result == "https://gitlab.example.com:8443/org/repo.git"
 
