@@ -2544,7 +2544,10 @@ class TestCLIPyCoverageListIdsBranches(unittest.TestCase):
             # resolve() follows the symlink → path outside project_root → relative_to raises ValueError.
             outside_file = Path(outsidedir) / "ext.py"
             outside_file.write_text("# @cpt-req:cpt-test-req-1:p1\nprint('ok')\n", encoding="utf-8")
-            (src / "ext.py").symlink_to(outside_file)
+            try:
+                (src / "ext.py").symlink_to(outside_file)
+            except OSError:
+                self.skipTest("symlink creation not supported on this platform")
 
             cwd = os.getcwd()
             try:

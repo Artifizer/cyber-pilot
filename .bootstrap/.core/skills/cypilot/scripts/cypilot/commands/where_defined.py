@@ -19,7 +19,7 @@ def cmd_where_defined(argv: List[str]) -> int:
 
     target_id, _, artifacts_to_scan, path_to_source, err = resolve_target_and_artifacts(args)
     if err:
-        ui.result({"status": "ERROR", "message": err})
+        ui.result({"status": "ERROR", "message": err}, human_fn=lambda d: _human_where_defined(d))
         return 1
 
     if not artifacts_to_scan:
@@ -61,8 +61,16 @@ def cmd_where_defined(argv: List[str]) -> int:
 
 # @cpt-begin:cpt-cypilot-flow-traceability-validation-query:p1:inst-query-format
 def _human_where_defined(data: dict) -> None:
-    target = data.get("id", "?")
     status = data.get("status", "")
+
+    if status == "ERROR":
+        ui.header("Where Defined")
+        ui.blank()
+        ui.warn(f"Error: {data.get('message', 'unknown error')}")
+        ui.blank()
+        return
+
+    target = data.get("id", "?")
     defs = data.get("definitions", [])
     n_art = data.get("artifacts_scanned", 0)
 

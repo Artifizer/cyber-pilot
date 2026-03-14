@@ -202,14 +202,13 @@ ALWAYS run `{cpt_cmd} --json generate-agents --agent <name>` directly WHEN user 
 
 ALWAYS open and follow `{cypilot_path}/.core/workflows/generate.md` directly WHEN user invokes `cypilot auto-config` or `cypilot configure` — generate.md will trigger the auto-config methodology
 
-ALWAYS run `python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py --json workspace-init [--root <dir>] [--output <path>] [--inline] [--force] [--max-depth <N>] [--dry-run]` directly WHEN user invokes `cypilot workspace init`
+ALWAYS run `{cpt_cmd} --json workspace-init [--root <dir>] [--output <path>] [--inline] [--force] [--max-depth <N>] [--dry-run]` directly WHEN user invokes `cypilot workspace init`
 
-ALWAYS run `python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py --json workspace-add --name <name> (--path <path> | --url <url>) [--branch <branch>] [--role <role>] [--adapter <path>] [--inline] [--force]` directly WHEN user invokes `cypilot workspace add` — auto-detects inline workspace and routes accordingly when `--inline` is not specified. Use `--inline` to force adding to `config/core.toml` (Git URL sources not supported in inline mode). Returns error if source name already exists unless `--force` is specified.
+ALWAYS run `{cpt_cmd} --json workspace-add --name <name> (--path <path> | --url <url>) [--branch <branch>] [--role <role>] [--adapter <path>] [--inline] [--force]` directly WHEN user invokes `cypilot workspace add` — auto-detects inline workspace and routes accordingly when `--inline` is not specified. Use `--inline` to force adding to `config/core.toml` (Git URL sources not supported in inline mode). Returns error if source name already exists unless `--force` is specified.
 
-ALWAYS run `python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py --json workspace-info` directly WHEN user invokes `cypilot workspace info`
+ALWAYS run `{cpt_cmd} --json workspace-info` directly WHEN user invokes `cypilot workspace info`
 
-ALWAYS run `python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py --json workspace-sync [--source <name>] [--dry-run] [--force]` directly WHEN user invokes `cypilot workspace sync` — **WARNING: `--force` is DESTRUCTIVE** — it discards uncommitted changes and may lose local commits
-
+ALWAYS run `{cpt_cmd} --json workspace-sync [--source <name>] [--dry-run] [--force]` directly WHEN user invokes `cypilot workspace sync` — **WARNING: `--force` is DESTRUCTIVE** — it discards uncommitted changes and may lose local commits
 ---
 
 ## Workflow Routing
