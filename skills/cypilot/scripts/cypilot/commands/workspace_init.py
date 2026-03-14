@@ -210,6 +210,7 @@ def _write_inline(
         "config_path": str(config_path),
         "sources_count": len(workspace_data.get("sources", {})),
         "sources": list(workspace_data.get("sources", {}).keys()),
+        "workspace": workspace_data,
     }
     # @cpt-end:cpt-cypilot-flow-workspace-init:p1:inst-write-inline-impl
 
@@ -239,6 +240,7 @@ def _write_standalone(
         "config_path": str(output_path),
         "sources_count": len(workspace_data.get("sources", {})),
         "sources": list(workspace_data.get("sources", {}).keys()),
+        "workspace": workspace_data,
     }
     # @cpt-end:cpt-cypilot-flow-workspace-init:p1:inst-write-standalone-impl
 

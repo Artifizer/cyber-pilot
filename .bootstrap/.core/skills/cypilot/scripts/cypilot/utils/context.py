@@ -620,7 +620,7 @@ def _load_reachable_source(
 
     # Priority: use explicitly configured adapter path first
     adapter_dir = None
-    if explicit_adapter is not None and explicit_adapter.is_dir() and (explicit_adapter / "AGENTS.md").exists():
+    if explicit_adapter is not None and explicit_adapter.is_dir() and (explicit_adapter / "config").is_dir():
         adapter_dir = explicit_adapter
     else:
         # Fallback: auto-discover adapter from source root

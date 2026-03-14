@@ -19,7 +19,7 @@ def _probe_source_adapter(resolved: Path, explicit_adapter: Optional[Path]) -> O
     auto-discovery to avoid finding a wrong nested adapter.
     """
     if explicit_adapter is not None:
-        if explicit_adapter.is_dir() and (explicit_adapter / "AGENTS.md").exists():
+        if explicit_adapter.is_dir() and (explicit_adapter / "config").is_dir():
             return explicit_adapter
         return None  # explicit path declared but invalid
 

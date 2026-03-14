@@ -211,8 +211,8 @@ def cmd_validate(argv: List[str]) -> int:
                 return 1
         # @cpt-end:cpt-cypilot-algo-workspace-determine-target:p1:inst-target-resolve-abs
 
-        # Refresh context-level errors for this context.
-        ctx_errors = list(getattr(ctx, "_errors", []) or [])
+        # Merge context-level errors from matched source, preserving workspace errors.
+        ctx_errors.extend(getattr(ctx, "_errors", []) or [])
 
         meta = ctx.meta
         project_root = ctx.project_root

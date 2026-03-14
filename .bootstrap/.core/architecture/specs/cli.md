@@ -863,7 +863,7 @@ cpt workspace-info
       "adapter": null,
       "branch": "main",
       "reachable": false,
-      "warning": "Source directory not reachable: https://github.com/org/repo-b.git"
+      "warning": "Source not cloned — run 'workspace-sync' to fetch: https://github.com/org/repo-b.git"
     }
   ],
   "traceability": {

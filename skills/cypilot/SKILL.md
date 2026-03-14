@@ -209,6 +209,7 @@ ALWAYS run `{cpt_cmd} --json workspace-add --name <name> (--path <path> | --url 
 ALWAYS run `{cpt_cmd} --json workspace-info` directly WHEN user invokes `cypilot workspace info`
 
 ALWAYS run `{cpt_cmd} --json workspace-sync [--source <name>] [--dry-run] [--force]` directly WHEN user invokes `cypilot workspace sync` — **WARNING: `--force` is DESTRUCTIVE** — it discards uncommitted changes and may lose local commits
+
 ---
 
 ## Workflow Routing

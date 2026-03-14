@@ -66,7 +66,7 @@ def _human_where_defined(data: dict) -> None:
     if status == "ERROR":
         ui.header("Where Defined")
         ui.blank()
-        ui.warn(f"Error: {data.get('message', 'unknown error')}")
+        ui.error(data.get("message", "unknown error"))
         ui.blank()
         return
 

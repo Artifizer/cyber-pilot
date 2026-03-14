@@ -1557,7 +1557,7 @@ class TestLoadReachableSourceMetaError:
             source_dir.mkdir()
             adapter_dir = source_dir / ".bootstrap"
             adapter_dir.mkdir()
-            (adapter_dir / "AGENTS.md").write_text("# Agent\n")
+            (adapter_dir / "config").mkdir()
 
             src = SourceEntry(name="broken", path=str(source_dir))
             with patch(
@@ -1577,7 +1577,7 @@ class TestLoadReachableSourceMetaError:
             source_dir.mkdir()
             adapter_dir = source_dir / ".bootstrap"
             adapter_dir.mkdir()
-            (adapter_dir / "AGENTS.md").write_text("# Agent\n")
+            (adapter_dir / "config").mkdir()
 
             mock_meta = MagicMock(spec=ArtifactsMeta)
             mock_meta.get_all_system_prefixes.return_value = {"sys"}
@@ -2191,7 +2191,7 @@ class TestProbeSourceAdapter:
         with TemporaryDirectory() as tmpdir:
             adapter = Path(tmpdir) / ".bootstrap"
             adapter.mkdir()
-            (adapter / "AGENTS.md").write_text("test")
+            (adapter / "config").mkdir()
             with patch("cypilot.utils.files.find_cypilot_directory", return_value=None):
                 result = _probe_source_adapter(Path(tmpdir), adapter)
                 assert result == adapter
