@@ -266,6 +266,7 @@ The following architecture decision records (ADRs) drive the design:
 - `cpt-cypilot-adr-extract-sdlc-kit` — extract SDLC kit to separate GitHub repository
 - `cpt-cypilot-adr-remove-system-from-core-toml` — remove `[system]` from core.toml; artifacts.toml is single source for system identity
 - `cpt-cypilot-adr-prefer-cpt-cli-for-agents` — prefer `cpt` CLI over direct script invocation in agent prompts; graceful fallback to raw Python path
+- `cpt-cypilot-adr-ai-cli-extensibility-subagents` — generate isolated subagent definitions (codegen, PR review) for tools that support them; Claude Code as canonical format with per-tool adaptation
 
 ### 1.3 Architecture Layers
 

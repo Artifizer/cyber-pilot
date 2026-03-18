@@ -49,6 +49,7 @@ Works with any language, stack, or repository.
   - [Using Cypilot](#using-cypilot)
     - [Example Prompts](#example-prompts)
     - [Agent Skill](#agent-skill)
+    - [Subagents](#subagents)
     - [Workflow Commands](#workflow-commands)
     - [Checklists and Quality Gates](#checklists-and-quality-gates)
   - [Architecture](#architecture)
@@ -96,7 +97,7 @@ This installs `cypilot` and `cpt` commands globally. The CLI is a thin proxy she
 cpt init
 
 # Generate agent entry points for your IDE
-cpt generate-agents --agent windsurf
+cpt generate-agents --agent claude
 
 # Generate all agents for your IDE
 cpt generate-agents
@@ -117,6 +118,18 @@ The command also:
 - Injects a managed `<!-- @cpt:root-agents -->` block into the root `AGENTS.md`
 
 Supported agents: `windsurf`, `cursor`, `claude`, `copilot`, `openai`.
+
+The `generate-agents` command generates:
+- **Workflow commands** — slash commands that load structured prompts for each workflow
+- **Skill outputs** — agent skill definitions following the [Agent Skills specification](https://agentskills.io/specification)
+- **Subagents** — isolated agent definitions with scoped tools, model selection, and dedicated prompts (all tools except Windsurf)
+
+Two purpose-built subagents are generated for tools that support them:
+
+| Subagent | Purpose | Write Access |
+|----------|---------|-------------|
+| `cypilot-codegen` | Code generation when requirements are fully specified — no back-and-forth, just implementation | Yes (full tools, worktree isolation on Claude Code) |
+| `cypilot-pr-review` | Structured PR review in isolated context — keeps detailed analysis separate from main conversation | No (read-only) |
 
 ### Update
 
@@ -149,7 +162,7 @@ A full walkthrough is available in [`guides/STORY.md`](guides/STORY.md).
 | `cypilot init` | Initializes Cypilot — creates config directory, generates rules, injects root AGENTS.md |
 | `cypilot auto-config` | Scans project structure and generates per-system convention rules |
 | `cypilot show config` | Displays config structure, registered artifacts, and codebase mappings |
-| `cypilot generate-agents --agent windsurf` | Regenerates agent entry points for a specific agent |
+| `cypilot generate-agents --agent claude` | Regenerates agent entry points for a specific agent |
 
 **Artifact Generation**
 
@@ -202,6 +215,29 @@ Cypilot provides a unified **Agent Skill** (`cypilot`) defined in `skills/cypilo
 - Workflow routing (plan vs generate vs analyze)
 - ID lookup and cross-reference resolution
 - Auto-configuration for brownfield projects
+
+### Subagents
+
+Subagents are defined once in `agents.toml` using semantic properties (`mode`, `isolation`, `model`) and automatically adapted to each tool's native format. One definition produces correct output for all supported tools — Claude Code is the canonical format (full fidelity), and other tools receive the best adaptation their format supports.
+
+Two purpose-built subagents are included:
+
+- **`cypilot-codegen`** — Takes fully-specified requirements and implements them without back-and-forth. Runs in an isolated worktree (on Claude Code) with full write access.
+- **`cypilot-pr-review`** — Performs structured, checklist-based PR reviews in a read-only isolated context, keeping detailed analysis separate from the main conversation.
+
+Generated automatically by `cypilot generate-agents --agent <name>`. Windsurf does not support subagents and is gracefully skipped.
+
+**Tool support:**
+
+| Capability | Claude Code | Cursor | GitHub Copilot | OpenAI Codex |
+|---|:---:|:---:|:---:|:---:|
+| Subagent definitions | Yes | Yes | Yes | Yes |
+| Read-only enforcement | `disallowedTools` | `readonly: true` | Tool filter | In prompt |
+| Model selection | Yes | Yes | — | — |
+| Worktree isolation | Yes | — | — | — |
+| Subagent-scoped hooks | Yes | — | — | — |
+
+See [ADR-0016](architecture/ADR/0016-cpt-cypilot-adr-ai-cli-extensibility-subagents-v1.md) for the full adaptation model and format details.
 
 ### Workflow Commands
 

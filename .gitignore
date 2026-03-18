@@ -54,3 +54,6 @@ Spaider.code-workspace
 
 # Cypilot plans (ephemeral)
 .bootstrap/.plans/.archive/
+
+# Artifacts
+.prs/*

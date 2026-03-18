@@ -19,6 +19,7 @@
   - [2.11 Spec Coverage ⏳ HIGH](#211-spec-coverage--high)
   - [2.12 Execution Plans ✅ HIGH](#212-execution-plans--high)
   - [2.13 Multi-Repo Workspace Federation ✅ DONE](#213-multi-repo-workspace-federation--done)
+  - [2.14 Subagent Registration ⏳ HIGH](#214-subagent-registration--high)
 - [3. Feature Dependencies](#3-feature-dependencies)
 
 <!-- /toc -->
@@ -678,6 +679,28 @@ Cypilot DESIGN is decomposed into features organized around architectural layers
   - `.cypilot-workspace.toml` — standalone workspace configuration
   - `config/core.toml` `[workspace]` section — inline workspace configuration
   - `config/artifacts.toml` `source` fields — per-artifact source references
+
+
+### 2.14 [Subagent Registration](features/subagent-registration.md) ⏳ HIGH
+
+- [x] `p1` - **ID**: `cpt-cypilot-feature-subagent-registration`
+
+- **Purpose**: Allow Cypilot to register and generate subagent definitions that delegate specialized tasks to lightweight, tool-scoped agents.
+
+- **Scope**:
+  - Subagent definition format and registration
+  - Subagent generation per agent tool
+  - Model and tool scoping for subagents
+
+- **Out of scope**:
+  - Project-level subagent overrides (handled by Project-Level Extensibility)
+
+- **Domain Model Entities**:
+  - SubagentDefinition
+  - SubagentConfig
+
+- **API**:
+  - `cypilot generate-agents --agent <tool>`
 
 
 ---
