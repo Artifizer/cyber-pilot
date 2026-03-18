@@ -8,19 +8,18 @@ decision-makers: project maintainer
 
 <!-- toc -->
 
-- [ADR-0017: Execution Plans for Context-Bounded Agent Tasks](#adr-0017-execution-plans-for-context-bounded-agent-tasks)
-  - [Context and Problem Statement](#context-and-problem-statement)
-  - [Decision Drivers](#decision-drivers)
-  - [Considered Options](#considered-options)
-  - [Decision Outcome](#decision-outcome)
-    - [Consequences](#consequences)
-    - [Confirmation](#confirmation)
-  - [Pros and Cons of the Options](#pros-and-cons-of-the-options)
-    - [Option 1: No Decomposition — Single-Shot Execution](#option-1-no-decomposition--single-shot-execution)
-    - [Option 2: Manual Decomposition by User](#option-2-manual-decomposition-by-user)
-    - [Option 3: Automated Execution Plans with Compiled Phase Files](#option-3-automated-execution-plans-with-compiled-phase-files)
-  - [More Information](#more-information)
-  - [Traceability](#traceability)
+- [Context and Problem Statement](#context-and-problem-statement)
+- [Decision Drivers](#decision-drivers)
+- [Considered Options](#considered-options)
+- [Decision Outcome](#decision-outcome)
+  - [Consequences](#consequences)
+  - [Confirmation](#confirmation)
+- [Pros and Cons of the Options](#pros-and-cons-of-the-options)
+  - [Option 1: No Decomposition — Single-Shot Execution](#option-1-no-decomposition--single-shot-execution)
+  - [Option 2: Manual Decomposition by User](#option-2-manual-decomposition-by-user)
+  - [Option 3: Automated Execution Plans with Compiled Phase Files](#option-3-automated-execution-plans-with-compiled-phase-files)
+- [More Information](#more-information)
+- [Traceability](#traceability)
 
 <!-- /toc -->
 
