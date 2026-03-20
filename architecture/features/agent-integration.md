@@ -83,7 +83,7 @@ Without this feature, users would need to manually create and maintain agent-spe
    1. - `p1` - Generate agent-native entry points (skill shims, workflow proxies, rules) - `inst-generate-entry-points`
    2. - `p1` - Write files to agent directory (e.g., `.windsurf/workflows/`, `.cursor/rules/`) - `inst-write-files`
 8. - `p1` - Compose and write main SKILL.md from collected skill sections - `inst-compose-skill`
-9. - `p1` - Inject managed block into root AGENTS.md - `inst-inject-agents`
+9. - `p1` - Inject the same managed `cypilot_path` block into root AGENTS.md and CLAUDE.md - `inst-inject-agents`
 10. [x] - `p1` - **RETURN** generation report (agents, files written, workflows discovered) - `inst-return-report`
 
 ### Execute Generic Workflow

@@ -1,35 +1,5 @@
 <!-- @cpt:root-agents -->
-## Cypilot AI Agent Navigation
-
-**Remember these variables while working in this project:**
-
 ```toml
 cypilot_path = ".bootstrap"
 ```
-
-## Navigation Rules
-
-ALWAYS open and follow `{cypilot_path}/.gen/AGENTS.md` FIRST
-
-ALWAYS open and follow `{cypilot_path}/config/AGENTS.md` FIRST
-
-ALWAYS invoke `{cypilot_path}/.core/skills/cypilot/SKILL.md` WHEN user asks to do something with Cypilot
-
 <!-- /@cpt:root-agents -->
-
-## Cypilot AI Agent Navigation
-
-**Version**: 1.1
-
----
-
-## Navigation Rules
-
-ALWAYS open and follow `{cypilot_path}/config/AGENTS.md` WHEN starting any Cypilot work
-
-### Dependency Error Handling
-
-**If referenced file not found**:
-- Log warning to user: "Cypilot dependency not found: {path}"
-- Continue with available files — do NOT fail silently
-- If critical dependency missing (SKILL.md, workflow), inform user and suggest `/cypilot` to reinitialize

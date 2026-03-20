@@ -21,9 +21,9 @@ class TestWhenClauseNavigation(unittest.TestCase):
         
         content = agents_file.read_text(encoding='utf-8')
 
-        when_lines = [line for line in content.splitlines() if "WHEN" in line]
-        self.assertIn("WHEN", content, "AGENTS.md must contain WHEN clauses")
-        self.assertIn("ALWAYS", content, "AGENTS.md must contain ALWAYS rules")
+        self.assertIn("<!-- @cpt:root-agents -->", content)
+        self.assertIn('cypilot_path = ".bootstrap"', content)
+        self.assertIn("<!-- /@cpt:root-agents -->", content)
 
 
 if __name__ == "__main__":

@@ -307,7 +307,7 @@ class TestAgentsStructure:
 
     def _verify_agents_type(self, text):
         """Verify agents file has proper structure."""
-        return "ALWAYS" in text or "WHEN" in text
+        return "cypilot_path" in text or "ALWAYS" in text or "WHEN" in text
 
     def test_root_agents_exists(self):
         """Root AGENTS.md should exist."""
@@ -321,9 +321,9 @@ class TestAgentsStructure:
         """Test that WHEN clauses can be extracted from AGENTS.md."""
         root_agents = PROJECT_ROOT / "AGENTS.md"
         text = root_agents.read_text(encoding="utf-8")
-        when_pattern = re.compile(r"WHEN\s+(.+?)(?:\n|$)", re.IGNORECASE)
-        matches = when_pattern.findall(text)
-        assert len(matches) > 0, "No WHEN clauses found in root AGENTS.md"
+        assert "<!-- @cpt:root-agents -->" in text, "Missing root AGENTS managed block start"
+        assert 'cypilot_path = ".bootstrap"' in text, "Missing cypilot_path in root AGENTS.md"
+        assert "<!-- /@cpt:root-agents -->" in text, "Missing root AGENTS managed block end"
 
     def test_agents_refs_exist(self):
         """AGENTS.md file references should point to existing files (excluding adapter-specific paths)."""
@@ -354,7 +354,10 @@ class TestAgentsStructure:
         assert len(agents_files) >= 2, "Expected at least 2 AGENTS.md files"
         for f in agents_files:
             text = f.read_text(encoding="utf-8")
-            assert len(text) > 100, f"{f} too short"
+            if f == PROJECT_ROOT / "AGENTS.md":
+                assert 'cypilot_path = ".bootstrap"' in text, f"{f} missing managed cypilot_path"
+            else:
+                assert len(text) > 100, f"{f} too short"
 
 
 class TestMakefileTargets:

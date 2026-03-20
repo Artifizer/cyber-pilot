@@ -890,18 +890,19 @@ sequenceDiagram
 
 **Description**: User initializes Cypilot in a project. The skill engine asks for install directory and agent selection. It defines a **root system** (name and slug derived from the project directory name), creates core configs (`core.toml` with root system, `artifacts.toml` with default autodetect rules), generates agent entry points, and sets up `{cypilot_path}/config/AGENTS.md` with default WHEN rules. After core setup, the tool prompts `Install SDLC kit? [a]ccept [d]ecline`. If accepted, the kit is downloaded from GitHub. If the kit source contains `manifest.toml`, the Kit Manager validates the manifest, reads declared resources, prompts the user for destination paths on `user_modifiable` resources, copies each resource to its resolved path, resolves template variables in kit files, and registers all resource bindings in `core.toml`. If no `manifest.toml` is present, files are copied to the default kit config directory. If declined, the user can install kits later via `cpt kit install`.
 
-**Root AGENTS.md injection**: During initialization (and verified on every CLI invocation), the engine ensures the project root `AGENTS.md` file contains a managed block that points agents to the Cypilot navigation entry:
+**Root AGENTS.md / CLAUDE.md injection**: During initialization (and verified on every CLI invocation), the engine ensures the project root `AGENTS.md` and `CLAUDE.md` files contain the same managed block with only the configured adapter path:
 
-```markdown
+````markdown
 <!-- @cpt:root-agents -->
-ALWAYS open and follow `{cypilot_path}/.gen/AGENTS.md` FIRST
-ALWAYS open and follow `{cypilot_path}/config/AGENTS.md` WHEN it exists
-<!-- @/cpt:root-agents -->
+```toml
+cypilot_path = ".bootstrap"
 ```
+<!-- @/cpt:root-agents -->
+````
 
-The block is inserted at the **beginning** of the file. If the file does not exist, it is created. The path inside the block reflects the actual install directory (e.g., `@/{cypilot_path}/config/AGENTS.md`). Content between the `<!-- @cpt:root-agents -->` and `<!-- @/cpt:root-agents -->` comment markers is fully managed by Cypilot — it is overwritten on every check, so manual edits inside the block are discarded.
+The block is inserted at the **beginning** of each file. If a file does not exist, it is created. The managed content is a TOML fence that declares only `cypilot_path`, and the path reflects the actual install directory. Content between the `<!-- @cpt:root-agents -->` and `<!-- @/cpt:root-agents -->` comment markers is fully managed by Cypilot — it is overwritten on every check, so manual edits inside the block are discarded.
 
-**Integrity invariant**: every Cypilot CLI command (not just `init`) verifies the root `AGENTS.md` block exists and is correct before proceeding. If the block is missing or the path is stale (e.g., install directory changed), the engine silently re-injects it. This guarantees that any agent opening the project will be routed to Cypilot regardless of how the IDE session started.
+**Integrity invariant**: every Cypilot CLI command (not just `init`) verifies the root `AGENTS.md` and `CLAUDE.md` blocks exist and are correct before proceeding. If a block is missing or the path is stale (e.g., install directory changed), the engine silently re-injects it. This guarantees that root agent files always expose the current `cypilot_path` without duplicating navigation rules.
 
 #### Artifact Validation
 
