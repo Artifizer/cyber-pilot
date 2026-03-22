@@ -24,6 +24,9 @@ build/
 *.swo
 *~
 
+# Claude Code local settings (user-specific)
+.claude/settings.local.json
+
 *.backup
 
 # OS

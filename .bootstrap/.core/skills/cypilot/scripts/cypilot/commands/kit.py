@@ -1221,7 +1221,7 @@ def cmd_kit_update(argv: List[str]) -> int:
     # @cpt-end:cpt-cypilot-flow-kit-update-cli:p1:inst-regen-gen
 
     # @cpt-begin:cpt-cypilot-flow-kit-update-cli:p1:inst-format-output
-    n_updated = sum(1 for r in all_results if r["action"] not in ("current", "dry_run", "ERROR"))
+    n_updated = sum(1 for r in all_results if r["action"] not in ("current", "dry_run", "ERROR", "aborted"))
     output: Dict[str, Any] = {
         "status": "PASS" if not errors else "WARN",
         "kits_updated": n_updated,

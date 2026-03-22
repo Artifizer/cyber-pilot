@@ -468,8 +468,8 @@ class TestCLIAgentsCommand(unittest.TestCase):
             content = skill_file.read_text(encoding="utf-8")
             self.assertRegex(content, r"(?m)^description:\s+\".*\"\s*$", msg="description not quoted in windsurf skill output")
 
-    def test_agents_claude_workflow_description_is_quoted(self):
-        """Test claude workflow proxies render description in quoted YAML frontmatter."""
+    def test_agents_claude_skill_description_is_quoted(self):
+        """Test claude skill files render description in quoted YAML frontmatter."""
         with TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             (root / ".git").mkdir()
@@ -481,11 +481,11 @@ class TestCLIAgentsCommand(unittest.TestCase):
                 exit_code = main(["generate-agents", "--agent", "claude", "--root", str(root), "--cypilot-root", str(root)])
             self.assertEqual(exit_code, 0)
 
-            # One of the generated workflow command proxies should contain quoted description
-            proxy = root / ".claude" / "commands" / "cypilot-generate.md"
-            self.assertTrue(proxy.exists())
-            txt = proxy.read_text(encoding="utf-8")
-            self.assertRegex(txt, r"(?m)^description:\s+\".*\"\s*$", msg="description not quoted in claude workflow proxy")
+            # One of the generated skill files should contain quoted description
+            skill = root / ".claude" / "skills" / "cypilot-generate" / "SKILL.md"
+            self.assertTrue(skill.exists())
+            txt = skill.read_text(encoding="utf-8")
+            self.assertRegex(txt, r"(?m)^description:\s+\".*\"\s*$", msg="description not quoted in claude skill file")
 
     def test_agents_dry_run_does_not_write_files(self):
         """Test agents command dry-run mode."""
@@ -1360,8 +1360,6 @@ class TestCLIAgentsAtPathFormat(unittest.TestCase):
                 ".windsurf/workflows/cypilot.md",
             ],
             "claude": [
-                ".claude/commands/cypilot-generate.md",
-                ".claude/commands/cypilot.md",
                 ".claude/skills/cypilot/SKILL.md",
                 ".claude/skills/cypilot-generate/SKILL.md",
             ],

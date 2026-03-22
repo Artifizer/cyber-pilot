@@ -475,34 +475,9 @@ def _default_agents_config() -> dict:
                 },
             },
             "claude": {
-                "workflows": {
-                    "workflow_dir": ".claude/commands",
-                    "workflow_command_prefix": "cypilot-",
-                    "workflow_filename_format": "{command}.md",
-                    "custom_content": "",
-                    "template": [
-                        "---",
-                        "description: {description}",
-                        "---",
-                        "",
-                        "{custom_content}",
-                        "ALWAYS open and follow `{target_workflow_path}`",
-                    ],
-                },
                 "skills": {
                     "custom_content": "",
                     "outputs": [
-                        {
-                            "path": ".claude/commands/cypilot.md",
-                            "template": [
-                                "---",
-                                "description: {description}",
-                                "---",
-                                "",
-                                "{custom_content}",
-                                "ALWAYS open and follow `{target_skill_path}`",
-                            ],
-                        },
                         {
                             "path": ".claude/skills/cypilot/SKILL.md",
                             "template": [
@@ -543,6 +518,36 @@ def _default_agents_config() -> dict:
                                 "disable-model-invocation: false",
                                 "user-invocable: true",
                                 "allowed-tools: Bash, Read, Glob, Grep",
+                                "---",
+                                "",
+                                "ALWAYS open and follow `{target_path}`",
+                            ],
+                        },
+                        {
+                            "path": ".claude/skills/cypilot-plan/SKILL.md",
+                            "target": "workflows/plan.md",
+                            "template": [
+                                "---",
+                                "name: cypilot-plan",
+                                "description: {description}",
+                                "disable-model-invocation: false",
+                                "user-invocable: true",
+                                "allowed-tools: Bash, Read, Write, Edit, Glob, Grep",
+                                "---",
+                                "",
+                                "ALWAYS open and follow `{target_path}`",
+                            ],
+                        },
+                        {
+                            "path": ".claude/skills/cypilot-workspace/SKILL.md",
+                            "target": "workflows/workspace.md",
+                            "template": [
+                                "---",
+                                "name: cypilot-workspace",
+                                "description: {description}",
+                                "disable-model-invocation: false",
+                                "user-invocable: true",
+                                "allowed-tools: Bash, Read, Write, Edit, Glob, Grep",
                                 "---",
                                 "",
                                 "ALWAYS open and follow `{target_path}`",
@@ -1008,7 +1013,7 @@ def _process_single_agent(
                     except (PermissionError, FileNotFoundError, OSError):
                         pass
 
-    skills_result: Dict[str, Any] = {"created": [], "updated": [], "outputs": [], "errors": []}
+    skills_result: Dict[str, Any] = {"created": [], "updated": [], "deleted": [], "outputs": [], "errors": []}
 
     if isinstance(skills_cfg, dict) and skills_cfg:
         outputs = skills_cfg.get("outputs")
@@ -1089,6 +1094,33 @@ def _process_single_agent(
                     )
 
                     _write_or_skip(out_path, content, skills_result, project_root, dry_run)
+
+    # ── Clean up legacy .claude/commands/ files that are now replaced by skills ──
+    if agent == "claude" and isinstance(skills_cfg, dict) and skills_cfg:
+        # Collect skill names from outputs (extract from path like .claude/skills/cypilot-generate/SKILL.md)
+        skill_names: Set[str] = set()
+        for out_cfg in skills_cfg.get("outputs", []):
+            rel_path = out_cfg.get("path", "")
+            # Extract skill name from path: .claude/skills/<name>/SKILL.md -> <name>
+            parts = Path(rel_path).parts
+            if len(parts) >= 3 and parts[0] == ".claude" and parts[1] == "skills":
+                skill_names.add(parts[2])
+
+        # Delete matching legacy command files
+        legacy_commands_dir = project_root / ".claude" / "commands"
+        if legacy_commands_dir.is_dir() and skill_names:
+            for skill_name in skill_names:
+                legacy_file = legacy_commands_dir / f"{skill_name}.md"
+                if legacy_file.is_file():
+                    rel_path = legacy_file.relative_to(project_root).as_posix()
+                    if not dry_run:
+                        try:
+                            legacy_file.unlink()
+                            skills_result["deleted"].append(rel_path)
+                        except OSError:
+                            skills_result["errors"].append(f"failed to delete {rel_path}")
+                    else:
+                        skills_result["deleted"].append(rel_path)
 
     # ── Subagent generation ────────────────────────────────────────────
     subagents_result: Dict[str, Any] = {"created": [], "updated": [], "skipped": False, "outputs": [], "errors": []}
@@ -1178,10 +1210,12 @@ def _process_single_agent(
         "skills": {
             "created": skills_result["created"],
             "updated": skills_result["updated"],
+            "deleted": skills_result["deleted"],
             "outputs": skills_result["outputs"],
             "counts": {
                 "created": len(skills_result["created"]),
                 "updated": len(skills_result["updated"]),
+                "deleted": len(skills_result["deleted"]),
             },
         },
         "subagents": {
@@ -1524,15 +1558,26 @@ def _human_generate_agents_ok(
         # Skills
         created_sk = sk.get("created", [])
         updated_sk = sk.get("updated", [])
+        deleted_sk = sk.get("deleted", [])
         for path in created_sk:
             ui.file_action(path, "created")
         for path in updated_sk:
             ui.file_action(path, "updated")
+        for path in deleted_sk:
+            ui.file_action(path, "deleted")
 
         total_wf = wf_counts.get("created", 0) + wf_counts.get("updated", 0)
         total_sk = sk_counts.get("created", 0) + sk_counts.get("updated", 0)
-        if total_wf or total_sk:
-            ui.substep(f"{total_wf} workflow(s), {total_sk} skill file(s)")
+        total_deleted = sk_counts.get("deleted", 0)
+        if total_wf or total_sk or total_deleted:
+            parts = []
+            if total_wf:
+                parts.append(f"{total_wf} workflow(s)")
+            if total_sk:
+                parts.append(f"{total_sk} skill file(s)")
+            if total_deleted:
+                parts.append(f"{total_deleted} legacy command(s) removed")
+            ui.substep(", ".join(parts))
 
         # Errors
         errs = r.get("errors") or []
@@ -1545,7 +1590,7 @@ def _human_generate_agents_ok(
         ui.success("Agent integration complete!")
         ui.blank()
         ui.info("Your IDE will now:")
-        ui.hint("• Route /cypilot-generate and /cypilot-analyze to Cypilot workflows")
+        ui.hint("• Route /cypilot-generate, /cypilot-analyze, /cypilot-plan, and /cypilot-workspace to Cypilot workflows")
         ui.hint("• Recognize the Cypilot skill in chat")
     else:
         ui.warn("Agent setup finished with some errors (see above).")

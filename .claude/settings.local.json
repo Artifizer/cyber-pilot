@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(python -m cypilot.main:*)",
-      "Bash(python -m pytest:*)"
-    ]
-  }
-}

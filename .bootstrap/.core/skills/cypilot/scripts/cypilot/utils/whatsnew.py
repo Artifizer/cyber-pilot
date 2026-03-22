@@ -94,15 +94,15 @@ def read_whatsnew(path: Path) -> Dict[str, Dict[str, str]]:
     result: Dict[str, Dict[str, str]] = {}
 
     # Handle whatsnew.toml format: [whatsnew."X.Y.Z"]
-    whatsnew_section = data.get("whatsnew", {})
-    if whatsnew_section:
+    whatsnew_section = data.get("whatsnew")
+    if whatsnew_section is not None and isinstance(whatsnew_section, dict):
         for ver, entry in whatsnew_section.items():
             if isinstance(entry, dict):
                 result[ver] = {
                     "summary": str(entry.get("summary", "")),
                     "details": str(entry.get("details", "")),
                 }
-    else:
+    elif "whatsnew" not in data:
         # Fallback: direct version keys (legacy format)
         for key, entry in data.items():
             if isinstance(entry, dict):
