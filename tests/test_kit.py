@@ -1498,7 +1498,7 @@ class TestCmdKitUpdateCli(unittest.TestCase):
         from cypilot.commands.kit import cmd_kit_update
         with TemporaryDirectory() as td:
             root = Path(td) / "proj"
-            adapter = _bootstrap_project(root)
+            _bootstrap_project(root)
             kit_src = _make_kit_source(Path(td) / "src", "mykit")
             cwd = os.getcwd()
             try:
@@ -1776,7 +1776,7 @@ class TestPartialGithubSourceFailures(unittest.TestCase):
         from cypilot.commands.kit import _resolve_github_update_targets
         kits_map = {
             "nokit": {"format": "Cypilot"},
-            "badproto": {"format": "Cypilot", "source": "ftp://bad"},
+            "badproto": {"format": "Cypilot", "source": "local:/nonexistent"},
         }
         targets, failures = _resolve_github_update_targets(kits_map)
         self.assertEqual(targets, [])
@@ -1881,6 +1881,142 @@ class TestInitArtifactKindsMetadata(unittest.TestCase):
             # Our _make_kit_source creates artifacts/FEATURE/
             self.assertIn("FEATURE", kr["artifact_kinds"])
             self.assertGreater(kr["files_written"], 0)
+
+
+# ---------------------------------------------------------------------------
+# Regression: init.py status contract alignment with kit.py
+# ---------------------------------------------------------------------------
+
+class TestInitKitStatusContract(unittest.TestCase):
+    """_install_default_kit must treat kit status 'PASS' as success (no warning)
+    and 'WARN' as a warning — not misreport due to checking wrong status values."""
+
+    def test_pass_status_emits_substep_not_warn(self):
+        """PASS from install_kit → substep (success), never warn."""
+        from cypilot.commands.init import _install_default_kit
+        from cypilot.utils.ui import ui as _ui_inst
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            adapter = _bootstrap_project(root)
+            kit_src = _make_kit_source(Path(td) / "dl", "sdlc")
+
+            warns = []
+            orig_warn = _ui_inst.warn
+            _ui_inst.warn = lambda msg, **kw: warns.append(msg)
+            try:
+                with patch(
+                    "cypilot.commands.kit._parse_github_source",
+                    return_value=("owner", "repo", "v1"),
+                ), patch(
+                    "cypilot.commands.kit._download_kit_from_github",
+                    return_value=(kit_src, "1.0"),
+                ):
+                    actions: dict = {}
+                    errors: list = []
+                    _install_default_kit(adapter, False, actions, errors)
+            finally:
+                _ui_inst.warn = orig_warn
+
+            self.assertEqual(errors, [])
+            kit_warns = [w for w in warns if "sdlc" in w and "installed" in w.lower()]
+            self.assertEqual(kit_warns, [], "PASS status should not emit a kit warning")
+
+    def test_warn_status_emits_warning(self):
+        """WARN from install_kit → ui.warn is called."""
+        from cypilot.commands.init import _install_default_kit
+        from cypilot.utils.ui import ui as _ui_inst
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            adapter = _bootstrap_project(root)
+            kit_src = _make_kit_source(Path(td) / "dl", "sdlc")
+
+            warns = []
+            orig_warn = _ui_inst.warn
+            _ui_inst.warn = lambda msg, **kw: warns.append(msg)
+            mock_result = {"status": "WARN", "errors": ["minor issue"], "files_copied": 1, "actions": {}}
+            try:
+                with patch(
+                    "cypilot.commands.kit._parse_github_source",
+                    return_value=("owner", "repo", "v1"),
+                ), patch(
+                    "cypilot.commands.kit._download_kit_from_github",
+                    return_value=(kit_src, "1.0"),
+                ), patch(
+                    "cypilot.commands.kit.install_kit",
+                    return_value=mock_result,
+                ):
+                    actions: dict = {}
+                    errors: list = []
+                    _install_default_kit(adapter, False, actions, errors)
+            finally:
+                _ui_inst.warn = orig_warn
+
+            kit_warns = [w for w in warns if "sdlc" in w]
+            self.assertTrue(len(kit_warns) > 0, "WARN status should emit a kit warning")
+
+    def test_warn_status_does_not_promote_errors_to_fatal(self):
+        """WARN from install_kit → errors list stays empty (not fatal)."""
+        from cypilot.commands.init import _install_default_kit
+        from cypilot.utils.ui import ui as _ui_inst
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            adapter = _bootstrap_project(root)
+            kit_src = _make_kit_source(Path(td) / "dl", "sdlc")
+
+            orig_warn = _ui_inst.warn
+            _ui_inst.warn = lambda msg, **kw: None
+            mock_result = {"status": "WARN", "errors": ["minor issue"], "files_copied": 1, "actions": {}}
+            try:
+                with patch(
+                    "cypilot.commands.kit._parse_github_source",
+                    return_value=("owner", "repo", "v1"),
+                ), patch(
+                    "cypilot.commands.kit._download_kit_from_github",
+                    return_value=(kit_src, "1.0"),
+                ), patch(
+                    "cypilot.commands.kit.install_kit",
+                    return_value=mock_result,
+                ):
+                    actions: dict = {}
+                    errors: list = []
+                    _install_default_kit(adapter, False, actions, errors)
+            finally:
+                _ui_inst.warn = orig_warn
+
+            self.assertEqual(errors, [],
+                "WARN kit errors must not be promoted to the fatal errors list")
+
+    def test_error_status_does_promote_errors_to_fatal(self):
+        """Non-WARN/non-PASS status → errors ARE promoted to fatal list."""
+        from cypilot.commands.init import _install_default_kit
+        from cypilot.utils.ui import ui as _ui_inst
+        with TemporaryDirectory() as td:
+            root = Path(td) / "proj"
+            adapter = _bootstrap_project(root)
+            kit_src = _make_kit_source(Path(td) / "dl", "sdlc")
+
+            orig_warn = _ui_inst.warn
+            _ui_inst.warn = lambda msg, **kw: None
+            mock_result = {"status": "ERROR", "errors": ["fatal issue"], "files_copied": 0, "actions": {}}
+            try:
+                with patch(
+                    "cypilot.commands.kit._parse_github_source",
+                    return_value=("owner", "repo", "v1"),
+                ), patch(
+                    "cypilot.commands.kit._download_kit_from_github",
+                    return_value=(kit_src, "1.0"),
+                ), patch(
+                    "cypilot.commands.kit.install_kit",
+                    return_value=mock_result,
+                ):
+                    actions: dict = {}
+                    errors: list = []
+                    _install_default_kit(adapter, False, actions, errors)
+            finally:
+                _ui_inst.warn = orig_warn
+
+            self.assertTrue(len(errors) > 0,
+                "ERROR kit errors must be promoted to the fatal errors list")
 
 
 if __name__ == "__main__":

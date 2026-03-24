@@ -27,6 +27,8 @@ purpose: Generic (kit-agnostic) quality checklist for code changes and reviews
 
 <!-- /toc -->
 
+**Companion methodology**: for bug hunting, logic bug review, edge-case search, regression risk analysis, or maximum-recall code review, also use `bug-finding.md` as the search procedure for hotspot mapping, invariant extraction, failure-path exploration, counterexample construction, and dynamic-escalation guidance.
+
 ## Procedure
 - [ ] Identify the code domain and decide applicability per checklist item.
 - [ ] Mark each item `PASS`, `FAIL`, `N/A` with rationale, or `NOT REVIEWED` when excluded by review mode.

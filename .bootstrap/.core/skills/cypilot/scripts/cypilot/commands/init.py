@@ -251,7 +251,7 @@ def _read_existing_install(project_root: Path) -> Optional[str]:
     Returns install dir relative path if found, None otherwise.
     """
     import tomllib
-    agents_file = project_root / "AGENTS.md"
+    agents_file = project_root / _AGENTS_FILENAME
     if not agents_file.is_file():
         return None
     try:
@@ -364,6 +364,7 @@ def _install_default_kit(
     )
     kit_results: Dict[str, Any] = {}
     # @cpt-begin:cpt-cypilot-flow-core-infra-project-init:p1:inst-install-kit-accepted
+    tmp_to_clean: Optional[Path] = None
     try:
         owner, repo, version = _parse_github_source(_DEFAULT_KIT_SOURCE)
         ui.step(f"Downloading {_DEFAULT_KIT_SOURCE}...")
@@ -388,18 +389,26 @@ def _install_default_kit(
             "errors": kit_result.get("errors", []),
             "artifact_kinds": artifact_kinds,
         }
-        if kit_result.get("errors"):
+        kit_status = kit_result.get("status", "")
+        if kit_result.get("errors") and kit_status not in ("PASS", "WARN"):
             errors.extend(
                 {"path": kit_slug, "error": e} for e in kit_result["errors"]
             )
         for key, val in kit_result.get("actions", {}).items():
             actions[f"kit_{kit_slug}_{key}"] = val
 
-        ui.substep(f"Kit '{kit_slug}' installed (v{resolved_version or 'dev'})")
-        shutil.rmtree(tmp_to_clean, ignore_errors=True)
+        if kit_status == "WARN":
+            ui.warn(f"Kit '{kit_slug}' installed with warnings")
+        elif kit_status and kit_status != "PASS":
+            ui.warn(f"Kit '{kit_slug}' installed with status: {kit_status}")
+        else:
+            ui.substep(f"Kit '{kit_slug}' installed (v{resolved_version or 'dev'})")
     except Exception as exc:
         ui.warn(f"Kit installation failed: {exc}")
         errors.append({"path": "kit", "error": str(exc)})
+    finally:
+        if tmp_to_clean is not None:
+            shutil.rmtree(tmp_to_clean, ignore_errors=True)
     # @cpt-end:cpt-cypilot-flow-core-infra-project-init:p1:inst-install-kit-accepted
     return kit_results
 
@@ -576,7 +585,7 @@ def cmd_init(argv: List[str]) -> int:
     # Write user-editable AGENTS.md to config/ (preserve existing)
     # @cpt-begin:cpt-cypilot-flow-core-infra-project-init:p1:inst-create-config-agents
     # @cpt-begin:cpt-cypilot-algo-core-infra-create-config-agents:p1:inst-gen-when-rules
-    config_agents_path = (config_dir / "AGENTS.md").resolve()
+    config_agents_path = (config_dir / _AGENTS_FILENAME).resolve()
     config_agents_existed = config_agents_path.is_file()
     if config_agents_existed and not args.force:
         actions["config_agents"] = "unchanged"

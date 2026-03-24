@@ -12,22 +12,28 @@ purpose: Universal workflow for analysing any Cypilot artifact or code
 
 <!-- toc -->
 
-- [Rules](#rules)
-- [Overview](#overview)
-- [Context Budget & Overflow Prevention (CRITICAL)](#context-budget--overflow-prevention-critical)
-- [Mode Detection](#mode-detection)
-- [Phase 0: Ensure Dependencies](#phase-0-ensure-dependencies)
-- [Phase 0.1: Plan Escalation Gate](#phase-01-plan-escalation-gate)
-- [Phase 0.5: Clarify Analysis Scope](#phase-05-clarify-analysis-scope)
-- [Phase 1: File Existence Check](#phase-1-file-existence-check)
-- [Phase 2: Deterministic Gate](#phase-2-deterministic-gate)
-- [Phase 3: Semantic Review (Conditional)](#phase-3-semantic-review-conditional)
-- [Phase 4: Output](#phase-4-output)
-- [Phase 5: Offer Next Steps](#phase-5-offer-next-steps)
-- [State Summary](#state-summary)
-- [Key Principles](#key-principles)
-- [Agent Self-Test (STRICT mode — AFTER completing work)](#agent-self-test-strict-mode--after-completing-work)
-- [Validation Criteria](#validation-criteria)
+- [Analyze](#analyze)
+  - [Rules](#rules)
+  - [Overview](#overview)
+  - [Context Budget \& Overflow Prevention (CRITICAL)](#context-budget--overflow-prevention-critical)
+  - [Mode Detection](#mode-detection)
+  - [Phase 0: Ensure Dependencies](#phase-0-ensure-dependencies)
+  - [Phase 0.1: Plan Escalation Gate](#phase-01-plan-escalation-gate)
+  - [Phase 0.5: Clarify Analysis Scope](#phase-05-clarify-analysis-scope)
+  - [Phase 1: File Existence Check](#phase-1-file-existence-check)
+  - [Phase 2: Deterministic Gate](#phase-2-deterministic-gate)
+  - [Phase 3: Semantic Review (Conditional)](#phase-3-semantic-review-conditional)
+    - [Semantic Review Content (STRICT mode)](#semantic-review-content-strict-mode)
+  - [Phase 4: Output](#phase-4-output)
+    - [Full Analysis Output (default)](#full-analysis-output-default)
+    - [Fix Prompt](#fix-prompt)
+    - [Plan Prompt](#plan-prompt)
+    - [Semantic-Only Output (`/cypilot-analyze semantic`)](#semantic-only-output-cypilot-analyze-semantic)
+  - [Phase 5: Offer Next Steps](#phase-5-offer-next-steps)
+  - [State Summary](#state-summary)
+  - [Key Principles](#key-principles)
+  - [Agent Self-Test (STRICT mode — AFTER completing work)](#agent-self-test-strict-mode--after-completing-work)
+  - [Validation Criteria](#validation-criteria)
 
 <!-- /toc -->
 
@@ -38,6 +44,8 @@ ALWAYS open and follow `{cypilot_path}/.core/skills/cypilot/SKILL.md` FIRST WHEN
 ALWAYS open and follow `{cypilot_path}/.core/requirements/execution-protocol.md` FIRST
 
 ALWAYS open and follow `{cypilot_path}/.core/requirements/code-checklist.md` WHEN user requests analysis of code, codebase changes, or implementation behavior (Code mode)
+
+ALWAYS open and follow `{cypilot_path}/.core/requirements/bug-finding.md` WHEN user requests bug hunting, logic bug review, edge-case search, regression risk analysis, root-cause search in code, or asks to find "all bugs/problems" in code
 
 ALWAYS open and follow `{cypilot_path}/.core/requirements/consistency-checklist.md` WHEN user requests analysis of documentation/artifact consistency, contradiction detection, or cross-document alignment (Consistency mode)
 
@@ -71,6 +79,8 @@ Before output, self-check: PASS without semantic review? fresh Read this turn? N
 Modes: Full (default) = deterministic gate → semantic review; Semantic-only = skip deterministic gate; Artifact = template + checklist; Code = checklist + design requirements; Prompt review = prompt-engineering workflow.
 Commands: `/cypilot-analyze`, `/cypilot-analyze semantic`, `/cypilot-analyze --artifact <path>`, `/cypilot-analyze semantic --artifact <path>`, `/cypilot-analyze prompt <path>`.
 Prompt review triggers include "analyze this system prompt", "review agent instructions", "check this workflow/skill", and "prompt engineering review". After `execution-protocol.md`, you have `TARGET_TYPE`, `RULES`, `KIND`, `PATH`, and resolved dependencies.
+If analysis finds actionable issues, the workflow MUST end by generating two chat-only remediation prompts: a bounded `Fix Prompt` that invokes skill `cypilot` and routes to `/cypilot-generate`, and a broader `Plan Prompt` that invokes skill `cypilot` and routes to `/cypilot-plan`. Both prompts MUST be self-contained final prompts usable in a fresh chat — all findings, paths, and context embedded inline.
+For code-review style requests such as `review my changes`, `review this diff`, `inspect this patch`, or similar review/audit requests, every reported defect, regression risk, or fix recommendation that requires code or workflow changes counts as an actionable issue and therefore MUST trigger both remediation prompts in the same response.
 
 ## Context Budget & Overflow Prevention (CRITICAL)
 - Budget first: estimate size before loading large docs (for example with `wc -l`) and state the budget for this turn.
@@ -185,7 +195,7 @@ Blocking issues:
 
 → Fix issues and re-run analysis
 ```
-STOP — do not proceed to semantic review.
+STOP semantic review — do not proceed to Phase 3. Continue to Phase 4 and Phase 5 to report the blocking issues and generate the remediation prompts.
 
 If PASS:
 ```
@@ -213,6 +223,7 @@ Follow the loaded `rules.md` Validation section.
 
 - [ ] Artifacts: execute rules.md semantic validation using the loaded checklist; load `{cypilot_path}/.gen/AGENTS.md`; check content quality, parent cross-references, naming conventions, placeholder-like content, adapter spec compliance, versioning requirements, and traceability requirements.
 - [ ] Code: execute codebase/rules.md traceability + quality validation; load related design artifact(s); check requirement implementation, conventions, tests, required markers, and `[x]` completion in SPEC design.
+- [ ] Bug finding (when `bug-finding.md` is loaded): use hotspot mapping, invariant extraction, failure-path exploration, universal bug-class sweep, counterexample construction, and dynamic-escalation guidance to maximize defect recall without claiming full coverage.
 - [ ] Completeness: no placeholder markers (`TODO`, `TBD`, `[Description]`), no empty sections, all IDs follow required format, all IDs are unique, all required fields are present.
 - [ ] Coverage: all parent requirements addressed, all referenced IDs exist, all parent actors/capabilities covered, no orphaned references.
 - [ ] Traceability (`FULL`): all requirement / flow / algorithm IDs have code markers, all test IDs have test implementations, markers follow `requirements/traceability.md`, and no stale markers remain.
@@ -224,6 +235,23 @@ Checkpoint rule for artifacts `>500` lines or multi-turn analysis: after each ch
 ## Phase 4: Output
 
 Print to chat only; create no files.
+
+If the result contains any actionable issue (`FAIL`, `PARTIAL`, blocking validator errors, or any recommendation that requires code/artifact changes), the agent MUST append both a final `Fix Prompt` section and a final `Plan Prompt` section after the analysis output.
+This requirement applies equally to artifact analysis, code analysis, PR-style review, and plain-language review requests such as `review my changes`.
+If the response reports even one fixable finding, omission of either remediation prompt makes the analysis output incomplete.
+
+Both remediation prompts MUST be **self-contained final prompts** usable in a fresh chat without any prior context:
+- explicitly contain the sentence `Invoke skill cypilot`
+- embed the full issue list inline (severity, file path, line numbers, evidence quotes, root-cause expectation) — do NOT reference "findings above" or any prior chat content
+- include the target artifact/code path and kind
+- include the analysis status and deterministic gate results (if run)
+- state the workflow route (`/cypilot-generate` or `/cypilot-plan`)
+- instruct the next agent to fix root causes, update tests/validation where needed, and report results
+- the prompt alone must give the next agent everything needed to start work immediately
+
+Prompt-specific routing:
+- `Fix Prompt` = direct bounded remediation via `/cypilot-generate`
+- `Plan Prompt` = phased or broad remediation via `/cypilot-plan`
 
 ### Full Analysis Output (default)
 ```markdown
@@ -258,6 +286,45 @@ Print to chat only; create no files.
 |----------|--------|----------|
 | {question} | YES/NO | {evidence} |
 ```
+
+### Fix Prompt
+(copy-paste into new chat — self-contained, no prior context needed)
+```text
+Invoke skill `cypilot`.
+
+I need a bounded fix via `/cypilot-generate` for `{PATH}` ({KIND}).
+
+Analysis status: {PASS|FAIL|PARTIAL}
+Deterministic gate: {exit code, errors, warnings — or "skipped"}
+
+Issues to fix (source of truth — do not re-discover):
+1. **[{severity}]** {file}:{line} — {description}. Evidence: "{quote}". Root cause: {expectation}.
+2. **[{severity}]** {file}:{line} — {description}. Evidence: "{quote}". Root cause: {expectation}.
+{... all issues}
+
+Fix root causes, update tests/validation where needed, and report a final change summary.
+Do not ask me to restate the task unless required inputs are missing.
+```
+
+### Plan Prompt
+(copy-paste into new chat — self-contained, no prior context needed)
+```text
+Invoke skill `cypilot`.
+
+I need a phased remediation plan via `/cypilot-plan` for `{PATH}` ({KIND}).
+
+Analysis status: {PASS|FAIL|PARTIAL}
+Deterministic gate: {exit code, errors, warnings — or "skipped"}
+
+Issues to remediate (source of truth — do not re-discover):
+1. **[{severity}]** {file}:{line} — {description}. Evidence: "{quote}". Root cause: {expectation}.
+2. **[{severity}]** {file}:{line} — {description}. Evidence: "{quote}". Root cause: {expectation}.
+{... all issues}
+
+Create a phased plan to fix root causes, update tests/validation, and verify each phase.
+Do not ask me to restate the task unless required inputs are missing.
+```
+
 ### Semantic-Only Output (`/cypilot-analyze semantic`)
 ```
 Semantic Analysis: {TARGET_TYPE}
@@ -274,6 +341,8 @@ Medium: {issue with location}
 Checklist items: {X}/{Y} passed
 N/A categories: {list with reasoning}
 ```
+If actionable issues exist in semantic-only mode, append the same final `Fix Prompt` and `Plan Prompt` sections after the semantic analysis output.
+
 ## Phase 5: Offer Next Steps
 
 Read `## Next Steps` from `rules.md` and present applicable options.
@@ -287,10 +356,10 @@ What would you like to do next?
 ```
 FAIL:
 ```
-Fix the issues above, then:
-1. Re-run analysis
-2. {option from rules Next Steps for issues}
-3. Other
+Issues require remediation. Use one of the generated prompts above as the default handoff.
+1. Start a direct fix with skill `cypilot` via the generated `Fix Prompt`
+2. Start phased remediation with skill `cypilot` via the generated `Plan Prompt`
+3. Re-run analysis after fixes
 ```
 ## State Summary
 
@@ -306,6 +375,7 @@ Fix the issues above, then:
 - If the deterministic gate cannot run, do not label overall PASS; use semantic-only output and disclaim reduced rigor.
 - Output is chat-only; never create `ANALYSIS_REPORT.md`; keep analysis stateless.
 - If deterministic gate fails, STOP and report issues immediately.
+- Remediation prompts generated when issues require fixes
 
 ## Agent Self-Test (STRICT mode — AFTER completing work)
 
@@ -319,6 +389,7 @@ Answer these AFTER doing the work and include evidence in the output.
 | Did I provide evidence (quotes, line numbers) for each PASS/FAIL/N/A? | Evidence column in category table. |
 | For N/A claims, did I quote explicit "Not applicable" statements from the document? | Quote lines showing the author marked N/A. |
 | Am I reporting from actual file content, not memory/summary? | Fresh Read tool call visible this turn. |
+| If I reported actionable issues, did I include both `Fix Prompt` and `Plan Prompt`? | Final output contains both sections with issue-specific content. |
 
 Sample:
 ```markdown
@@ -331,6 +402,7 @@ Sample:
 | Evidence for each status? | YES | Quotes included per category |
 | N/A has document quotes? | YES | Lines 698, 712, 725 |
 | Based on fresh read? | YES | Read tool called this turn |
+| Fix and Plan prompts included? | YES | Both sections present with issue-specific content |
 ```
 **If ANY answer is NO or lacks evidence → Analysis is INVALID, must restart**
 
@@ -353,5 +425,7 @@ RELAXED mode disclaimer:
 - [ ] Traceability markers verified (if FULL traceability)
 - [ ] Result correctly reported (PASS/FAIL)
 - [ ] Recommendations provided (if PASS)
+- [ ] Both remediation prompts generated when issues require fixes
+- [ ] For code review / `review my changes` requests, any reported fixable finding produced both remediation prompts in the same response
 - [ ] Output to chat only
 - [ ] Next steps suggested

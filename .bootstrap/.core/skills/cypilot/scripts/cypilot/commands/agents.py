@@ -30,7 +30,9 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from ..utils.files import core_subpath, config_subpath, find_project_root, _is_cypilot_root, _read_cypilot_var, load_project_config
 from ..utils.ui import ui
 
-_AGENT_TEMPLATE_HEADER = ["---", "name: {name}", "description: {description}"]
+_TMPL_NAME = "name: {name}"
+_TMPL_DESCRIPTION = "description: {description}"
+_AGENT_TEMPLATE_HEADER = ["---", _TMPL_NAME, _TMPL_DESCRIPTION]
 _ALWAYS_FOLLOW_TARGET_PATH = "ALWAYS open and follow `{target_path}`"
 _FOLLOW_LINK_RE = re.compile(r"ALWAYS open and follow `([^`]+)`")
 _VALID_AGENT_MODES = {"readwrite", "readonly"}
@@ -209,7 +211,7 @@ def _load_json_file(path: Path) -> Optional[dict]:
         raw = path.read_text(encoding="utf-8")
         data = json.loads(raw)
         return data if isinstance(data, dict) else None
-    except (json.JSONDecodeError, OSError, IOError):
+    except (json.JSONDecodeError, OSError, IOError, UnicodeDecodeError):
         return None
 
 def _write_or_skip(
@@ -430,8 +432,8 @@ def _default_agents_config() -> dict:
                             "path": ".windsurf/skills/cypilot/SKILL.md",
                             "template": [
                                 "---",
-                                "name: {name}",
-                                "description: {description}",
+                                _TMPL_NAME,
+                                _TMPL_DESCRIPTION,
                                 "---",
                                 "",
                                 "{custom_content}",
@@ -470,7 +472,7 @@ def _default_agents_config() -> dict:
                             "path": ".cursor/rules/cypilot.mdc",
                             "template": [
                                 "---",
-                                "description: {description}",
+                                _TMPL_DESCRIPTION,
                                 "alwaysApply: true",
                                 "---",
                                 "",
@@ -499,7 +501,7 @@ def _default_agents_config() -> dict:
                             "template": [
                                 "---",
                                 "name: cypilot",
-                                "description: {description}",
+                                _TMPL_DESCRIPTION,
                                 "disable-model-invocation: false",
                                 "user-invocable: true",
                                 "allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, WebFetch",
@@ -515,7 +517,7 @@ def _default_agents_config() -> dict:
                             "template": [
                                 "---",
                                 "name: cypilot-generate",
-                                "description: {description}",
+                                _TMPL_DESCRIPTION,
                                 "disable-model-invocation: false",
                                 "user-invocable: true",
                                 "allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task",
@@ -530,7 +532,7 @@ def _default_agents_config() -> dict:
                             "template": [
                                 "---",
                                 "name: cypilot-analyze",
-                                "description: {description}",
+                                _TMPL_DESCRIPTION,
                                 "disable-model-invocation: false",
                                 "user-invocable: true",
                                 "allowed-tools: Bash, Read, Glob, Grep",
@@ -545,7 +547,7 @@ def _default_agents_config() -> dict:
                             "template": [
                                 "---",
                                 "name: cypilot-plan",
-                                "description: {description}",
+                                _TMPL_DESCRIPTION,
                                 "disable-model-invocation: false",
                                 "user-invocable: true",
                                 "allowed-tools: Bash, Read, Write, Edit, Glob, Grep",
@@ -560,7 +562,7 @@ def _default_agents_config() -> dict:
                             "template": [
                                 "---",
                                 "name: cypilot-workspace",
-                                "description: {description}",
+                                _TMPL_DESCRIPTION,
                                 "disable-model-invocation: false",
                                 "user-invocable: true",
                                 "allowed-tools: Bash, Read, Write, Edit, Glob, Grep",
@@ -580,8 +582,8 @@ def _default_agents_config() -> dict:
                     "custom_content": "",
                     "template": [
                         "---",
-                        "name: {name}",
-                        "description: {description}",
+                        _TMPL_NAME,
+                        _TMPL_DESCRIPTION,
                         "---",
                         "",
                         "{custom_content}",
@@ -604,8 +606,8 @@ def _default_agents_config() -> dict:
                             "path": ".github/prompts/cypilot.prompt.md",
                             "template": [
                                 "---",
-                                "name: {name}",
-                                "description: {description}",
+                                _TMPL_NAME,
+                                _TMPL_DESCRIPTION,
                                 "---",
                                 "",
                                 "{custom_content}",
@@ -623,8 +625,8 @@ def _default_agents_config() -> dict:
                             "path": ".agents/skills/cypilot/SKILL.md",
                             "template": [
                                 "---",
-                                "name: {name}",
-                                "description: {description}",
+                                _TMPL_NAME,
+                                _TMPL_DESCRIPTION,
                                 "---",
                                 "",
                                 "{custom_content}",
@@ -1248,7 +1250,8 @@ def _process_single_agent(
         if output_format == "toml":
             # Render all agents into a single TOML file
             toml_path = (output_dir / "cypilot-agents.toml").resolve()
-            content = _render_toml_agents(kit_agents, target_agent_paths)
+            filtered_kit_agents = [ka for ka in kit_agents if ka.get("prompt_file_abs")]
+            content = _render_toml_agents(filtered_kit_agents, target_agent_paths)
             _write_or_skip(toml_path, content, subagents_result, project_root, dry_run)
         else:
             # Markdown + YAML frontmatter (claude, cursor, copilot)
@@ -1341,17 +1344,66 @@ def _process_single_agent(
 
 # @cpt-begin:cpt-cypilot-algo-agent-integration-discover-agents:p1:inst-resolve-context-helper
 def _find_cypilot_root_from_file() -> Path:
-    """Probe __file__ ancestry at levels 5/6/7 for a valid cypilot root; fall back to level 5."""
+    """Probe __file__ ancestry at levels 5/6/7 for a valid cypilot root; fall back to deepest available."""
     resolved_file = Path(__file__).resolve()
+    max_index = len(resolved_file.parents) - 1
     for _level in (5, 6, 7):
+        if _level > max_index:
+            continue
         _candidate = resolved_file.parents[_level]
         if _is_cypilot_root(_candidate):
             return _candidate
-    return resolved_file.parents[5]
+    return resolved_file.parents[min(5, max_index)]
 # @cpt-end:cpt-cypilot-algo-agent-integration-discover-agents:p1:inst-resolve-context-helper
 
 
 # @cpt-begin:cpt-cypilot-algo-agent-integration-discover-agents:p1:inst-resolve-context
+def _resolve_cypilot_root(args: argparse.Namespace, project_root: Path) -> Optional[Path]:
+    """Discover the Cypilot root directory from CLI args or project convention."""
+    cypilot_root = Path(args.cypilot_root).resolve() if args.cypilot_root else None
+    if cypilot_root is None:
+        cypilot_rel = _read_cypilot_var(project_root)
+        if cypilot_rel:
+            candidate = (project_root / cypilot_rel).resolve()
+            if _is_cypilot_root(candidate):
+                cypilot_root = candidate
+        if cypilot_root is None:
+            cypilot_root = _find_cypilot_root_from_file()
+    return cypilot_root
+
+
+def _load_agents_cfg(
+    args: argparse.Namespace,
+    agents_to_process: List[str],
+) -> Optional[Tuple[Optional[Path], dict]]:
+    """Load or build the agents config.  Returns ``(cfg_path, cfg)`` or *None* on error."""
+    cfg_path: Optional[Path] = Path(args.config).resolve() if args.config else None
+    if cfg_path is not None:
+        cfg: Optional[dict] = _load_json_file(cfg_path)
+        if cfg is None:
+            _cfg_err = f"Cannot read or parse config file: {cfg_path}"
+            ui.result(
+                {"status": "CONFIG_ERROR", "message": _cfg_err, "config": cfg_path.as_posix()},
+                human_fn=lambda d: (
+                    ui.error(_cfg_err),
+                    ui.hint("Ensure the file exists and contains a valid JSON object."),
+                    ui.blank(),
+                ),
+            )
+            return None
+    else:
+        cfg = None
+
+    any_recognized = any(a in set(_ALL_RECOGNIZED_AGENTS) for a in agents_to_process)
+    if cfg is None:
+        if any_recognized:
+            cfg = _default_agents_config()
+        else:
+            cfg = {"version": 1, "agents": {a: {"workflows": {}, "skills": {}} for a in agents_to_process}}
+
+    return cfg_path, cfg
+
+
 def _resolve_agents_context(argv: List[str], prog: str, description: str, *, allow_yes: bool = False, read_only: bool = False) -> Optional[tuple]:
     """Shared argument parsing and project resolution for agents commands.
 
@@ -1395,15 +1447,7 @@ def _resolve_agents_context(argv: List[str], prog: str, description: str, *, all
         )
         return None
 
-    cypilot_root = Path(args.cypilot_root).resolve() if args.cypilot_root else None
-    if cypilot_root is None:
-        cypilot_rel = _read_cypilot_var(project_root)
-        if cypilot_rel:
-            candidate = (project_root / cypilot_rel).resolve()
-            if _is_cypilot_root(candidate):
-                cypilot_root = candidate
-        if cypilot_root is None:
-            cypilot_root = _find_cypilot_root_from_file()
+    cypilot_root = _resolve_cypilot_root(args, project_root)
 
     if read_only:
         copy_report: dict = {"action": "none"}
@@ -1421,29 +1465,10 @@ def _resolve_agents_context(argv: List[str], prog: str, description: str, *, all
             )
             return None
 
-    cfg_path: Optional[Path] = Path(args.config).resolve() if args.config else None
-    if cfg_path is not None:
-        cfg: Optional[dict] = _load_json_file(cfg_path)
-        if cfg is None:
-            _cfg_err = f"Cannot read or parse config file: {cfg_path}"
-            ui.result(
-                {"status": "CONFIG_ERROR", "message": _cfg_err, "config": cfg_path.as_posix()},
-                human_fn=lambda d: (
-                    ui.error(_cfg_err),
-                    ui.hint("Ensure the file exists and contains a valid JSON object."),
-                    ui.blank(),
-                ),
-            )
-            return None
-    else:
-        cfg = None
-
-    any_recognized = any(a in set(_ALL_RECOGNIZED_AGENTS) for a in agents_to_process)
-    if cfg is None:
-        if any_recognized:
-            cfg = _default_agents_config()
-        else:
-            cfg = {"version": 1, "agents": {a: {"workflows": {}, "skills": {}} for a in agents_to_process}}
+    cfg_result = _load_agents_cfg(args, agents_to_process)
+    if cfg_result is None:
+        return None
+    cfg_path, cfg = cfg_result
 
     return args, agents_to_process, project_root, cypilot_root, copy_report, cfg_path, cfg
 # @cpt-end:cpt-cypilot-algo-agent-integration-discover-agents:p1:inst-resolve-context
@@ -1534,6 +1559,9 @@ def cmd_generate_agents(argv: List[str]) -> int:
         # Just show the preview and exit
         agents_result = _build_result(preview_results, agents_to_process, project_root, cypilot_root, cfg_path, copy_report, dry_run=True)
         ui.result(agents_result, human_fn=lambda d: _human_generate_agents_ok(d, agents_to_process, preview_results, dry_run=True))
+        _failing = {"PARTIAL", "CONFIG_ERROR"}
+        if any(r.get("status") in _failing for r in preview_results.values()):
+            return 1
         return 0
 
     # Step 2: Show preview and ask for confirmation (interactive)

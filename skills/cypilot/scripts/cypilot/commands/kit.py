@@ -1565,6 +1565,18 @@ def _detect_and_migrate_layout(
     if dry_run:
         return migrated
 
+    _finalize_layout_migration(migrated, cypilot_dir, kits_dir, gen_kits, backup_dir)
+    return migrated
+
+
+def _finalize_layout_migration(
+    migrated: Dict[str, Any],
+    cypilot_dir: Path,
+    kits_dir: Path,
+    gen_kits: Path,
+    backup_dir: Path,
+) -> None:
+    """Post-migration cleanup: update core.toml, remove legacy dirs, clean backups."""
     # @cpt-begin:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-rollback
     has_failures = any(isinstance(s, str) and s.startswith("FAILED") for s in migrated.values())
 
@@ -1596,8 +1608,6 @@ def _detect_and_migrate_layout(
         except OSError:
             pass
     # @cpt-end:cpt-cypilot-algo-version-config-layout-restructure:p1:inst-layout-rollback
-
-    return migrated
 
 
 # @cpt-begin:cpt-cypilot-algo-kit-update:p1:inst-perform-first-install
@@ -1756,10 +1766,18 @@ def update_kit(
     # @cpt-begin:cpt-cypilot-algo-kit-update:p1:inst-first-install
     # ── 1. First-install or file-level update ────────────────────────
     if not config_kit_dir.is_dir():
-        files_written = _perform_first_install_kit(
-            source_dir, config_kit_dir, config_dir, kit_slug, source_version, cypilot_dir,
-            source=source,
-        )
+        if _manifest is not None:
+            _install_result = install_kit(
+                source_dir, cypilot_dir, kit_slug,
+                kit_version=source_version, source=source,
+                interactive=interactive,
+            )
+            files_written = _install_result.get("files_copied", 0)
+        else:
+            files_written = _perform_first_install_kit(
+                source_dir, config_kit_dir, config_dir, kit_slug, source_version, cypilot_dir,
+                source=source,
+            )
         result["version"] = {"status": "created"}
         result["gen"] = {"files_written": files_written}
     # @cpt-end:cpt-cypilot-algo-kit-update:p1:inst-first-install

@@ -45,6 +45,7 @@ from cypilot.commands.migrate import (
     _migrate_adapter_json_configs,
     _cleanup_old_adapter_agent_files,
     _install_default_kit_from_cache,
+    _run_migrate_steps,
 )
 
 
@@ -2544,6 +2545,127 @@ class TestInstallDefaultKitFromCache(unittest.TestCase):
             cache.mkdir()
             result = _install_default_kit_from_cache(cypilot_dir, cache)
             self.assertIsNone(result)
+
+
+# ===========================================================================
+# Regression: _run_migrate_steps merges fallback default-kit into kit_result
+# ===========================================================================
+
+class TestRunMigrateStepsFallbackKitMerge(unittest.TestCase):
+    """When _install_default_kit_from_cache fires during migration, the
+    returned kit_result must reflect the fallback kit in migrated_kits
+    and default_kit_installed — not silently drop it."""
+
+    def _call_run_migrate_steps(self, base_kit_result, default_kit_result):
+        """Call _run_migrate_steps with all internal helpers mocked.
+
+        Returns (kit_result, all_warnings) so callers can assert on both
+        the nested kit dict and the top-level migration warnings list.
+        """
+        with TemporaryDirectory() as td:
+            project_root = Path(td) / "proj"
+            project_root.mkdir()
+            cypilot_dir = project_root / "cypilot"
+            cypilot_dir.mkdir()
+            config_dir = cypilot_dir / "config"
+            config_dir.mkdir()
+            gen_dir = cypilot_dir / ".gen"
+            gen_dir.mkdir()
+            core_dir = cypilot_dir / ".core"
+            core_dir.mkdir()
+            all_warnings: list = []
+            mod = "cypilot.commands.migrate"
+            with patch(f"{mod}.cleanup_core_path", return_value={"success": True}), \
+                 patch(f"{mod}._init_v3_dirs", return_value=(gen_dir, core_dir)), \
+                 patch(f"{mod}._convert_v2_data", return_value=({}, {})), \
+                 patch(f"{mod}.migrate_kits", return_value=base_kit_result), \
+                 patch(f"{mod}._install_default_kit_from_cache", return_value=default_kit_result), \
+                 patch(f"{mod}._cleanup_v2_adapter"), \
+                 patch(f"{mod}._finalize_migration_outputs"):
+                kit_result = _run_migrate_steps(
+                    project_root, {}, ".cypilot", ".cypilot", "absent",
+                    "cypilot", cypilot_dir, config_dir, all_warnings,
+                )
+                return kit_result, all_warnings
+
+    def test_fallback_kit_merged_into_kit_result(self):
+        """migrate_kits returns no kits → fallback install → kit_result updated."""
+        base_kit_result = {
+            "migrated_kits": [],
+            "warnings": [],
+            "errors": [],
+        }
+        default_kit_result = {
+            "kit": "sdlc",
+            "status": "PASS",
+            "action": "installed",
+            "warnings": ["fallback-warn"],
+            "errors": [],
+        }
+
+        kit_result, all_warnings = self._call_run_migrate_steps(
+            base_kit_result, default_kit_result,
+        )
+
+        self.assertIn("sdlc", kit_result["migrated_kits"])
+        self.assertEqual(kit_result["default_kit_installed"], "sdlc")
+        self.assertIn("fallback-warn", kit_result["warnings"])
+        self.assertIn("fallback-warn", all_warnings,
+            "Fallback warnings must propagate to top-level all_warnings")
+
+    def test_fallback_errors_propagate_to_all_warnings(self):
+        """Fallback kit errors appear in all_warnings as 'Kit error: ...'."""
+        base_kit_result = {
+            "migrated_kits": [],
+            "warnings": [],
+            "errors": [],
+        }
+        default_kit_result = {
+            "kit": "sdlc",
+            "status": "WARN",
+            "action": "installed",
+            "warnings": [],
+            "errors": ["constraint mismatch"],
+        }
+
+        kit_result, all_warnings = self._call_run_migrate_steps(
+            base_kit_result, default_kit_result,
+        )
+
+        self.assertIn("constraint mismatch", kit_result["errors"])
+        self.assertTrue(
+            any("constraint mismatch" in w for w in all_warnings),
+            "Fallback errors must propagate to top-level all_warnings",
+        )
+
+    def test_no_fallback_when_kits_already_migrated(self):
+        """When migrate_kits already produced kits, no fallback fields added."""
+        base_kit_result = {
+            "migrated_kits": ["existing"],
+            "warnings": [],
+            "errors": [],
+        }
+        kit_result, all_warnings = self._call_run_migrate_steps(
+            base_kit_result, None,
+        )
+
+        self.assertNotIn("default_kit_installed", kit_result)
+        self.assertEqual(kit_result["migrated_kits"], ["existing"])
+
+    def test_fallback_kit_from_cache_integration(self):
+        """Full integration: _install_default_kit_from_cache returns result
+        that would be merged by _run_migrate_steps."""
+        with TemporaryDirectory() as d:
+            cypilot_dir = Path(d) / "cypilot"
+            cypilot_dir.mkdir()
+            (cypilot_dir / "config").mkdir()
+            cache = Path(d) / "cache"
+            _make_cache(cache)
+            result = _install_default_kit_from_cache(cypilot_dir, cache)
+            self.assertIsNotNone(result)
+            # update_kit returns {"kit": slug, "version": {...}, "gen": {...}}
+            self.assertEqual(result["kit"], "sdlc")
+            self.assertIn("version", result)
 
 
 if __name__ == "__main__":

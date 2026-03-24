@@ -595,7 +595,7 @@ Enables users to install, update, and validate kit packages with interactive fil
 
 | Module | Algorithms Implemented |
 |--------|----------------------|
-| `skills/cypilot/scripts/cypilot/commands/kit.py` | `cpt-cypilot-algo-kit-content-mgmt`, `cpt-cypilot-algo-kit-regen-gen`, `cpt-cypilot-algo-kit-install`, `cpt-cypilot-algo-kit-update`, `cpt-cypilot-algo-kit-config-helpers`, `cpt-cypilot-algo-kit-manifest-install`, `cpt-cypilot-algo-kit-manifest-legacy-migration`, `cpt-cypilot-flow-kit-install-cli`, `cpt-cypilot-flow-kit-update-cli`, `cpt-cypilot-flow-kit-dispatch` |
+| `skills/cypilot/scripts/cypilot/commands/kit.py` | `cpt-cypilot-algo-kit-github-helpers`, `cpt-cypilot-algo-kit-content-mgmt`, `cpt-cypilot-algo-kit-regen-gen`, `cpt-cypilot-algo-kit-install`, `cpt-cypilot-algo-kit-update`, `cpt-cypilot-algo-kit-config-helpers`, `cpt-cypilot-algo-kit-manifest-install`, `cpt-cypilot-algo-kit-manifest-legacy-migration`, `cpt-cypilot-flow-kit-install-cli`, `cpt-cypilot-flow-kit-update-cli`, `cpt-cypilot-flow-kit-dispatch` |
 | `skills/cypilot/scripts/cypilot/utils/manifest.py` | `cpt-cypilot-algo-kit-manifest-resolve`, `cpt-cypilot-algo-kit-manifest-source-mapping` |
 | `skills/cypilot/scripts/cypilot/utils/diff_engine.py` | `cpt-cypilot-algo-kit-file-update`, `cpt-cypilot-algo-kit-file-enumerate`, `cpt-cypilot-algo-kit-file-classify`, `cpt-cypilot-algo-kit-interactive-review`, `cpt-cypilot-algo-kit-diff-display`, `cpt-cypilot-algo-kit-conflict-merge`, `cpt-cypilot-algo-kit-toc-handling`, `cpt-cypilot-algo-kit-snapshot` |
 | `skills/cypilot/scripts/cypilot/commands/validate_kits.py` | `cpt-cypilot-algo-kit-validate`, `cpt-cypilot-algo-kit-validate-by-path`, `cpt-cypilot-flow-kit-validate-cli` |

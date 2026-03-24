@@ -281,6 +281,7 @@ class SystemNode:
     name: str
     slug: str  # Machine-readable identifier (lowercase, no spaces)
     kit: str  # Reference to kit ID
+    id_slug: Optional[str] = None
     artifacts: List[Artifact] = field(default_factory=list)
     codebase: List[CodebaseEntry] = field(default_factory=list)
     children: List["SystemNode"] = field(default_factory=list)
@@ -296,8 +297,9 @@ class SystemNode:
         parts: List[str] = []
         node: Optional[SystemNode] = self
         while node is not None:
-            if node.slug:
-                parts.append(node.slug)
+            current_slug = node.id_slug or node.slug
+            if current_slug:
+                parts.append(current_slug)
             node = node.parent
         return "-".join(reversed(parts))
 
@@ -314,6 +316,7 @@ class SystemNode:
         node = cls(
             name=name,
             slug=slug,
+            id_slug=None,
             kit=kit,
             parent=parent,
         )
@@ -344,10 +347,12 @@ class SystemNode:
 def _collect_def_ids_from_artifacts(
     artifacts: List["Artifact"],
     resolve_path_fn: "Callable[[str], Path]",
+    errors: Optional[List[str]] = None,
 ) -> Tuple[List[str], bool]:
     """Collect all definition CPT IDs from a list of artifacts.
 
     Returns (all_def_ids, has_ids) where has_ids is True if any artifact had IDs.
+    When *errors* is provided, scan failures are appended instead of silently ignored.
     """
     all_def_ids: List[str] = []
     has_ids = False
@@ -360,9 +365,81 @@ def _collect_def_ids_from_artifacts(
                     continue
                 has_ids = True
                 all_def_ids.append(str(h["id"]))
-        except Exception:
+        except Exception as exc:
+            if errors is not None:
+                errors.append(f"Failed to scan IDs in {art_abs}: {exc}")
             continue
     return all_def_ids, has_ids
+
+
+def _collect_unique_slugs(
+    all_def_ids: List[str],
+    prefix: str,
+    kind_tokens: "Set[str]",
+) -> Set[str]:
+    """Extract unique system slug candidates from *all_def_ids* using *prefix*."""
+    slugs: Set[str] = set()
+    for cid in all_def_ids:
+        candidates = extract_system_slug_candidates(cid, prefix, kind_tokens)
+        if len(candidates) == 1:
+            slugs.add(candidates[0])
+    return slugs
+
+
+def _check_with_child_slugs(
+    child_node: "SystemNode",
+    child_slugs: Set[str],
+    full_systems: Set[str],
+    prefix_info: str,
+    errors: List[str],
+) -> None:
+    """Handle slug consistency when child_slugs were found."""
+    if len(full_systems) > 1:
+        errors.append(
+            f"Inconsistent systems in IDs: system={child_node.name} "
+            f"folder_slug={child_node.slug}{prefix_info} — "
+            f"IDs use different system prefixes: {sorted(full_systems)}"
+        )
+    elif len(child_slugs) == 1:
+        child_node.id_slug = next(iter(child_slugs))
+    else:
+        errors.append(
+            f"Inconsistent systems in IDs: system={child_node.name} "
+            f"folder_slug={child_node.slug}{prefix_info} — "
+            f"IDs use different system slugs: {sorted(child_slugs)}"
+        )
+
+
+def _check_without_child_slugs(
+    child_node: "SystemNode",
+    full_systems: Set[str],
+    parent_prefix: str,
+    prefix_info: str,
+    errors: List[str],
+) -> None:
+    """Handle slug consistency when no child_slugs matched but IDs exist."""
+    if len(full_systems) > 1:
+        errors.append(
+            f"Inconsistent systems in IDs: system={child_node.name} "
+            f"folder_slug={child_node.slug}{prefix_info} — "
+            f"IDs use different system prefixes: {sorted(full_systems)}"
+        )
+    elif len(full_systems) == 1:
+        full_sys = next(iter(full_systems))
+        if parent_prefix:
+            errors.append(
+                f"IDs missing parent prefix: system={child_node.name} "
+                f"folder_slug={child_node.slug}{prefix_info} — "
+                f"all IDs use system `{full_sys}` which does not start with `{parent_prefix}-`"
+            )
+        else:
+            pass
+    else:
+        errors.append(
+            f"Cannot determine system from IDs: system={child_node.name} "
+            f"folder_slug={child_node.slug}{prefix_info} — "
+            f"no ID has an unambiguous kind-token marker"
+        )
 
 
 def _check_child_slug_consistency(
@@ -373,71 +450,20 @@ def _check_child_slug_consistency(
     parent_prefix: str,
     errors: List[str],
 ) -> None:
-    """Check and update child system slug based on IDs found in its artifacts.
+    """Check child system slug consistency based on IDs found in its artifacts.
 
-    Mutates child_node.slug when a consistent slug can be inferred.
     Appends error strings to errors when inconsistencies are detected.
+    Does NOT mutate child_node.slug to preserve dedup key stability.
     """
     prefix_info = f" parent_prefix={parent_prefix}" if parent_prefix else ""
 
-    child_slugs: Set[str] = set()
-    for cid in all_def_ids:
-        candidates = extract_system_slug_candidates(cid, parent_prefix, kind_tokens)
-        if len(candidates) == 1:
-            child_slugs.add(candidates[0])
+    child_slugs = _collect_unique_slugs(all_def_ids, parent_prefix, kind_tokens)
+    full_systems = _collect_unique_slugs(all_def_ids, "", kind_tokens)
 
     if child_slugs:
-        full_systems: Set[str] = set()
-        for cid in all_def_ids:
-            candidates = extract_system_slug_candidates(cid, "", kind_tokens)
-            if len(candidates) == 1:
-                full_systems.add(candidates[0])
-        if len(full_systems) > 1:
-            errors.append(
-                f"Inconsistent systems in IDs: system={child_node.name} "
-                f"folder_slug={child_node.slug}{prefix_info} — "
-                f"IDs use different system prefixes: {sorted(full_systems)}"
-            )
-        elif len(child_slugs) == 1:
-            new_slug = next(iter(child_slugs))
-            if new_slug != child_node.slug:
-                child_node.slug = new_slug
-        else:
-            errors.append(
-                f"Inconsistent systems in IDs: system={child_node.name} "
-                f"folder_slug={child_node.slug}{prefix_info} — "
-                f"IDs use different system slugs: {sorted(child_slugs)}"
-            )
+        _check_with_child_slugs(child_node, child_slugs, full_systems, prefix_info, errors)
     elif has_ids:
-        full_systems: Set[str] = set()
-        for cid in all_def_ids:
-            candidates = extract_system_slug_candidates(cid, "", kind_tokens)
-            if len(candidates) == 1:
-                full_systems.add(candidates[0])
-        if len(full_systems) > 1:
-            errors.append(
-                f"Inconsistent systems in IDs: system={child_node.name} "
-                f"folder_slug={child_node.slug}{prefix_info} — "
-                f"IDs use different system prefixes: {sorted(full_systems)}"
-            )
-        elif len(full_systems) == 1:
-            full_sys = next(iter(full_systems))
-            if parent_prefix:
-                errors.append(
-                    f"IDs missing parent prefix: system={child_node.name} "
-                    f"folder_slug={child_node.slug}{prefix_info} — "
-                    f"all IDs use system `{full_sys}` which does not start with `{parent_prefix}-`"
-                )
-            else:
-                new_slug = full_sys
-                if new_slug != child_node.slug:
-                    child_node.slug = new_slug
-        else:
-            errors.append(
-                f"Cannot determine system from IDs: system={child_node.name} "
-                f"folder_slug={child_node.slug}{prefix_info} — "
-                f"no ID has an unambiguous kind-token marker"
-            )
+        _check_without_child_slugs(child_node, full_systems, parent_prefix, prefix_info, errors)
 
 
 class ArtifactsMeta:

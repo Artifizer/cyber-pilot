@@ -12,24 +12,26 @@ purpose: Universal workflow for creating or updating any artifact or code
 
 <!-- toc -->
 
-- [Reverse Engineering Prerequisite (BROWNFIELD only)](#reverse-engineering-prerequisite-brownfield-only)
-- [Overview](#overview)
-- [Context Budget & Overflow Prevention (CRITICAL)](#context-budget--overflow-prevention-critical)
-- [Agent Anti-Patterns (STRICT mode)](#agent-anti-patterns-strict-mode)
-- [Rules Mode Behavior](#rules-mode-behavior)
-- [Phase 0: Ensure Dependencies](#phase-0-ensure-dependencies)
-- [Phase 0.1: Plan Escalation Gate](#phase-01-plan-escalation-gate)
-- [Phase 0.5: Clarify Output & Context](#phase-05-clarify-output--context)
-- [Phase 1: Collect Information](#phase-1-collect-information)
-- [Phase 2: Generate](#phase-2-generate)
-- [Phase 2.5: Checkpoint (for long artifacts)](#phase-25-checkpoint-for-long-artifacts)
-- [Phase 3: Summary](#phase-3-summary)
-- [Phase 4: Write](#phase-4-write)
-- [Phase 5: Analyze](#phase-5-analyze)
-- [Phase 6: Offer Next Steps](#phase-6-offer-next-steps)
-- [Error Handling](#error-handling)
-- [State Summary](#state-summary)
-- [Validation Criteria](#validation-criteria)
+- [Generate](#generate)
+  - [Reverse Engineering Prerequisite (BROWNFIELD only)](#reverse-engineering-prerequisite-brownfield-only)
+  - [Overview](#overview)
+  - [Context Budget \& Overflow Prevention (CRITICAL)](#context-budget--overflow-prevention-critical)
+  - [Agent Anti-Patterns (STRICT mode)](#agent-anti-patterns-strict-mode)
+  - [Rules Mode Behavior](#rules-mode-behavior)
+  - [Phase 0: Ensure Dependencies](#phase-0-ensure-dependencies)
+  - [Phase 0.1: Plan Escalation Gate](#phase-01-plan-escalation-gate)
+  - [Phase 0.5: Clarify Output \& Context](#phase-05-clarify-output--context)
+  - [Phase 1: Collect Information](#phase-1-collect-information)
+  - [Phase 2: Generate](#phase-2-generate)
+  - [Phase 2.5: Checkpoint (for long artifacts)](#phase-25-checkpoint-for-long-artifacts)
+  - [Phase 3: Summary](#phase-3-summary)
+  - [Phase 4: Write](#phase-4-write)
+  - [Phase 5: Analyze](#phase-5-analyze)
+    - [Step 1: Deterministic Validation (tool-based)](#step-1-deterministic-validation-tool-based)
+  - [Phase 6: Offer Next Steps](#phase-6-offer-next-steps)
+  - [Error Handling](#error-handling)
+  - [State Summary](#state-summary)
+  - [Validation Criteria](#validation-criteria)
 
 <!-- /toc -->
 
@@ -314,6 +316,73 @@ What would you like to do next?
 3. Other
 ```
 
+If Phase 4 wrote or updated any files, MUST append a final chat-only `Review Prompt` section after the next-step options. If output was chat-only and no files changed, skip this section.
+This applies to any successful file-writing generate flow, including artifacts, code, workflow/instruction updates, and multi-file edits.
+If files were written and the response omits the `Review Prompt` section or either required review prompt, the generate output is incomplete.
+
+`Review Prompt` rules — both prompts MUST be **self-contained final prompts** usable in a fresh chat without any prior context:
+- explicitly begin with the phrase `Invoke skill cypilot`
+- state that `/cypilot-generate` is complete and the next chat is for reviewing the generated changes
+- embed inline: changed file paths, what was changed per file (brief summary), kind/target, validation results (exit code, errors, warnings)
+- do NOT reference "previous chat", "findings above", or any content outside the prompt itself
+- the prompt alone must give the next agent everything needed to start work immediately
+- generate **two separate prompts**:
+  1. `Plan Review Prompt` — route to `/cypilot-plan` when the review scope is broad, multi-file, or needs phased / strict coverage
+  2. `Direct Review Prompt` — route to `/cypilot-analyze` when the review scope is bounded and can be performed immediately
+- include both prompts in the same final response whenever files were written
+- MUST NOT ask the next agent to regenerate or re-implement the changes
+
+Template:
+
+```text
+Plan Review Prompt (copy-paste into new chat if needed):
+```
+
+```text
+Invoke skill `cypilot`.
+
+I just completed `/cypilot-generate` and want a phased review plan for the generated changes.
+
+Target: {TARGET_TYPE} / {KIND}
+Changed files:
+- `{path}` — {brief description of what was created/changed}
+- `{additional path}` — {brief description}
+
+Validation results:
+- Deterministic (`cpt validate`): exit code {0|2}, status {PASS|FAIL}, errors {N}, warnings {N}
+- Semantic review: {summary of checklist coverage and any issues}
+
+Use `/cypilot-plan` to create a phased review plan for these changes.
+Focus on review coverage, risk hotspots, and the minimal set of review phases needed for high confidence.
+After creating the plan, give me the next execution prompt for the first review phase.
+
+Do not regenerate the implementation. Do not ask me to restate the task unless required inputs are missing.
+```
+
+```text
+Direct Review Prompt (copy-paste into new chat if needed):
+```
+
+```text
+Invoke skill `cypilot`.
+
+I just completed `/cypilot-generate` and want an immediate review of the generated changes.
+
+Target: {TARGET_TYPE} / {KIND}
+Changed files:
+- `{path}` — {brief description of what was created/changed}
+- `{additional path}` — {brief description}
+
+Validation results:
+- Deterministic (`cpt validate`): exit code {0|2}, status {PASS|FAIL}, errors {N}, warnings {N}
+- Semantic review: {summary of checklist coverage and any issues}
+
+Use `/cypilot-analyze` to review these changes now.
+Report findings with severity, evidence, risks, regressions, and recommended fixes.
+
+Do not regenerate the implementation. Do not ask me to restate the task unless required inputs are missing.
+```
+
 ## Error Handling
 
 Tool failure:
@@ -360,3 +429,5 @@ Validation failure loop (3+ times):
 - [ ] File written after confirmation (if file output)
 - [ ] Artifacts registry updated (if file output + rules)
 - [ ] Validation executed
+- [ ] Review prompt generated when files were written
+- [ ] Both `Plan Review Prompt` and `Direct Review Prompt` generated in the same response when files were written

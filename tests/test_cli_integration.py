@@ -600,11 +600,12 @@ class TestCLIAgentsCommand(unittest.TestCase):
             )
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
+                ret = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
             # Should return partial status due to workflow error
             out = json.loads(stdout.getvalue())
             agent_result = out.get("results", {}).get("windsurf", {})
             self.assertIn("Missing workflow_dir", str(agent_result.get("errors", [])))
+            self.assertNotEqual(ret, 0, "should return non-zero on workflow_dir error")
 
     def test_agents_missing_template_error(self):
         """Test agents command with missing template in config."""
@@ -631,10 +632,11 @@ class TestCLIAgentsCommand(unittest.TestCase):
             )
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
+                ret = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
             out = json.loads(stdout.getvalue())
             agent_result = out.get("results", {}).get("windsurf", {})
             self.assertIn("Missing or invalid template", str(agent_result.get("errors", [])))
+            self.assertNotEqual(ret, 0, "should return non-zero on template error")
 
     def test_agents_skills_invalid_outputs_error(self):
         """Test agents command with invalid skills outputs config."""
@@ -658,10 +660,11 @@ class TestCLIAgentsCommand(unittest.TestCase):
             )
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
+                ret = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
             out = json.loads(stdout.getvalue())
             agent_result = out.get("results", {}).get("windsurf", {})
             self.assertIn("outputs must be an array", str(agent_result.get("errors", [])))
+            self.assertNotEqual(ret, 0, "should return non-zero on invalid outputs")
 
     def test_agents_skills_missing_path_error(self):
         """Test agents command with missing path in skills output."""
@@ -686,10 +689,11 @@ class TestCLIAgentsCommand(unittest.TestCase):
             )
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
+                ret = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
             out = json.loads(stdout.getvalue())
             agent_result = out.get("results", {}).get("windsurf", {})
             self.assertIn("missing path", str(agent_result.get("errors", [])))
+            self.assertNotEqual(ret, 0, "should return non-zero on missing path")
 
     def test_agents_skills_missing_template_error(self):
         """Test agents command with missing template in skills output."""
@@ -714,10 +718,11 @@ class TestCLIAgentsCommand(unittest.TestCase):
             )
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
+                ret = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
             out = json.loads(stdout.getvalue())
             agent_result = out.get("results", {}).get("windsurf", {})
             self.assertIn("invalid template", str(agent_result.get("errors", [])))
+            self.assertNotEqual(ret, 0, "should return non-zero on invalid template")
 
     def test_agents_updates_existing_files(self):
         """Test agents command updates existing proxy files."""
@@ -5425,11 +5430,12 @@ class TestCLIAgentsBugFixes(unittest.TestCase):
 
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                main([
+                rc = main([
                     "generate-agents", "--agent", "claude",
                     "--root", str(root), "--cypilot-root", str(root),
                 ])
 
+            self.assertEqual(rc, 0, "generate-agents should succeed when skipping missing prompt_file")
             # Claude subagent proxy filename is "{name}.md" → codegen.md (not cypilot-codegen.md)
             subagent_proxy = root / ".claude" / "agents" / "codegen.md"
             self.assertFalse(
