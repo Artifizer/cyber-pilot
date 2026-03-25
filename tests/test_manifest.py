@@ -1,12 +1,13 @@
 """Tests for cypilot.utils.manifest — kit manifest parser and validator."""
 from __future__ import annotations
 
+import os
 import textwrap
 from pathlib import Path
 
 import pytest
 
-from cypilot.utils.manifest import Manifest, ManifestResource, load_manifest, validate_manifest
+from cypilot.utils.manifest import Manifest, ManifestResource, load_manifest, resolve_resource_bindings_with_errors, validate_manifest
 
 
 # ---------------------------------------------------------------------------
@@ -341,6 +342,54 @@ class TestValidateManifest:
         errors = validate_manifest(m, kit)
         # At least: 1 duplicate id + 2 missing source
         assert len(errors) >= 3
+
+
+class TestResolveResourceBindings:
+    """Tests for resolve_resource_bindings()."""
+
+    def test_invalid_binding_does_not_drop_valid_entries(self, tmp_path: Path) -> None:
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        cypilot_dir = tmp_path / "cypilot"
+        cypilot_dir.mkdir()
+        valid_constraints = cypilot_dir / "config" / "kits" / "sdlc" / "constraints.toml"
+        valid_constraints.parent.mkdir(parents=True)
+        valid_constraints.write_text("[artifacts]\n", encoding="utf-8")
+        invalid_binding = "C:/external-kits/sdlc/SKILL.md" if os.name != "nt" else "/opt/external-kits/sdlc/SKILL.md"
+        (config_dir / "core.toml").write_text(
+            textwrap.dedent(
+                f"""
+                [kits.sdlc]
+                format = "Cypilot"
+                path = "config/kits/sdlc"
+
+                [kits.sdlc.resources]
+                constraints = {{ path = "config/kits/sdlc/constraints.toml" }}
+                skill = {{ path = "{invalid_binding}" }}
+                """
+            ),
+            encoding="utf-8",
+        )
+
+        resolved, binding_errors = resolve_resource_bindings_with_errors(config_dir, "sdlc", cypilot_dir)
+
+        assert resolved["constraints"] == valid_constraints.resolve()
+        assert "skill" not in resolved
+        assert len(binding_errors) == 1
+
+    def test_malformed_core_toml_returns_parse_error(self, tmp_path: Path) -> None:
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        cypilot_dir = tmp_path / "cypilot"
+        cypilot_dir.mkdir()
+        (config_dir / "core.toml").write_text("[kits.sdlc\ninvalid", encoding="utf-8")
+
+        resolved, binding_errors = resolve_resource_bindings_with_errors(config_dir, "sdlc", cypilot_dir)
+
+        assert resolved == {}
+        assert len(binding_errors) == 1
+        assert "Failed to parse" in binding_errors[0]
+        assert "core.toml" in binding_errors[0]
 
 
 # ---------------------------------------------------------------------------

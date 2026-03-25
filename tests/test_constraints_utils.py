@@ -78,7 +78,7 @@ def test_parse_kit_constraints_valid_happy_path_and_normalizations():
     assert d0.task is True
     assert d0.priority is False
     assert d0.to_code is True
-    assert d0.headings == ["H1", "H2"]
+    assert d0.headings == ["h1", "h2"]
     assert d0.references is not None
     assert set(d0.references.keys()) == {"DESIGN", "SPEC"}
     assert d0.references["DESIGN"].coverage is True

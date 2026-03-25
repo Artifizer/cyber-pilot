@@ -50,7 +50,7 @@ Evidence: `Makefile:4-13` (arch detection), `Makefile:174-183` (ci target).
 
 ### GitHub Actions
 
-CI runs on every push to `main` and every PR targeting `main`. Six parallel jobs:
+CI runs on every push to `main` and every PR targeting `main`. Seven parallel jobs:
 
 1. **Test** — `make test` on Python 3.11, 3.12, 3.13, 3.14
 2. **Coverage** — `make test-coverage` on Python 3.14 (≥90% gate)
@@ -58,6 +58,7 @@ CI runs on every push to `main` and every PR targeting `main`. Six parallel jobs
 4. **Versions** — `make check-versions` consistency check
 5. **Spec Coverage** — `make spec-coverage` (≥80% overall, ≥70% per file)
 6. **Validate** — `make validate` + `make self-check` on Python 3.11–3.14
+7. **Validate Kits** — `make validate-kits` on Python 3.11–3.14
 
 Evidence: `.github/workflows/ci.yml`.
 
@@ -67,12 +68,13 @@ Evidence: `.github/workflows/ci.yml`.
 |---------|-------------|-----|
 | `make ci` | Run full CI locally via act | — |
 | `make lint-ci` | Lint GitHub Actions workflow files | — |
-| `make test` | Run all tests with pytest | Yes |
+| `make test` | Run the full test suite | Yes |
 | `make test-verbose` | Run tests with verbose output | — |
 | `make test-quick` | Fast tests only (skip `@pytest.mark.slow`) | — |
 | `make test-coverage` | Tests + coverage report (≥90% required) | Yes |
 | `make validate` | Validate core methodology via `cpt validate` | Yes |
 | `make self-check` | Validate SDLC examples against templates | Yes |
+| `make validate-kits` | Validate kit structure and example/template integrity | Yes |
 | `make check-versions` | Check version consistency across components | Yes |
 | `make spec-coverage` | Check spec coverage (≥80% overall, ≥70% per file) | Yes |
 | `make vulture` | Scan for dead code (report only) | — |

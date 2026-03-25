@@ -13,75 +13,85 @@ version: 1.0
 
 - [Source Layout](#source-layout)
 - [Two-Package Design](#two-package-design)
-- [Context Singleton](#context-singleton)
+- [Runtime Context](#runtime-context)
 - [Path Resolution](#path-resolution)
-- [Registry as Source of Truth](#registry-as-source-of-truth)
+- [Registry and Config Authority](#registry-and-config-authority)
 - [Architecture Patterns](#architecture-patterns)
-  - [Template-Centric Architecture](#template-centric-architecture)
-  - [Adaptive Workflow Model](#adaptive-workflow-model)
-  - [Kit Package Pattern](#kit-package-pattern)
+  - [Command Router + Thin Proxy](#command-router--thin-proxy)
+  - [Workflow-Driven AI Layer](#workflow-driven-ai-layer)
+  - [Kit Package Model](#kit-package-model)
 - [Critical Files](#critical-files)
 
 <!-- /toc -->
 
-System design, module boundaries, and key abstractions of the Cypilot project.
+System design, module boundaries, and key abstractions of the self-hosted Cypilot project.
 
 ## Source Layout
 
 ```
-src/cypilot_proxy/          # Proxy package (5 files, ~875 LOC)
-  cli.py                    # Entry point: main() → resolve → forward
-  resolve.py                # Skill target resolution (project → cache)
-  cache.py                  # GitHub release download + extraction
+src/cypilot_proxy/                  # Global proxy package (5 files)
+  cli.py                            # Console entry: resolve skill, forward command
+  resolve.py                        # Project-vs-cache skill resolution
+  cache.py                          # Cache download/copy logic
 
-skills/cypilot/scripts/cypilot/   # Skill engine (~40 files)
-  cli.py                    # Command dispatch (lazy imports per command)
-  constants.py              # Shared regex patterns and constants
-  commands/                 # One module per CLI subcommand (18 modules)
-  utils/                    # Shared utility modules (17 modules)
+skills/cypilot/scripts/cypilot/    # Skill engine package
+  cli.py                            # Main command router
+  commands/                         # 23 command modules
+  utils/                            # 20 shared utility modules
 
-tests/                      # 44 test modules, pytest + conftest
+.bootstrap/                        # Self-hosted adapter directory
+  .core/                            # Read-only mirror of canonical sources
+  .gen/                             # Generated aggregates
+  config/                           # User-editable config + auto-config outputs
+
+tests/                              # 44 pytest modules + shared conftest/bootstrap
 ```
 
 ## Two-Package Design
 
-The proxy (`src/cypilot_proxy/`) is installed globally via pipx. It resolves the skill engine location (project-installed or cached) and forwards via `subprocess.run`. The skill engine (`skills/cypilot/scripts/cypilot/`) contains all business logic. They share no code at import time — communication is via process invocation.
+The installed `cpt` entry point loads the proxy in `src/cypilot_proxy/`. The proxy discovers the active skill engine (project-local or cached) and forwards the command through `subprocess.run`. All deterministic validation, registry loading, kit management, and workflow support live in `skills/cypilot/scripts/cypilot/`.
 
-## Context Singleton
+The repository is also self-hosted: `.bootstrap/` is a live adapter/config tree for this same project, while the canonical editable sources remain under the repo root.
 
-`CypilotContext.load()` runs once at CLI startup (`cli.py:124`), parses `artifacts.toml`, loads constraints, and stores the result in a module-level `_context` variable accessed via `get_context()` / `set_context()`. Commands retrieve context with `get_context()`.
+## Runtime Context
+
+`CypilotContext.load()` runs at CLI startup in the skill engine, reads `artifacts.toml`, resolves kits and constraints, and stores the loaded context for command handlers. Workspace upgrades are deferred until first access, so lightweight commands do not pay unnecessary startup cost.
 
 ## Path Resolution
 
-Two path-resolution systems exist:
-- **Proxy**: `resolve.py` — walks up from cwd to find `AGENTS.md` with `@cpt:root-agents` marker, reads `cypilot_path` variable from TOML fence block
-- **Skill**: `files.py` — same root-finding logic plus `core_subpath()` / `gen_subpath()` helpers for `.core/` vs `.gen/` layout
+Two cooperating path-resolution layers exist:
 
-## Registry as Source of Truth
+- **Proxy layer**: `src/cypilot_proxy/resolve.py` walks upward for root `AGENTS.md`, reads the managed TOML block, and resolves `cypilot_path`
+- **Skill layer**: `skills/cypilot/scripts/cypilot/utils/files.py` resolves project root, adapter root, and `.core` / `.gen` subpaths inside the active adapter
 
-`artifacts.toml` declares systems, artifacts, codebases, and kit references. The `ArtifactsMeta` dataclass parses it and provides lookups. The `autodetect` sections in the registry drive artifact discovery during `cpt init`.
+This separation keeps the globally installed proxy small while letting the skill engine own project-layout semantics.
+
+## Registry and Config Authority
+
+`core.toml` stores adapter-level project settings and installed kit registrations. `artifacts.toml` is the authoritative registry for systems, autodetect rules, artifacts, and codebase roots. For this self-hosted repo, `.bootstrap/config/` is the live user-editable config surface; `.bootstrap/.core/` and `.bootstrap/.gen/` are derived outputs.
 
 ## Architecture Patterns
 
-### Template-Centric Architecture
-Templates are the foundation — each artifact type is a self-contained package (`kits/sdlc/artifacts/{KIND}/`) with `template.md`, `rules.md`, `checklist.md`, and `examples/`.
+### Command Router + Thin Proxy
+The proxy performs cache/project resolution only. The skill engine CLI uses lazy imports so each command loads only the handler modules it needs.
 
-### Adaptive Workflow Model
-"Start anywhere" adoption — users begin from any point (design, implementation, or validation). The `artifacts.toml` registry drives artifact discovery, with per-artifact traceability configuration (FULL vs DOCS-ONLY).
+### Workflow-Driven AI Layer
+AI-facing behavior is defined in Markdown skills, workflows, and requirements. Python provides deterministic primitives; workflows orchestrate how agents read and apply them.
 
-### Kit Package Pattern
-Validation rules and templates are packaged as "kits" (`kits/{kit-id}/`) reusable across projects. Single source of truth for artifact validation.
+### Kit Package Model
+Kits provide templates, rules, checklists, workflows, scripts, and constraints as ready files. Installed kit content lives under `config/kits/{slug}/`, while the registry and resolved variables expose those resources to workflows and commands.
 
 ## Critical Files
 
 | File | Why it matters |
 |------|---------------|
-| `skills/cypilot/scripts/cypilot/cli.py` | Command dispatch hub — touch when adding/renaming commands |
-| `skills/cypilot/scripts/cypilot/utils/context.py` | CypilotContext — loaded on every invocation |
-| `skills/cypilot/scripts/cypilot/utils/files.py` | Project root + cypilot dir discovery |
-| `skills/cypilot/scripts/cypilot/utils/artifacts_meta.py` | Registry parser — touch when changing artifacts.toml schema |
-| `skills/cypilot/scripts/cypilot/commands/init.py` | Init flow — copies cache → .core/, creates config/ |
-| `src/cypilot_proxy/resolve.py` | Skill resolution — touch when changing install layout |
-| `src/cypilot_proxy/cache.py` | GitHub download — touch when changing release format |
+| `skills/cypilot/scripts/cypilot/cli.py` | Command dispatch hub — touch when adding or renaming commands |
+| `skills/cypilot/scripts/cypilot/utils/context.py` | Loads runtime context used by nearly every command |
+| `skills/cypilot/scripts/cypilot/utils/files.py` | Resolves project root, adapter root, and layout helpers |
+| `skills/cypilot/scripts/cypilot/utils/artifacts_meta.py` | Parses and normalizes the artifacts registry |
+| `skills/cypilot/scripts/cypilot/commands/init.py` | Initializes or force-reinitializes adapter/config state |
+| `skills/cypilot/scripts/cypilot/commands/update.py` | Refreshes `.core`, `.gen`, and installed kit outputs |
+| `src/cypilot_proxy/resolve.py` | Determines whether commands use project or cached skill |
+| `src/cypilot_proxy/cache.py` | Owns GitHub/local cache population semantics |
 | `.bootstrap/config/artifacts.toml` | Source of truth for systems, artifacts, codebases |
 | `tests/conftest.py` | sys.path setup — must include all source roots |

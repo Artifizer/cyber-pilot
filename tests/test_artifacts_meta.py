@@ -747,5 +747,78 @@ class TestKitFromDictEdgeCases(unittest.TestCase):
         self.assertIn("DESIGN", kit.artifacts)
 
 
+class TestCheckChildSlugConsistency(unittest.TestCase):
+    """Targeted tests for _check_child_slug_consistency error branches."""
+
+    def _make_child(self, slug: str, name: str = "Child") -> SystemNode:
+        return SystemNode(
+            name=name, slug=slug, kit="sdlc",
+            artifacts=[], codebase=[], children=[],
+        )
+
+    def _call(self, child, all_def_ids, has_ids, kind_tokens, parent_prefix=""):
+        from cypilot.utils.artifacts_meta import _check_child_slug_consistency
+        errors: list = []
+        _check_child_slug_consistency(child, all_def_ids, has_ids, kind_tokens, parent_prefix, errors)
+        return errors
+
+    def test_no_ids_no_error(self):
+        """has_ids=False with no IDs → no errors, slug unchanged."""
+        child = self._make_child("myapp")
+        errors = self._call(child, [], has_ids=False, kind_tokens={"feat"})
+        self.assertEqual(errors, [])
+        self.assertEqual(child.slug, "myapp")
+
+    def test_consistent_single_system_no_error(self):
+        """All IDs agree on a single slug → no error, slug unchanged (dedup key stability)."""
+        child = self._make_child("folder-name")
+        ids = ["cpt-myapp-feat-login", "cpt-myapp-feat-register"]
+        errors = self._call(child, ids, has_ids=True, kind_tokens={"feat"})
+        self.assertEqual(errors, [])
+        self.assertEqual(child.slug, "folder-name")
+        self.assertEqual(child.id_slug, "myapp")
+        self.assertEqual(child.get_hierarchy_prefix(), "myapp")
+
+    def test_consistent_single_system_uses_inferred_id_slug_in_meta_prefixes(self):
+        """Registered system prefixes should follow inferred ID slugs, not folder slugs."""
+        parent = self._make_child("platform", name="Platform")
+        child = self._make_child("folder-name")
+        child.parent = parent
+        ids = ["cpt-platform-myapp-feat-login", "cpt-platform-myapp-feat-register"]
+        errors = self._call(child, ids, has_ids=True, kind_tokens={"feat"}, parent_prefix="platform")
+        meta = ArtifactsMeta(version="1", project_root=".", kits={}, systems=[parent])
+        parent.children.append(child)
+        self.assertEqual(errors, [])
+        self.assertEqual(child.slug, "folder-name")
+        self.assertEqual(child.id_slug, "myapp")
+        self.assertEqual(child.get_hierarchy_prefix(), "platform-myapp")
+        self.assertEqual(meta.get_all_system_prefixes(), {"platform", "platform-myapp"})
+
+    def test_ids_missing_parent_prefix(self):
+        """IDs unambiguously resolve to a system that lacks the parent prefix."""
+        child = self._make_child("myapp")
+        ids = ["cpt-myapp-feat-login"]
+        errors = self._call(child, ids, has_ids=True, kind_tokens={"feat"}, parent_prefix="platform")
+        self.assertEqual(len(errors), 1)
+        self.assertIn("missing parent prefix", errors[0])
+        self.assertIn("platform", errors[0])
+
+    def test_inconsistent_systems_in_ids(self):
+        """IDs reference different system prefixes → inconsistent-systems error."""
+        child = self._make_child("folder")
+        ids = ["cpt-alpha-feat-login", "cpt-beta-feat-register"]
+        errors = self._call(child, ids, has_ids=True, kind_tokens={"feat"})
+        self.assertEqual(len(errors), 1)
+        self.assertIn("Inconsistent systems", errors[0])
+
+    def test_cannot_determine_system_ambiguous_ids(self):
+        """IDs that carry no unambiguous kind-token marker → cannot-determine error."""
+        child = self._make_child("folder")
+        ids = ["cpt-something-unknownkind-x"]
+        errors = self._call(child, ids, has_ids=True, kind_tokens={"feat"})
+        self.assertEqual(len(errors), 1)
+        self.assertIn("Cannot determine system", errors[0])
+
+
 if __name__ == "__main__":
     unittest.main()

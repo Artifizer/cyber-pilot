@@ -162,6 +162,7 @@ Catches structural and traceability issues that AI agents miss or hallucinate â€
 - [x] - `p1` - Heading-by-line index builder for document scope resolution - `inst-scan-ids-headings`
 - [x] - `p1` - Content scoped extraction: hash-fence blocks, heading scopes, ID-definition scopes - `inst-scan-ids-get-content`
 - [x] - `p1` - File I/O utilities: safe text reader, text file iterator, relative path converter - `inst-scan-ids-file-utils`
+- [x] - `p1` - Wrapper function for `parse_cpt` identifier parser - `inst-parse-cpt-fn`
 
 ### Scan CDSL Instructions
 
@@ -205,6 +206,11 @@ Catches structural and traceability issues that AI agents miss or hallucinate â€
 
 **Supporting**:
 - [x] - `p1` - Imports, dataclasses (ReferenceRule, HeadingConstraint, IdConstraint, ArtifactKindConstraints, KitConstraints, ArtifactRecord, ParsedCypilotId), error factory, and optional-bool parser - `inst-structure-datamodel`
+- [x] - `p1` - Entry point for `validate_artifact_file`: load constraints, dispatch validation phases - `inst-check-ids-entry`
+- [x] - `p1` - Helper functions for task/priority and ID/heading constraint validation - `inst-check-ids-helpers`
+- [x] - `p1` - TOC validation phase within artifact validation - `inst-check-toc`
+- [x] - `p1` - Build definitions-by-ID index from scanned artifact IDs - `inst-build-defs-index`
+- [x] - `p1` - Heading context resolution for CDSL instruction line matching - `inst-check-cdsl-heading-ctx`
 
 ### Cross-Validate Artifacts
 
@@ -379,6 +385,8 @@ Catches structural and traceability issues that AI agents miss or hallucinate â€
 
 **Supporting**:
 - [x] - `p1` - Heading line regex, number prefix regex, and module exports - `inst-headings-datamodel`
+- [x] - `p1` - Helper functions for heading pattern compilation, wildcard mapping, and best-match selection - `inst-match-headings-helpers`
+- [x] - `p1` - Entry-point function signature for `validate_headings_contract` - `inst-validate-headings-entry`
 
 ### Load Constraints
 
@@ -397,6 +405,7 @@ Catches structural and traceability issues that AI agents miss or hallucinate â€
 
 **Supporting**:
 - [x] - `p1` - Examples parser, heading-constraint ID slugifier, and references map parser - `inst-constraints-helpers`
+- [x] - `p1` - Normalize heading IDs and validate prev/next references in parsed constraints - `inst-constraints-normalize`
 
 ### Language Configuration
 

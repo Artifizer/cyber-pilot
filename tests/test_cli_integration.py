@@ -49,13 +49,13 @@ def _make_artifacts_toml_from_entries(entries: list) -> str:
         system = e.get("system", "Test")
         lines.append('[[systems]]')
         lines.append(f'name = "{system}"')
-        lines.append(f'slug = "test"')
-        lines.append(f'kit = "k"')
+        lines.append('slug = "test"')
+        lines.append('kit = "k"')
         lines.append('')
         lines.append('[[systems.artifacts]]')
         lines.append(f'path = "{path}"')
         lines.append(f'kind = "{kind}"')
-        lines.append(f'traceability = "FULL"')
+        lines.append('traceability = "FULL"')
         lines.append('')
     if not entries:
         lines.append('[[systems]]')
@@ -600,11 +600,12 @@ class TestCLIAgentsCommand(unittest.TestCase):
             )
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
+                ret = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
             # Should return partial status due to workflow error
             out = json.loads(stdout.getvalue())
             agent_result = out.get("results", {}).get("windsurf", {})
             self.assertIn("Missing workflow_dir", str(agent_result.get("errors", [])))
+            self.assertNotEqual(ret, 0, "should return non-zero on workflow_dir error")
 
     def test_agents_missing_template_error(self):
         """Test agents command with missing template in config."""
@@ -631,10 +632,11 @@ class TestCLIAgentsCommand(unittest.TestCase):
             )
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
+                ret = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
             out = json.loads(stdout.getvalue())
             agent_result = out.get("results", {}).get("windsurf", {})
             self.assertIn("Missing or invalid template", str(agent_result.get("errors", [])))
+            self.assertNotEqual(ret, 0, "should return non-zero on template error")
 
     def test_agents_skills_invalid_outputs_error(self):
         """Test agents command with invalid skills outputs config."""
@@ -658,10 +660,11 @@ class TestCLIAgentsCommand(unittest.TestCase):
             )
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
+                ret = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
             out = json.loads(stdout.getvalue())
             agent_result = out.get("results", {}).get("windsurf", {})
             self.assertIn("outputs must be an array", str(agent_result.get("errors", [])))
+            self.assertNotEqual(ret, 0, "should return non-zero on invalid outputs")
 
     def test_agents_skills_missing_path_error(self):
         """Test agents command with missing path in skills output."""
@@ -686,10 +689,11 @@ class TestCLIAgentsCommand(unittest.TestCase):
             )
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
+                ret = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
             out = json.loads(stdout.getvalue())
             agent_result = out.get("results", {}).get("windsurf", {})
             self.assertIn("missing path", str(agent_result.get("errors", [])))
+            self.assertNotEqual(ret, 0, "should return non-zero on missing path")
 
     def test_agents_skills_missing_template_error(self):
         """Test agents command with missing template in skills output."""
@@ -714,10 +718,11 @@ class TestCLIAgentsCommand(unittest.TestCase):
             )
             stdout = io.StringIO()
             with redirect_stdout(stdout):
-                code = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
+                ret = main(["generate-agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(root), "--config", str(cfg_path)])
             out = json.loads(stdout.getvalue())
             agent_result = out.get("results", {}).get("windsurf", {})
             self.assertIn("invalid template", str(agent_result.get("errors", [])))
+            self.assertNotEqual(ret, 0, "should return non-zero on invalid template")
 
     def test_agents_updates_existing_files(self):
         """Test agents command updates existing proxy files."""
@@ -1870,7 +1875,7 @@ Content
             stdout = io.StringIO()
             with redirect_stdout(stdout):
                 # Old style: no subcommand, just --artifact
-                exit_code = main(["--artifact", str(doc)])
+                main(["--artifact", str(doc)])
             
             # Should work (backward compat)
             output = json.loads(stdout.getvalue())
@@ -5312,6 +5317,177 @@ class TestCLIValidateCrossRef(unittest.TestCase):
                 self.assertIn(exit_code, (0, 1, 2))
             finally:
                 os.chdir(cwd)
+
+
+class TestCLIAgentsBugFixes(unittest.TestCase):
+    """Regression tests for confirmed bugs in agents/generate-agents commands."""
+
+    def _write_minimal_cypilot_skill(self, root: Path) -> None:
+        (root / "skills" / "cypilot").mkdir(parents=True, exist_ok=True)
+        (root / "skills" / "cypilot" / "SKILL.md").write_text(
+            "---\nname: cypilot\ndescription: Cypilot skill for testing\n---\n# Cypilot\n",
+            encoding="utf-8",
+        )
+
+    def _write_workflows_with_frontmatter(self, root: Path) -> None:
+        (root / "workflows").mkdir(parents=True, exist_ok=True)
+        (root / "workflows" / "generate.md").write_text(
+            "---\ncypilot: true\ntype: workflow\nname: cypilot-generate\ndescription: Generate\n---\n# Generate\n",
+            encoding="utf-8",
+        )
+
+    def test_agents_list_does_not_copy_local_cypilot(self):
+        """Bug 1: `agents` (list) must be read-only — must not copy cypilot into project.
+
+        Uses an external cypilot-root (separate from project root) to exercise the
+        original mutation path where _ensure_cypilot_local would have triggered a copy.
+        """
+        with TemporaryDirectory() as project_dir, TemporaryDirectory() as cypilot_dir:
+            root = Path(project_dir)
+            cypilot_ext = Path(cypilot_dir)
+            (root / ".git").mkdir()
+            self._write_minimal_cypilot_skill(root)
+            # Make cypilot_ext a recognisable cypilot root (needs skills/cypilot/SKILL.md)
+            self._write_minimal_cypilot_skill(cypilot_ext)
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                code = main(["agents", "--agent", "windsurf", "--root", str(root), "--cypilot-root", str(cypilot_ext)])
+
+            # Command must succeed
+            self.assertEqual(code, 0)
+            # No local copy target must have been created inside the project
+            local_cypilot = root / "cypilot"
+            self.assertFalse(
+                local_cypilot.exists(),
+                "agents list command must not create a local cypilot copy even with external --cypilot-root",
+            )
+            # The external cypilot dir itself must still exist and be unmodified
+            self.assertTrue(cypilot_ext.exists())
+
+    def test_generate_agents_explicit_bad_config_errors(self):
+        """Bug 2: explicit --config pointing at invalid JSON must error, not fall back to defaults."""
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / ".git").mkdir()
+            self._write_minimal_cypilot_skill(root)
+
+            bad_cfg = root / "bad-config.json"
+            bad_cfg.write_text("this is not json {{{", encoding="utf-8")
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                code = main([
+                    "generate-agents", "--agent", "windsurf",
+                    "--root", str(root), "--cypilot-root", str(root),
+                    "--config", str(bad_cfg),
+                ])
+
+            self.assertEqual(code, 1)
+            out = json.loads(stdout.getvalue())
+            self.assertEqual(out.get("status"), "CONFIG_ERROR")
+            # Must not silently fall back — no results key from a default run
+            self.assertNotIn("results", out)
+
+    def test_generate_agents_explicit_missing_config_errors(self):
+        """Bug 2b: explicit --config pointing at a non-existent file must error."""
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / ".git").mkdir()
+            self._write_minimal_cypilot_skill(root)
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                code = main([
+                    "generate-agents", "--agent", "windsurf",
+                    "--root", str(root), "--cypilot-root", str(root),
+                    "--config", str(root / "nonexistent-config.json"),
+                ])
+
+            self.assertEqual(code, 1)
+            out = json.loads(stdout.getvalue())
+            self.assertEqual(out.get("status"), "CONFIG_ERROR")
+
+    def test_generate_agents_missing_prompt_file_skips_subagent(self):
+        """Bug 3: agent entry with a missing prompt_file must not generate a broken subagent proxy."""
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / ".git").mkdir()
+            self._write_minimal_cypilot_skill(root)
+            self._write_workflows_with_frontmatter(root)
+
+            # Write an agents.toml that references a non-existent prompt file
+            agents_toml_dir = root / "skills" / "cypilot"
+            agents_toml_dir.mkdir(parents=True, exist_ok=True)
+            (agents_toml_dir / "agents.toml").write_text(
+                '[agents.codegen]\n'
+                'description = "Codegen agent"\n'
+                'mode = "readwrite"\n'
+                'model = "inherit"\n'
+                'prompt_file = "agents/missing-prompt.md"\n',
+                encoding="utf-8",
+            )
+
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                rc = main([
+                    "generate-agents", "--agent", "claude",
+                    "--root", str(root), "--cypilot-root", str(root),
+                ])
+
+            self.assertEqual(rc, 0, "generate-agents should succeed when skipping missing prompt_file")
+            # Claude subagent proxy filename is "{name}.md" → codegen.md (not cypilot-codegen.md)
+            subagent_proxy = root / ".claude" / "agents" / "codegen.md"
+            self.assertFalse(
+                subagent_proxy.exists(),
+                "subagent proxy must not be created when prompt_file target does not exist",
+            )
+            # Also ensure no files at all were written under .claude/agents/
+            agents_dir = root / ".claude" / "agents"
+            if agents_dir.exists():
+                md_files = list(agents_dir.glob("*.md"))
+                self.assertEqual(
+                    md_files, [],
+                    f"No subagent proxies should exist; found: {md_files}",
+                )
+
+    def test_generate_agents_nonstring_prompt_file_does_not_crash(self):
+        """Bug 1 (type): prompt_file = list/int must be skipped gracefully, not crash."""
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / ".git").mkdir()
+            self._write_minimal_cypilot_skill(root)
+            self._write_workflows_with_frontmatter(root)
+
+            agents_toml_dir = root / "skills" / "cypilot"
+            agents_toml_dir.mkdir(parents=True, exist_ok=True)
+            # TOML list value for prompt_file — this would crash path ops if not type-guarded
+            (agents_toml_dir / "agents.toml").write_text(
+                '[agents.bad]\n'
+                'description = "Bad agent"\n'
+                'prompt_file = ["not", "a", "string"]\n'
+                'mode = "readwrite"\n'
+                'model = "inherit"\n',
+                encoding="utf-8",
+            )
+
+            stderr_buf = io.StringIO()
+            stdout = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr_buf):
+                # Must not raise TypeError
+                code = main([
+                    "generate-agents", "--agent", "claude",
+                    "--root", str(root), "--cypilot-root", str(root),
+                ])
+
+            # Command completes (may return 0 — no agents to generate is not an error)
+            self.assertIn(code, (0, 1))
+            # The bad agent must have been skipped with a warning
+            stderr_out = stderr_buf.getvalue()
+            self.assertIn("bad", stderr_out)
+            # No proxy file for the bad agent should exist
+            bad_proxy = root / ".claude" / "agents" / "bad.md"
+            self.assertFalse(bad_proxy.exists())
 
 
 if __name__ == "__main__":

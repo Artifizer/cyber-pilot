@@ -103,7 +103,7 @@ def tick_once(*, state: TrackerState, config: Config, idle_seconds: int | None, 
     # @cpt-end:cpt-ex-ovwa-flow-tracker-core-tick-loop:p1:inst-return-state
 
 
-def _notification_message(*, config: Config) -> tuple[str, str]:
+def _notification_message() -> tuple[str, str]:
     title = "Overwork Alert"
     msg = "You have exceeded your configured work limit. Consider taking a break."
     return title, msg
@@ -160,16 +160,13 @@ def _maybe_send_overwork_notification(
     if not should_notify(state=state, config=config, idle_seconds=idle_seconds, now=now):
         return state
 
-    title, msg = _notification_message(config=config)
+    title, msg = _notification_message()
 
-    if is_first_alert:
-        # @cpt-begin:cpt-ex-ovwa-flow-notifications-first-alert:p1:inst-send-notification
-        ok = send_notification(title=title, message=msg)
-        # @cpt-end:cpt-ex-ovwa-flow-notifications-first-alert:p1:inst-send-notification
-    else:
-        # @cpt-begin:cpt-ex-ovwa-flow-notifications-repeat-reminder:p1:inst-send-reminder
-        ok = send_notification(title=title, message=msg)
-        # @cpt-end:cpt-ex-ovwa-flow-notifications-repeat-reminder:p1:inst-send-reminder
+    # @cpt-begin:cpt-ex-ovwa-flow-notifications-first-alert:p1:inst-send-notification
+    # @cpt-begin:cpt-ex-ovwa-flow-notifications-repeat-reminder:p1:inst-send-reminder
+    ok = send_notification(title=title, message=msg)
+    # @cpt-end:cpt-ex-ovwa-flow-notifications-repeat-reminder:p1:inst-send-reminder
+    # @cpt-end:cpt-ex-ovwa-flow-notifications-first-alert:p1:inst-send-notification
 
     if not ok:
         logger.warning("Notification delivery failed")

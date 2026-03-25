@@ -16,6 +16,7 @@ composes SKILL.md from kit @cpt:skill sections, and creates workflow proxies.
 @cpt-dod:cpt-cypilot-dod-agent-integration-workflow-discovery:p1
 """
 
+# @cpt-begin:cpt-cypilot-algo-agent-integration-generate-shims:p1:inst-agents-datamodel
 import argparse
 import json
 import os
@@ -28,6 +29,70 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ..utils.files import core_subpath, config_subpath, find_project_root, _is_cypilot_root, _read_cypilot_var, load_project_config
 from ..utils.ui import ui
+
+_TMPL_NAME = "name: {name}"
+_TMPL_DESCRIPTION = "description: {description}"
+_AGENT_TEMPLATE_HEADER = ["---", _TMPL_NAME, _TMPL_DESCRIPTION]
+_ALWAYS_FOLLOW_TARGET_PATH = "ALWAYS open and follow `{target_path}`"
+_FOLLOW_LINK_RE = re.compile(r"ALWAYS open and follow `([^`]+)`")
+_VALID_AGENT_MODES = {"readwrite", "readonly"}
+_VALID_AGENT_MODELS = {"inherit", "fast"}
+
+
+def _validate_agent_entry(
+    name: str,
+    info: Dict[str, Any],
+    source_dir: Path,
+    seen_names: Set[str],
+) -> Optional[Dict[str, Any]]:
+    """Validate and build one agent entry dict; return None to skip."""
+    if not isinstance(info, dict):
+        return None
+    if name in seen_names:
+        return None
+    if "/" in name or "\\" in name or ".." in name:
+        sys.stderr.write(f"WARNING: skipping agent with unsafe name: {name!r}\n")
+        return None
+    prompt_rel = info.get("prompt_file", "")
+    prompt_abs = None
+    if prompt_rel:
+        if not isinstance(prompt_rel, str):
+            sys.stderr.write(
+                f"WARNING: agent {name!r} prompt_file must be a string, got {type(prompt_rel).__name__!r}, skipping\n"
+            )
+            return None
+        candidate = (source_dir / prompt_rel).resolve()
+        try:
+            candidate.relative_to(source_dir.resolve())
+        except ValueError:
+            sys.stderr.write(
+                f"WARNING: agent {name!r} prompt_file escapes source dir, skipping\n"
+            )
+            return None
+        if not candidate.is_file():
+            sys.stderr.write(
+                f"WARNING: agent {name!r} prompt_file not found: {candidate}, skipping\n"
+            )
+            return None
+        prompt_abs = candidate
+    mode = info.get("mode", "readwrite")
+    model = info.get("model", "inherit")
+    if mode not in _VALID_AGENT_MODES:
+        sys.stderr.write(f"WARNING: agent {name!r} has invalid mode {mode!r}, skipping\n")
+        return None
+    if model not in _VALID_AGENT_MODELS:
+        sys.stderr.write(f"WARNING: agent {name!r} has invalid model {model!r}, skipping\n")
+        return None
+    return {
+        "name": name,
+        "description": info.get("description", f"Cypilot {name} subagent"),
+        "prompt_file_abs": prompt_abs,
+        "mode": mode,
+        "isolation": bool(info.get("isolation", False)),
+        "model": model,
+        "source_dir": source_dir,
+    }
+# @cpt-end:cpt-cypilot-algo-agent-integration-generate-shims:p1:inst-agents-datamodel
 
 # @cpt-begin:cpt-cypilot-algo-agent-integration-generate-shims:p1:inst-path-helpers
 def _safe_relpath(path: Path, base: Path) -> str:
@@ -138,6 +203,7 @@ def _ensure_cypilot_local(
         return cypilot_root, {"action": "error", "message": str(exc)}
 # @cpt-end:cpt-cypilot-algo-agent-integration-generate-shims:p1:inst-ensure-local-copy
 
+# @cpt-begin:cpt-cypilot-algo-agent-integration-generate-shims:p1:inst-write-helpers
 def _load_json_file(path: Path) -> Optional[dict]:
     if not path.is_file():
         return None
@@ -145,7 +211,7 @@ def _load_json_file(path: Path) -> Optional[dict]:
         raw = path.read_text(encoding="utf-8")
         data = json.loads(raw)
         return data if isinstance(data, dict) else None
-    except (json.JSONDecodeError, OSError, IOError):
+    except (json.JSONDecodeError, OSError, IOError, UnicodeDecodeError):
         return None
 
 def _write_or_skip(
@@ -178,7 +244,9 @@ def _write_or_skip(
             result["outputs"].append({"path": rel, "action": "updated"})
         else:
             result["outputs"].append({"path": rel, "action": "unchanged"})
+# @cpt-end:cpt-cypilot-algo-agent-integration-generate-shims:p1:inst-write-helpers
 
+# @cpt-begin:cpt-cypilot-algo-agent-integration-discover-agents:p1:inst-resolve-kits
 def _discover_kit_agents(
     cypilot_root: Path,
     project_root: Optional[Path] = None,
@@ -196,9 +264,6 @@ def _discover_kit_agents(
     ``name``, ``description``, ``prompt_file_abs``, ``mode``, ``isolation``,
     ``model``, ``source_dir``.
     """
-    _VALID_MODES = {"readwrite", "readonly"}
-    _VALID_MODELS = {"inherit", "fast"}
-
     seen_names: Set[str] = set()
     out: List[Dict[str, Any]] = []
 
@@ -215,49 +280,11 @@ def _discover_kit_agents(
         if not isinstance(agents_section, dict):
             return
         for name, info in agents_section.items():
-            if not isinstance(info, dict):
-                continue
-            if name in seen_names:
-                continue
-            # Reject names containing path separators to prevent path traversal
-            if "/" in name or "\\" in name or ".." in name:
-                sys.stderr.write(f"WARNING: skipping agent with unsafe name: {name!r}\n")
+            entry = _validate_agent_entry(name, info, source_dir, seen_names)
+            if entry is None:
                 continue
             seen_names.add(name)
-            prompt_rel = info.get("prompt_file", "")
-            prompt_abs = None
-            if prompt_rel:
-                candidate = (source_dir / prompt_rel).resolve()
-                # Ensure resolved path stays within source_dir (prevent path traversal)
-                try:
-                    candidate.relative_to(source_dir.resolve())
-                    prompt_abs = candidate
-                except ValueError:
-                    sys.stderr.write(
-                        f"WARNING: agent {name!r} prompt_file escapes source dir, skipping\n"
-                    )
-                    continue
-            mode = info.get("mode", "readwrite")
-            model = info.get("model", "inherit")
-            if mode not in _VALID_MODES:
-                sys.stderr.write(
-                    f"WARNING: agent {name!r} has invalid mode {mode!r}, skipping\n"
-                )
-                continue
-            if model not in _VALID_MODELS:
-                sys.stderr.write(
-                    f"WARNING: agent {name!r} has invalid model {model!r}, skipping\n"
-                )
-                continue
-            out.append({
-                "name": name,
-                "description": info.get("description", f"Cypilot {name} subagent"),
-                "prompt_file_abs": prompt_abs,
-                "mode": mode,
-                "isolation": bool(info.get("isolation", False)),
-                "model": model,
-                "source_dir": source_dir,
-            })
+            out.append(entry)
 
     # 1. Installed kits — agents defined by kit packages
     config_kits = _resolve_config_kits(cypilot_root, project_root)
@@ -279,8 +306,10 @@ def _discover_kit_agents(
     _load_agents_toml(core_skill / "agents.toml", core_skill)
 
     return out
+# @cpt-end:cpt-cypilot-algo-agent-integration-discover-agents:p1:inst-resolve-kits
 
 
+# @cpt-begin:cpt-cypilot-algo-agent-integration-generate-shims:p1:inst-create-proxy-templates
 # ── Per-tool subagent template mapping ──────────────────────────────
 #
 # These functions map semantic agent capabilities (mode, isolation, model)
@@ -289,11 +318,7 @@ def _discover_kit_agents(
 
 def _agent_template_claude(agent: Dict[str, Any]) -> List[str]:
     """Build Claude Code agent proxy template lines."""
-    lines = [
-        "---",
-        "name: {name}",
-        "description: {description}",
-    ]
+    lines = list(_AGENT_TEMPLATE_HEADER)
     if agent["mode"] == "readonly":
         lines.append("tools: Bash, Read, Glob, Grep")
         lines.append("disallowedTools: Write, Edit")
@@ -309,11 +334,7 @@ def _agent_template_claude(agent: Dict[str, Any]) -> List[str]:
 
 def _agent_template_cursor(agent: Dict[str, Any]) -> List[str]:
     """Build Cursor agent proxy template lines."""
-    lines = [
-        "---",
-        "name: {name}",
-        "description: {description}",
-    ]
+    lines = list(_AGENT_TEMPLATE_HEADER)
     if agent["mode"] == "readonly":
         lines.append("tools: grep, view, bash")
         lines.append("readonly: true")
@@ -327,11 +348,7 @@ def _agent_template_cursor(agent: Dict[str, Any]) -> List[str]:
 
 def _agent_template_copilot(agent: Dict[str, Any]) -> List[str]:
     """Build GitHub Copilot agent proxy template lines."""
-    lines = [
-        "---",
-        "name: {name}",
-        "description: {description}",
-    ]
+    lines = list(_AGENT_TEMPLATE_HEADER)
     if agent["mode"] == "readonly":
         lines.append('tools: ["read", "search"]')
     else:
@@ -385,6 +402,7 @@ def _render_toml_agents(agents: List[Dict[str, Any]], target_agent_paths: Dict[s
         lines.append('"""')
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
+# @cpt-end:cpt-cypilot-algo-agent-integration-generate-shims:p1:inst-create-proxy-templates
 
 
 # @cpt-begin:cpt-cypilot-algo-agent-integration-discover-agents:p1:inst-define-registry
@@ -414,8 +432,8 @@ def _default_agents_config() -> dict:
                             "path": ".windsurf/skills/cypilot/SKILL.md",
                             "template": [
                                 "---",
-                                "name: {name}",
-                                "description: {description}",
+                                _TMPL_NAME,
+                                _TMPL_DESCRIPTION,
                                 "---",
                                 "",
                                 "{custom_content}",
@@ -454,7 +472,7 @@ def _default_agents_config() -> dict:
                             "path": ".cursor/rules/cypilot.mdc",
                             "template": [
                                 "---",
-                                "description: {description}",
+                                _TMPL_DESCRIPTION,
                                 "alwaysApply: true",
                                 "---",
                                 "",
@@ -483,7 +501,7 @@ def _default_agents_config() -> dict:
                             "template": [
                                 "---",
                                 "name: cypilot",
-                                "description: {description}",
+                                _TMPL_DESCRIPTION,
                                 "disable-model-invocation: false",
                                 "user-invocable: true",
                                 "allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task, WebFetch",
@@ -499,13 +517,13 @@ def _default_agents_config() -> dict:
                             "template": [
                                 "---",
                                 "name: cypilot-generate",
-                                "description: {description}",
+                                _TMPL_DESCRIPTION,
                                 "disable-model-invocation: false",
                                 "user-invocable: true",
                                 "allowed-tools: Bash, Read, Write, Edit, Glob, Grep, Task",
                                 "---",
                                 "",
-                                "ALWAYS open and follow `{target_path}`",
+                                _ALWAYS_FOLLOW_TARGET_PATH,
                             ],
                         },
                         {
@@ -514,13 +532,13 @@ def _default_agents_config() -> dict:
                             "template": [
                                 "---",
                                 "name: cypilot-analyze",
-                                "description: {description}",
+                                _TMPL_DESCRIPTION,
                                 "disable-model-invocation: false",
                                 "user-invocable: true",
                                 "allowed-tools: Bash, Read, Glob, Grep",
                                 "---",
                                 "",
-                                "ALWAYS open and follow `{target_path}`",
+                                _ALWAYS_FOLLOW_TARGET_PATH,
                             ],
                         },
                         {
@@ -529,13 +547,13 @@ def _default_agents_config() -> dict:
                             "template": [
                                 "---",
                                 "name: cypilot-plan",
-                                "description: {description}",
+                                _TMPL_DESCRIPTION,
                                 "disable-model-invocation: false",
                                 "user-invocable: true",
                                 "allowed-tools: Bash, Read, Write, Edit, Glob, Grep",
                                 "---",
                                 "",
-                                "ALWAYS open and follow `{target_path}`",
+                                _ALWAYS_FOLLOW_TARGET_PATH,
                             ],
                         },
                         {
@@ -544,13 +562,13 @@ def _default_agents_config() -> dict:
                             "template": [
                                 "---",
                                 "name: cypilot-workspace",
-                                "description: {description}",
+                                _TMPL_DESCRIPTION,
                                 "disable-model-invocation: false",
                                 "user-invocable: true",
                                 "allowed-tools: Bash, Read, Write, Edit, Glob, Grep",
                                 "---",
                                 "",
-                                "ALWAYS open and follow `{target_path}`",
+                                _ALWAYS_FOLLOW_TARGET_PATH,
                             ],
                         },
                     ],
@@ -564,8 +582,8 @@ def _default_agents_config() -> dict:
                     "custom_content": "",
                     "template": [
                         "---",
-                        "name: {name}",
-                        "description: {description}",
+                        _TMPL_NAME,
+                        _TMPL_DESCRIPTION,
                         "---",
                         "",
                         "{custom_content}",
@@ -588,8 +606,8 @@ def _default_agents_config() -> dict:
                             "path": ".github/prompts/cypilot.prompt.md",
                             "template": [
                                 "---",
-                                "name: {name}",
-                                "description: {description}",
+                                _TMPL_NAME,
+                                _TMPL_DESCRIPTION,
                                 "---",
                                 "",
                                 "{custom_content}",
@@ -607,8 +625,8 @@ def _default_agents_config() -> dict:
                             "path": ".agents/skills/cypilot/SKILL.md",
                             "template": [
                                 "---",
-                                "name: {name}",
-                                "description: {description}",
+                                _TMPL_NAME,
+                                _TMPL_DESCRIPTION,
                                 "---",
                                 "",
                                 "{custom_content}",
@@ -763,7 +781,7 @@ def _looks_like_generated_claude_legacy_command(
         stripped,
     ):
         return False
-    match = re.search(r"ALWAYS open and follow `([^`]+)`", stripped)
+    match = _FOLLOW_LINK_RE.search(stripped)
     if not match:
         return False
     target_path = match.group(1)
@@ -861,7 +879,9 @@ def _list_workflow_files(cypilot_root: Path, project_root: Optional[Path] = None
     return out
 # @cpt-end:cpt-cypilot-algo-agent-integration-list-workflows:p1:inst-scan-core-workflows
 
+# @cpt-begin:cpt-cypilot-algo-agent-integration-discover-agents:p1:inst-define-registry-const
 _ALL_RECOGNIZED_AGENTS = ["windsurf", "cursor", "claude", "copilot", "openai"]
+# @cpt-end:cpt-cypilot-algo-agent-integration-discover-agents:p1:inst-define-registry-const
 
 # @cpt-begin:cpt-cypilot-algo-agent-integration-generate-shims:p1:inst-create-proxy
 def _process_single_agent(
@@ -983,7 +1003,7 @@ def _process_single_agent(
                     continue
                 if "ALWAYS open and follow `" not in txt:
                     continue
-                m = re.search(r"ALWAYS open and follow `([^`]+)`", txt)
+                m = _FOLLOW_LINK_RE.search(txt)
                 if not m:
                     continue
                 target_rel = m.group(1)
@@ -1037,7 +1057,7 @@ def _process_single_agent(
                     txt = pth.read_text(encoding="utf-8")
                 except Exception:
                     continue
-                m = re.search(r"ALWAYS open and follow `([^`]+)`", txt)
+                m = _FOLLOW_LINK_RE.search(txt)
                 if not m:
                     continue
                 target_rel = m.group(1)
@@ -1230,7 +1250,8 @@ def _process_single_agent(
         if output_format == "toml":
             # Render all agents into a single TOML file
             toml_path = (output_dir / "cypilot-agents.toml").resolve()
-            content = _render_toml_agents(kit_agents, target_agent_paths)
+            filtered_kit_agents = [ka for ka in kit_agents if ka.get("prompt_file_abs")]
+            content = _render_toml_agents(filtered_kit_agents, target_agent_paths)
             _write_or_skip(toml_path, content, subagents_result, project_root, dry_run)
         else:
             # Markdown + YAML frontmatter (claude, cursor, copilot)
@@ -1240,8 +1261,15 @@ def _process_single_agent(
             else:
                 for ka in kit_agents:
                     name = ka["name"]
-                    template = template_fn(ka)
                     target_agent_rel = target_agent_paths.get(name, "")
+                    if not target_agent_rel:
+                        sys.stderr.write(
+                            f"WARNING: agent {name!r} has no resolved prompt target, skipping subagent proxy\n"
+                        )
+                        subagents_result["skipped"] = True
+                        subagents_result["skip_reason"] = subagents_result.get("skip_reason", "") or "one or more agents missing prompt target"
+                        continue
+                    template = template_fn(ka)
 
                     content = _render_template(
                         template,
@@ -1314,9 +1342,74 @@ def _process_single_agent(
     }
 # @cpt-end:cpt-cypilot-algo-agent-integration-generate-shims:p1:inst-create-proxy
 
+# @cpt-begin:cpt-cypilot-algo-agent-integration-discover-agents:p1:inst-resolve-context-helper
+def _find_cypilot_root_from_file() -> Path:
+    """Probe __file__ ancestry at levels 5/6/7 for a valid cypilot root; fall back to deepest available."""
+    resolved_file = Path(__file__).resolve()
+    max_index = len(resolved_file.parents) - 1
+    for _level in (5, 6, 7):
+        if _level > max_index:
+            continue
+        _candidate = resolved_file.parents[_level]
+        if _is_cypilot_root(_candidate):
+            return _candidate
+    return resolved_file.parents[min(5, max_index)]
+# @cpt-end:cpt-cypilot-algo-agent-integration-discover-agents:p1:inst-resolve-context-helper
+
+
 # @cpt-begin:cpt-cypilot-algo-agent-integration-discover-agents:p1:inst-resolve-context
-def _resolve_agents_context(argv: List[str], prog: str, description: str, *, allow_yes: bool = False) -> Optional[tuple]:
+def _resolve_cypilot_root(args: argparse.Namespace, project_root: Path) -> Optional[Path]:
+    """Discover the Cypilot root directory from CLI args or project convention."""
+    cypilot_root = Path(args.cypilot_root).resolve() if args.cypilot_root else None
+    if cypilot_root is None:
+        cypilot_rel = _read_cypilot_var(project_root)
+        if cypilot_rel:
+            candidate = (project_root / cypilot_rel).resolve()
+            if _is_cypilot_root(candidate):
+                cypilot_root = candidate
+        if cypilot_root is None:
+            cypilot_root = _find_cypilot_root_from_file()
+    return cypilot_root
+
+
+def _load_agents_cfg(
+    args: argparse.Namespace,
+    agents_to_process: List[str],
+) -> Optional[Tuple[Optional[Path], dict]]:
+    """Load or build the agents config.  Returns ``(cfg_path, cfg)`` or *None* on error."""
+    cfg_path: Optional[Path] = Path(args.config).resolve() if args.config else None
+    if cfg_path is not None:
+        cfg: Optional[dict] = _load_json_file(cfg_path)
+        if cfg is None:
+            _cfg_err = f"Cannot read or parse config file: {cfg_path}"
+            ui.result(
+                {"status": "CONFIG_ERROR", "message": _cfg_err, "config": cfg_path.as_posix()},
+                human_fn=lambda d: (
+                    ui.error(_cfg_err),
+                    ui.hint("Ensure the file exists and contains a valid JSON object."),
+                    ui.blank(),
+                ),
+            )
+            return None
+    else:
+        cfg = None
+
+    any_recognized = any(a in set(_ALL_RECOGNIZED_AGENTS) for a in agents_to_process)
+    if cfg is None:
+        if any_recognized:
+            cfg = _default_agents_config()
+        else:
+            cfg = {"version": 1, "agents": {a: {"workflows": {}, "skills": {}} for a in agents_to_process}}
+
+    return cfg_path, cfg
+
+
+def _resolve_agents_context(argv: List[str], prog: str, description: str, *, allow_yes: bool = False, read_only: bool = False) -> Optional[tuple]:
     """Shared argument parsing and project resolution for agents commands.
+
+    When ``read_only=True``, this helper skips ``_ensure_cypilot_local`` so no
+    file copying or local-state mutation occurs. Use ``read_only`` for safe
+    list/inspection commands that should not modify project-local Cypilot files.
 
     Returns (args, agents_to_process, project_root, cypilot_root, copy_report, cfg_path, cfg)
     or None if it handled the response itself (error / early exit).
@@ -1358,45 +1451,28 @@ def _resolve_agents_context(argv: List[str], prog: str, description: str, *, all
         )
         return None
 
-    cypilot_root = Path(args.cypilot_root).resolve() if args.cypilot_root else None
-    if cypilot_root is None:
-        cypilot_rel = _read_cypilot_var(project_root)
-        if cypilot_rel:
-            candidate = (project_root / cypilot_rel).resolve()
-            if _is_cypilot_root(candidate):
-                cypilot_root = candidate
-        if cypilot_root is None:
-            resolved_file = Path(__file__).resolve()
-            for _level in (5, 6, 7):
-                _candidate = resolved_file.parents[_level]
-                if _is_cypilot_root(_candidate):
-                    cypilot_root = _candidate
-                    break
-            else:
-                cypilot_root = resolved_file.parents[5]
+    cypilot_root = _resolve_cypilot_root(args, project_root)
 
-    cypilot_root, copy_report = _ensure_cypilot_local(cypilot_root, project_root, args.dry_run)
-    if copy_report.get("action") == "error":
-        _err_msg = f"Failed to copy cypilot into project: {copy_report.get('message', 'unknown')}"
-        ui.result(
-            {"status": "COPY_ERROR", "message": _err_msg, "cypilot_root": cypilot_root.as_posix(), "project_root": project_root.as_posix()},
-            human_fn=lambda d: (
-                ui.error(_err_msg),
-                ui.hint("Check permissions and disk space."),
-                ui.blank(),
-            ),
-        )
+    if read_only:
+        copy_report: dict = {"action": "none"}
+    else:
+        cypilot_root, copy_report = _ensure_cypilot_local(cypilot_root, project_root, args.dry_run)
+        if copy_report.get("action") == "error":
+            _err_msg = f"Failed to copy cypilot into project: {copy_report.get('message', 'unknown')}"
+            ui.result(
+                {"status": "COPY_ERROR", "message": _err_msg, "cypilot_root": cypilot_root.as_posix(), "project_root": project_root.as_posix()},
+                human_fn=lambda d: (
+                    ui.error(_err_msg),
+                    ui.hint("Check permissions and disk space."),
+                    ui.blank(),
+                ),
+            )
+            return None
+
+    cfg_result = _load_agents_cfg(args, agents_to_process)
+    if cfg_result is None:
         return None
-
-    cfg_path: Optional[Path] = Path(args.config).resolve() if args.config else None
-    cfg: Optional[dict] = _load_json_file(cfg_path) if cfg_path else None
-
-    any_recognized = any(a in set(_ALL_RECOGNIZED_AGENTS) for a in agents_to_process)
-    if cfg is None:
-        if any_recognized:
-            cfg = _default_agents_config()
-        else:
-            cfg = {"version": 1, "agents": {a: {"workflows": {}, "skills": {}} for a in agents_to_process}}
+    cfg_path, cfg = cfg_result
 
     return args, agents_to_process, project_root, cypilot_root, copy_report, cfg_path, cfg
 # @cpt-end:cpt-cypilot-algo-agent-integration-discover-agents:p1:inst-resolve-context
@@ -1404,7 +1480,7 @@ def _resolve_agents_context(argv: List[str], prog: str, description: str, *, all
 # @cpt-begin:cpt-cypilot-algo-agent-integration-generate-shims:p1:inst-cmd-agents-list
 def cmd_agents(argv: List[str]) -> int:
     """Read-only command: list generated agent integration files."""
-    ctx = _resolve_agents_context(argv, prog="agents", description="Show generated agent integration files")
+    ctx = _resolve_agents_context(argv, prog="agents", description="Show generated agent integration files", read_only=True)
     if ctx is None:
         return 1
     args, agents_to_process, project_root, cypilot_root, copy_report, cfg_path, cfg = ctx
@@ -1428,8 +1504,10 @@ def cmd_agents(argv: List[str]) -> int:
     return 0
 # @cpt-end:cpt-cypilot-algo-agent-integration-generate-shims:p1:inst-cmd-agents-list
 
+# @cpt-begin:cpt-cypilot-flow-agent-integration-generate:p1:inst-user-agents-entry
 def cmd_generate_agents(argv: List[str]) -> int:
     """Generate/update agent-specific workflow proxies and skill outputs."""
+    # @cpt-end:cpt-cypilot-flow-agent-integration-generate:p1:inst-user-agents-entry
     # @cpt-begin:cpt-cypilot-flow-agent-integration-generate:p1:inst-user-agents
     ctx = _resolve_agents_context(
         argv, prog="generate-agents",
@@ -1485,6 +1563,9 @@ def cmd_generate_agents(argv: List[str]) -> int:
         # Just show the preview and exit
         agents_result = _build_result(preview_results, agents_to_process, project_root, cypilot_root, cfg_path, copy_report, dry_run=True)
         ui.result(agents_result, human_fn=lambda d: _human_generate_agents_ok(d, agents_to_process, preview_results, dry_run=True))
+        _failing = {"PARTIAL", "CONFIG_ERROR"}
+        if any(r.get("status") in _failing for r in preview_results.values()):
+            return 1
         return 0
 
     # Step 2: Show preview and ask for confirmation (interactive)
@@ -1522,7 +1603,9 @@ def cmd_generate_agents(argv: List[str]) -> int:
     ui.result(agents_result, human_fn=lambda d: _human_generate_agents_ok(d, agents_to_process, results, dry_run=False))
 
     # @cpt-end:cpt-cypilot-flow-agent-integration-generate:p1:inst-return-report
+    # @cpt-begin:cpt-cypilot-flow-agent-integration-generate:p1:inst-return-exit-code
     return 0 if not has_errors else 1
+    # @cpt-end:cpt-cypilot-flow-agent-integration-generate:p1:inst-return-exit-code
 
 # @cpt-begin:cpt-cypilot-algo-agent-integration-generate-shims:p1:inst-format-output
 def _build_result(
@@ -1649,6 +1732,65 @@ def _human_generate_agents_preview(
             ui.substep(f"subagents skipped: {skipped_sub_reason}")
     ui.blank()
 
+def _render_agent_file_actions(
+    wf: Dict[str, Any],
+    sk: Dict[str, Any],
+    sub: Dict[str, Any],
+) -> None:
+    """Emit ui.file_action calls for one agent's workflows, skills, and subagents."""
+    for path in wf.get("created", []):
+        ui.file_action(path, "created")
+    for path in wf.get("updated", []):
+        ui.file_action(path, "updated")
+    for old_path, new_path in wf.get("renamed", []):
+        ui.substep(f"workflow renamed: {old_path} -> {new_path}")
+    for path in wf.get("deleted", []):
+        ui.file_action(path, "deleted")
+    for path in sk.get("created", []):
+        ui.file_action(path, "created")
+    for path in sk.get("updated", []):
+        ui.file_action(path, "updated")
+    for path in sk.get("deleted", []):
+        ui.file_action(path, "deleted")
+    for item in sk.get("skipped", []):
+        ui.warn(f"  skipped: {item}")
+    for path in sub.get("created", []):
+        ui.file_action(path, "created")
+    for path in sub.get("updated", []):
+        ui.file_action(path, "updated")
+    if sub.get("skipped") and sub.get("skip_reason"):
+        ui.substep(f"subagents skipped: {sub.get('skip_reason')}")
+
+
+def _build_agent_summary_parts(
+    wf_counts: Dict[str, Any],
+    sk_counts: Dict[str, Any],
+    sub_counts: Dict[str, Any],
+    dry_run: bool,
+) -> List[str]:
+    """Build summary parts list for one agent's result counts."""
+    total_wf = wf_counts.get("created", 0) + wf_counts.get("updated", 0) + wf_counts.get("renamed", 0)
+    total_wf_deleted = wf_counts.get("deleted", 0)
+    total_sk = sk_counts.get("created", 0) + sk_counts.get("updated", 0)
+    total_sub = sub_counts.get("created", 0) + sub_counts.get("updated", 0)
+    total_deleted = sk_counts.get("deleted", 0) + sub_counts.get("deleted", 0)
+    total_skipped = sk_counts.get("skipped", 0)
+    parts: List[str] = []
+    if total_wf:
+        parts.append(f"{total_wf} workflow(s)")
+    if total_wf_deleted:
+        parts.append(f"{total_wf_deleted} workflow proxy/proxies {'would be removed' if dry_run else 'removed'}")
+    if total_sk:
+        parts.append(f"{total_sk} skill file(s)")
+    if total_sub:
+        parts.append(f"{total_sub} subagent file(s)")
+    if total_deleted:
+        parts.append(f"{total_deleted} legacy command(s) {'would be removed' if dry_run else 'removed'}")
+    if total_skipped:
+        parts.append(f"{total_skipped} legacy command(s) {'would be preserved' if dry_run else 'preserved'}")
+    return parts
+
+
 def _human_generate_agents_ok(
     data: Dict[str, Any],
     agents_to_process: List[str],
@@ -1663,86 +1805,20 @@ def _human_generate_agents_ok(
         wf = r.get("workflows", {})
         sk = r.get("skills", {})
         sub = r.get("subagents", {})
-        wf_counts = wf.get("counts", {})
-        sk_counts = sk.get("counts", {})
-        sub_counts = sub.get("counts", {})
 
         if agent_status == "PASS":
             ui.step(f"{agent_name}")
         else:
             ui.warn(f"{agent_name} ({agent_status})")
 
-        # Workflows
-        created_wf = wf.get("created", [])
-        updated_wf = wf.get("updated", [])
-        renamed_wf = wf.get("renamed", [])
-        deleted_wf = wf.get("deleted", [])
-        for path in created_wf:
-            ui.file_action(path, "created")
-        for path in updated_wf:
-            ui.file_action(path, "updated")
-        for old_path, new_path in renamed_wf:
-            ui.substep(f"workflow renamed: {old_path} -> {new_path}")
-        for path in deleted_wf:
-            ui.file_action(path, "deleted")
+        _render_agent_file_actions(wf, sk, sub)
 
-        # Skills
-        created_sk = sk.get("created", [])
-        updated_sk = sk.get("updated", [])
-        deleted_sk = sk.get("deleted", [])
-        skipped_sk = sk.get("skipped", [])
-        for path in created_sk:
-            ui.file_action(path, "created")
-        for path in updated_sk:
-            ui.file_action(path, "updated")
-        for path in deleted_sk:
-            ui.file_action(path, "deleted")
-        for item in skipped_sk:
-            ui.warn(f"  skipped: {item}")
-
-        # Subagents
-        created_sub = sub.get("created", [])
-        updated_sub = sub.get("updated", [])
-        for path in created_sub:
-            ui.file_action(path, "created")
-        for path in updated_sub:
-            ui.file_action(path, "updated")
-        if sub.get("skipped") and sub.get("skip_reason"):
-            ui.substep(f"subagents skipped: {sub.get('skip_reason')}")
-
-        total_wf = (
-            wf_counts.get("created", 0)
-            + wf_counts.get("updated", 0)
-            + wf_counts.get("renamed", 0)
+        parts = _build_agent_summary_parts(
+            wf.get("counts", {}), sk.get("counts", {}), sub.get("counts", {}), dry_run,
         )
-        total_wf_deleted = wf_counts.get("deleted", 0)
-        total_sk = sk_counts.get("created", 0) + sk_counts.get("updated", 0)
-        total_sub = sub_counts.get("created", 0) + sub_counts.get("updated", 0)
-        total_deleted = sk_counts.get("deleted", 0)
-        total_skipped = sk_counts.get("skipped", 0)
-        if total_wf or total_wf_deleted or total_sk or total_sub or total_deleted or total_skipped:
-            parts = []
-            if total_wf:
-                parts.append(f"{total_wf} workflow(s)")
-            if total_wf_deleted:
-                parts.append(
-                    f"{total_wf_deleted} workflow proxy/proxies {'would be removed' if dry_run else 'removed'}"
-                )
-            if total_sk:
-                parts.append(f"{total_sk} skill file(s)")
-            if total_sub:
-                parts.append(f"{total_sub} subagent file(s)")
-            if total_deleted:
-                parts.append(
-                    f"{total_deleted} legacy command(s) {'would be removed' if dry_run else 'removed'}"
-                )
-            if total_skipped:
-                parts.append(
-                    f"{total_skipped} legacy command(s) {'would be preserved' if dry_run else 'preserved'}"
-                )
+        if parts:
             ui.substep(", ".join(parts))
 
-        # Errors
         errs = r.get("errors") or []
         for e in errs:
             ui.warn(f"  {e}")

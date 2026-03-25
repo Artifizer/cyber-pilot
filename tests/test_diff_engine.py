@@ -501,7 +501,7 @@ class TestFileLevelKitUpdate(unittest.TestCase):
             src.mkdir(); usr.mkdir()
             (src / "NEW.md").write_text("new file\n", encoding="utf-8")
             with patch("cypilot.utils.diff_engine._prompt_kit_file", return_value="accept"):
-                result = file_level_kit_update(src, usr, interactive=True, content_files=("NEW.md",))
+                file_level_kit_update(src, usr, interactive=True, content_files=("NEW.md",))
             self.assertTrue((usr / "NEW.md").is_file())
 
     def test_interactive_removed_file(self):
@@ -513,7 +513,7 @@ class TestFileLevelKitUpdate(unittest.TestCase):
             src.mkdir(); usr.mkdir()
             (usr / "OLD.md").write_text("old\n", encoding="utf-8")
             with patch("cypilot.utils.diff_engine._prompt_kit_file", return_value="accept"):
-                result = file_level_kit_update(src, usr, interactive=True, content_files=("OLD.md",))
+                file_level_kit_update(src, usr, interactive=True, content_files=("OLD.md",))
             self.assertFalse((usr / "OLD.md").is_file())
 
     def test_dry_run_does_not_write(self):
@@ -524,7 +524,7 @@ class TestFileLevelKitUpdate(unittest.TestCase):
             src.mkdir(); usr.mkdir()
             (src / "SKILL.md").write_text("new\n", encoding="utf-8")
             (usr / "SKILL.md").write_text("old\n", encoding="utf-8")
-            result = file_level_kit_update(src, usr, auto_approve=True, dry_run=True, content_files=("SKILL.md",))
+            file_level_kit_update(src, usr, auto_approve=True, dry_run=True, content_files=("SKILL.md",))
             # File should NOT be updated
             self.assertEqual((usr / "SKILL.md").read_text(), "old\n")
 
@@ -970,7 +970,7 @@ class TestPromptTocRegen(unittest.TestCase):
         self.assertEqual(_prompt_toc_regen("foo.md"), "yes")
 
     @patch("builtins.input", return_value="yes")
-    def test_yes_full(self, _mock):
+    def test_yes_long_form(self, _mock):
         from cypilot.utils.diff_engine import _prompt_toc_regen
         self.assertEqual(_prompt_toc_regen("foo.md"), "yes")
 
@@ -979,15 +979,16 @@ class TestPromptTocRegen(unittest.TestCase):
         from cypilot.utils.diff_engine import _prompt_toc_regen
         self.assertEqual(_prompt_toc_regen("foo.md"), "no")
 
-    @patch("builtins.input", return_value="")
-    def test_empty(self, _mock):
+    def test_returns_no_for_empty_or_eof(self):
         from cypilot.utils.diff_engine import _prompt_toc_regen
-        self.assertEqual(_prompt_toc_regen("foo.md"), "no")
-
-    @patch("builtins.input", side_effect=EOFError)
-    def test_eof(self, _mock):
-        from cypilot.utils.diff_engine import _prompt_toc_regen
-        self.assertEqual(_prompt_toc_regen("foo.md"), "no")
+        cases = [
+            ("empty input", patch("builtins.input", return_value="")),
+            ("EOF", patch("builtins.input", side_effect=EOFError)),
+        ]
+        for label, mock_input in cases:
+            with self.subTest(label):
+                with mock_input:
+                    self.assertEqual(_prompt_toc_regen("foo.md"), "no")
 
 
 class TestPromptTocErrorContinue(unittest.TestCase):
@@ -1003,15 +1004,21 @@ class TestPromptTocErrorContinue(unittest.TestCase):
         from cypilot.utils.diff_engine import _prompt_toc_error_continue
         self.assertFalse(_prompt_toc_error_continue("foo.md", RuntimeError("oops")))
 
-    @patch("builtins.input", return_value="")
-    def test_default_continue(self, _mock):
+    def test_default_continue_for_empty(self):
         from cypilot.utils.diff_engine import _prompt_toc_error_continue
-        self.assertTrue(_prompt_toc_error_continue("foo.md", RuntimeError("oops")))
+        with patch("builtins.input", return_value=""):
+            self.assertTrue(_prompt_toc_error_continue("foo.md", RuntimeError("oops")))
 
-    @patch("builtins.input", side_effect=EOFError)
-    def test_eof_stops(self, _mock):
+    def test_returns_false_for_empty_or_eof(self):
         from cypilot.utils.diff_engine import _prompt_toc_error_continue
-        self.assertFalse(_prompt_toc_error_continue("foo.md", RuntimeError("oops")))
+        cases = [
+            ("empty input returns continue (not stop)", patch("builtins.input", return_value=""), True),
+            ("EOF stops", patch("builtins.input", side_effect=EOFError), False),
+        ]
+        for label, mock_input, expected in cases:
+            with self.subTest(label):
+                with mock_input:
+                    self.assertEqual(_prompt_toc_error_continue("foo.md", RuntimeError("oops")), expected)
 
 
 class TestRegenerateToc(unittest.TestCase):
@@ -1247,7 +1254,7 @@ class TestFileLevelKitUpdateTocIntegration(unittest.TestCase):
                     side_effect=RuntimeError("toc broken"),
                 ),
             ):
-                result = file_level_kit_update(
+                file_level_kit_update(
                     src, usr, interactive=True, auto_approve=False
                 )
 

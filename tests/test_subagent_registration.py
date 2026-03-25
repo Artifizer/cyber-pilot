@@ -225,6 +225,7 @@ class TestDiscoverKitAgents(unittest.TestCase):
             # Core agent
             skill_dir = cypilot / "skills" / "cypilot"
             skill_dir.mkdir(parents=True)
+            (skill_dir / "x.md").write_text("core prompt", encoding="utf-8")
             (skill_dir / "agents.toml").write_text(
                 '[agents.my-agent]\ndescription = "from core"\nprompt_file = "x.md"\n',
                 encoding="utf-8",
@@ -232,6 +233,7 @@ class TestDiscoverKitAgents(unittest.TestCase):
             # Kit agent with same name
             kit_dir = cypilot / "config" / "kits" / "sdlc"
             kit_dir.mkdir(parents=True)
+            (kit_dir / "x.md").write_text("kit prompt", encoding="utf-8")
             (kit_dir / "agents.toml").write_text(
                 '[agents.my-agent]\ndescription = "from kit"\nprompt_file = "x.md"\n',
                 encoding="utf-8",
@@ -247,12 +249,14 @@ class TestDiscoverKitAgents(unittest.TestCase):
             # Kit "aaa" comes first alphabetically
             kit_a = cypilot / "config" / "kits" / "aaa"
             kit_a.mkdir(parents=True)
+            (kit_a / "x.md").write_text("aaa prompt", encoding="utf-8")
             (kit_a / "agents.toml").write_text(
                 '[agents.my-agent]\ndescription = "from aaa"\nprompt_file = "x.md"\n',
                 encoding="utf-8",
             )
             kit_b = cypilot / "config" / "kits" / "bbb"
             kit_b.mkdir(parents=True)
+            (kit_b / "x.md").write_text("bbb prompt", encoding="utf-8")
             (kit_b / "agents.toml").write_text(
                 '[agents.my-agent]\ndescription = "from bbb"\nprompt_file = "x.md"\n',
                 encoding="utf-8",

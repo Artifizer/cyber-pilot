@@ -255,6 +255,18 @@ def validate_manifest(manifest: Manifest, kit_source: Path) -> List[str]:
 # Resource Resolution API
 # ---------------------------------------------------------------------------
 
+def _resolve_binding_path(cypilot_dir: Path, identifier: str, binding_path: str) -> Path:
+    from ..commands.kit import _normalize_path_string, _resolve_registered_kit_dir
+
+    normalized_path = _normalize_path_string(binding_path)
+    resolved_path = _resolve_registered_kit_dir(cypilot_dir, normalized_path)
+    if resolved_path is None:
+        raise ValueError(
+            f"Resource '{identifier}' binding path '{normalized_path}' is an absolute path that is not accessible on this OS"
+        )
+    return resolved_path
+
+
 # @cpt-begin:cpt-cypilot-algo-kit-manifest-resolve:p1:inst-resolve-read-bindings
 def resolve_resource_bindings(
     config_dir: Path, slug: str, cypilot_dir: Path,
@@ -268,48 +280,70 @@ def resolve_resource_bindings(
 
     Returns a dict mapping resource identifiers to absolute ``Path`` objects.
     Returns an empty dict if no resources section exists.
+    Raises ``ValueError`` if a configured binding path cannot be resolved on
+    the current OS.
 
     @cpt-algo:cpt-cypilot-algo-kit-manifest-resolve:p1
     """
+    result, binding_errors = resolve_resource_bindings_with_errors(
+        config_dir,
+        slug,
+        cypilot_dir,
+    )
+    if binding_errors:
+        raise ValueError("; ".join(binding_errors))
+    return result
+
+
+def resolve_resource_bindings_with_errors(
+    config_dir: Path,
+    slug: str,
+    cypilot_dir: Path,
+) -> Tuple[Dict[str, Path], List[str]]:
+    """Resolve resource bindings while preserving valid entries and collecting errors."""
     core_toml = config_dir / "core.toml"
     if not core_toml.is_file():
-        return {}
+        return {}, []
 
     try:
         with open(core_toml, "rb") as f:
             data = tomllib.load(f)
-    except Exception as exc:
-        import sys
-        sys.stderr.write(f"resolve_resource_bindings: failed to parse {core_toml}: {exc}\n")
-        return {}
+    except tomllib.TOMLDecodeError as exc:
+        return {}, [f"Failed to parse {core_toml}: {exc}"]
+    except OSError as exc:
+        return {}, [f"Failed to read {core_toml}: {exc}"]
 
     kits = data.get("kits")
     if not isinstance(kits, dict):
-        return {}
+        return {}, []
     kit_entry = kits.get(slug)
     if not isinstance(kit_entry, dict):
-        return {}
+        return {}, []
     resources = kit_entry.get("resources")
     if not isinstance(resources, dict):
-        return {}
+        return {}, []
     # @cpt-end:cpt-cypilot-algo-kit-manifest-resolve:p1:inst-resolve-read-bindings
 
     # @cpt-begin:cpt-cypilot-algo-kit-manifest-resolve:p1:inst-resolve-to-absolute
     result: Dict[str, Path] = {}
+    binding_errors: List[str] = []
     for identifier, binding in resources.items():
         if isinstance(binding, dict):
-            rel_path = str(binding.get("path", "")).strip()
+            binding_path = str(binding.get("path", "")).strip()
         elif isinstance(binding, str):
-            rel_path = binding.strip()
+            binding_path = binding.strip()
         else:
             continue
-        if not rel_path:
+        if not binding_path:
             continue
-        result[identifier] = (cypilot_dir / rel_path).resolve()
+        try:
+            result[identifier] = _resolve_binding_path(cypilot_dir, identifier, binding_path)
+        except ValueError as exc:
+            binding_errors.append(str(exc))
     # @cpt-end:cpt-cypilot-algo-kit-manifest-resolve:p1:inst-resolve-to-absolute
 
     # @cpt-begin:cpt-cypilot-algo-kit-manifest-resolve:p1:inst-resolve-return
-    return result
+    return result, binding_errors
     # @cpt-end:cpt-cypilot-algo-kit-manifest-resolve:p1:inst-resolve-return
 
 

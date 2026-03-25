@@ -24,6 +24,7 @@ from cypilot.commands.migrate import (
     INSTALL_TYPE_GIT_CLONE,
     INSTALL_TYPE_PLAIN_DIR,
     INSTALL_TYPE_SUBMODULE,
+    _init_v3_dirs,
     backup_v2_state,
     cleanup_core_path,
     convert_agents_md,
@@ -39,12 +40,11 @@ from cypilot.commands.migrate import (
     cmd_migrate_config,
     _remove_gitmodule_entry,
     _rollback,
-    _write_gen_agents,
-    _copy_tree_contents,
     _normalize_pr_review_data,
     _migrate_adapter_json_configs,
     _cleanup_old_adapter_agent_files,
     _install_default_kit_from_cache,
+    _run_migrate_steps,
 )
 
 
@@ -346,7 +346,7 @@ class TestCleanupCorePath(unittest.TestCase):
             result = cleanup_core_path(root, ".cypilot", INSTALL_TYPE_GIT_CLONE)
             self.assertTrue(result["success"])
             self.assertFalse((root / ".cypilot").exists())
-            self.assertTrue(len(result["warnings"]) > 0)
+            self.assertGreater(len(result["warnings"]), 0)
 
 
 # ===========================================================================
@@ -484,7 +484,7 @@ class TestConvertArtifactsRegistry(unittest.TestCase):
                 "kits": {"sdlc": {"format": "Cypilot", "path": "kits/sdlc"}},
                 "ignore": [],
             }
-            result = convert_artifacts_registry(v2_data, target)
+            convert_artifacts_registry(v2_data, target)
             from cypilot.utils import toml_utils
             registry = toml_utils.load(target / "artifacts.toml")
             system = registry["systems"][0]
@@ -512,7 +512,7 @@ class TestConvertAgentsMd(unittest.TestCase):
                 encoding="utf-8",
             )
             target = root / "cypilot" / "config"
-            result = convert_agents_md(root, ".cypilot-adapter", target)
+            result = convert_agents_md(root, ".cypilot-adapter", ".cypilot", target)
             self.assertFalse(result.get("skipped"))
             content = (target / "AGENTS.md").read_text()
             self.assertNotIn("artifacts.json", content)
@@ -524,8 +524,26 @@ class TestConvertAgentsMd(unittest.TestCase):
             root = Path(d)
             (root / ".cypilot-adapter").mkdir()
             target = root / "cypilot" / "config"
-            result = convert_agents_md(root, ".cypilot-adapter", target)
+            result = convert_agents_md(root, ".cypilot-adapter", ".cypilot", target)
             self.assertTrue(result.get("skipped"))
+
+    def test_custom_core_extends_reference_removed(self):
+        with TemporaryDirectory() as d:
+            root = Path(d)
+            adapter = root / ".custom-adapter"
+            adapter.mkdir()
+            (adapter / "AGENTS.md").write_text(
+                "# Rules\n"
+                "**Extends**: `../vendor/cyber-core/AGENTS.md`\n"
+                "ALWAYS open artifacts.json WHEN reviewing\n",
+                encoding="utf-8",
+            )
+            target = root / "cypilot" / "config"
+            result = convert_agents_md(root, ".custom-adapter", "cyber-core", target)
+            self.assertFalse(result.get("skipped"))
+            content = (target / "AGENTS.md").read_text(encoding="utf-8")
+            self.assertNotIn("Extends", content)
+            self.assertIn("artifacts.toml", content)
 
 
 # ===========================================================================
@@ -555,7 +573,7 @@ class TestGenerateCoreToml(unittest.TestCase):
             root = Path(d) / "my-project"
             root.mkdir()
             target = root / "cypilot" / "config"
-            result = generate_core_toml(root, [], {}, target)
+            generate_core_toml(root, [], {}, target)
             from cypilot.utils import toml_utils
             core = toml_utils.load(target / "core.toml")
             self.assertNotIn("system", core)  # ADR-0014: system lives in artifacts.toml
@@ -666,7 +684,7 @@ class TestMigrateKits(unittest.TestCase):
             (cypilot_dir / "config").mkdir(parents=True)
             (cypilot_dir / ".gen").mkdir(parents=True)
 
-            result = migrate_kits(
+            migrate_kits(
                 {"my-kit": {"format": "Cypilot"}},
                 ".cypilot-adapter",
                 root,
@@ -729,7 +747,7 @@ class TestValidateMigration(unittest.TestCase):
             v2 = {"systems": [], "has_agents_md": False}
             result = validate_migration(root, cypilot_dir, v2)
             self.assertFalse(result["passed"])
-            self.assertTrue(len(result["issues"]) > 0)
+            self.assertGreater(len(result["issues"]), 0)
 
     def test_valid_migration(self):
         with TemporaryDirectory() as d:
@@ -794,8 +812,6 @@ class TestRunMigrate(unittest.TestCase):
                     # Also patch init's CACHE_DIR since it's used via _copy_from_cache
                     with patch("cypilot.commands.init.CACHE_DIR", cache):
                         # Patch cmd_agents to avoid complexity in test
-                        with patch("cypilot.commands.migrate.run_migrate.__module__"):
-                            pass
                         result = run_migrate(root, yes=True)
             finally:
                 os.chdir(cwd)
@@ -943,6 +959,7 @@ class TestComplexMigration(unittest.TestCase):
                                 "DESIGN": {"pattern": "DESIGN.md", "traceability": "full"},
                             },
                             "codebase": [{"name": "api", "path": "backend/src", "extensions": [".py"]}],
+                            "validation": {"traceability": True},
                         },
                     ],
                     "children": [
@@ -1033,6 +1050,48 @@ class TestRollback(unittest.TestCase):
             self.assertIn(".cypilot-adapter", result["restored"])
             self.assertTrue((root / "AGENTS.md").is_file())
 
+    def test_rollback_removes_newly_created_install_dir(self):
+        with TemporaryDirectory() as d:
+            root = Path(d)
+            backup = root / "backup"
+            backup.mkdir()
+            (backup / "AGENTS.md").write_text("# agents", encoding="utf-8")
+            (backup / "manifest.json").write_text(
+                json.dumps({"backed_up": ["AGENTS.md"]}),
+                encoding="utf-8",
+            )
+            created_install_dir = root / "cypilot"
+            created_install_dir.mkdir()
+            (created_install_dir / "config").mkdir()
+
+            result = _rollback(root, backup, created_install_dir)
+
+            self.assertTrue(result["success"])
+            self.assertFalse(created_install_dir.exists())
+            self.assertIn(str(created_install_dir), result["cleaned"])
+
+    def test_rollback_preserves_restored_install_dir_when_paths_overlap(self):
+        with TemporaryDirectory() as d:
+            root = Path(d)
+            backup = root / "backup"
+            backup.mkdir()
+            (backup / ".cypilot").mkdir()
+            (backup / ".cypilot" / "restored.txt").write_text("v2", encoding="utf-8")
+            (backup / "manifest.json").write_text(
+                json.dumps({"backed_up": [".cypilot"]}),
+                encoding="utf-8",
+            )
+            created_install_dir = root / ".cypilot"
+            created_install_dir.mkdir()
+            (created_install_dir / "config").mkdir()
+
+            result = _rollback(root, backup, created_install_dir)
+
+            self.assertTrue(result["success"])
+            self.assertTrue(created_install_dir.exists())
+            self.assertTrue((created_install_dir / "restored.txt").is_file())
+            self.assertNotIn(str(created_install_dir), result["cleaned"])
+
     def test_rollback_no_manifest(self):
         with TemporaryDirectory() as d:
             backup = Path(d) / "empty_backup"
@@ -1080,54 +1139,25 @@ class TestRollback(unittest.TestCase):
             self.assertTrue((root / "somedir" / "old.txt").is_file())
 
 
-# ===========================================================================
-# Test: _write_gen_agents
-# ===========================================================================
-
-class TestWriteGenAgents(unittest.TestCase):
-    def test_writes_gen_agents(self):
+class TestInitV3Dirs(unittest.TestCase):
+    def test_existing_empty_install_dir_is_marked_for_cleanup(self):
         with TemporaryDirectory() as d:
-            gen_dir = Path(d) / ".gen"
-            _write_gen_agents(gen_dir, "my-project")
-            agents = gen_dir / "AGENTS.md"
-            self.assertTrue(agents.is_file())
-            content = agents.read_text()
-            self.assertIn("my-project", content)
-            self.assertIn("artifacts.toml", content)
+            root = Path(d)
+            cypilot_dir = root / "cypilot"
+            cypilot_dir.mkdir()
+            config_dir = cypilot_dir / "config"
+            cache = root / "_cache"
+            _make_cache(cache)
 
+            with patch("cypilot.commands.migrate.CACHE_DIR", cache):
+                with patch("cypilot.commands.init.CACHE_DIR", cache):
+                    _gen_dir, _core_dir, created_cypilot_dir = _init_v3_dirs(
+                        cypilot_dir,
+                        config_dir,
+                        "cypilot",
+                    )
 
-# ===========================================================================
-# Test: _copy_tree_contents
-# ===========================================================================
-
-class TestCopyTreeContents(unittest.TestCase):
-    def test_copies_files_and_dirs(self):
-        with TemporaryDirectory() as d:
-            src = Path(d) / "src"
-            dst = Path(d) / "dst"
-            src.mkdir()
-            dst.mkdir()
-            (src / "file.txt").write_text("hello")
-            sub = src / "subdir"
-            sub.mkdir()
-            (sub / "nested.txt").write_text("nested")
-            _copy_tree_contents(src, dst)
-            self.assertEqual((dst / "file.txt").read_text(), "hello")
-            self.assertEqual((dst / "subdir" / "nested.txt").read_text(), "nested")
-
-    def test_overwrites_existing_dir(self):
-        with TemporaryDirectory() as d:
-            src = Path(d) / "src"
-            dst = Path(d) / "dst"
-            src.mkdir()
-            dst.mkdir()
-            (src / "subdir").mkdir()
-            (src / "subdir" / "new.txt").write_text("new")
-            (dst / "subdir").mkdir()
-            (dst / "subdir" / "old.txt").write_text("old")
-            _copy_tree_contents(src, dst)
-            self.assertTrue((dst / "subdir" / "new.txt").is_file())
-            self.assertFalse((dst / "subdir" / "old.txt").is_file())
+            self.assertTrue(created_cypilot_dir)
 
 
 # ===========================================================================
@@ -1282,7 +1312,7 @@ class TestConvertAgentsMdEdgeCases(unittest.TestCase):
             (adapter / "AGENTS.md").write_text("# rules")
             target = root / "config"
             with patch.object(Path, "read_text", side_effect=OSError("perm denied")):
-                result = convert_agents_md(root, ".cypilot-adapter", target)
+                result = convert_agents_md(root, ".cypilot-adapter", ".cypilot", target)
             self.assertTrue(result.get("skipped"))
             self.assertIn("Failed to read", result.get("reason", ""))
 
@@ -1551,11 +1581,11 @@ class TestRunMigrateEdgeCases(unittest.TestCase):
             _make_cache(cache)
             with patch("cypilot.commands.migrate.CACHE_DIR", cache):
                 with patch("cypilot.commands.init.CACHE_DIR", cache):
-                    with patch("cypilot.commands.agents.cmd_generate_agents",
+                    with patch("cypilot.commands.migrate._cmd_generate_agents",
                                side_effect=Exception("agents broke")):
                         result = run_migrate(root, yes=True)
-            if result["status"] == "PASS":
-                self.assertTrue(any("agents" in w.lower() for w in result.get("warnings", [])))
+            self.assertEqual(result["status"], "ERROR")
+            self.assertIn("Agent entry point regeneration failed", result.get("message", ""))
 
 
 # ===========================================================================
@@ -1993,7 +2023,7 @@ class TestRollbackOSError(unittest.TestCase):
             with patch("shutil.copy2", side_effect=failing_copy):
                 result = _rollback(root, backup)
             self.assertFalse(result["success"])
-            self.assertTrue(len(result["errors"]) > 0)
+            self.assertGreater(len(result["errors"]), 0)
 
 
 # ===========================================================================
@@ -2257,11 +2287,31 @@ class TestRunMigrateAgentsSystemExit(unittest.TestCase):
             _make_cache(cache)
             with patch("cypilot.commands.migrate.CACHE_DIR", cache):
                 with patch("cypilot.commands.init.CACHE_DIR", cache):
-                    with patch("cypilot.commands.agents.cmd_generate_agents",
-                               side_effect=SystemExit(0)):
+                    with patch("cypilot.commands.migrate._cmd_generate_agents",
+                               return_value=0):
                         result = run_migrate(root, yes=True)
             # Should not crash; migration continues
             self.assertIn(result["status"], ("PASS", "VALIDATION_FAILED"))
+            # Success exit should NOT produce a warning
+            warnings = result.get("warnings", [])
+            self.assertFalse(
+                any("Agent entry point regeneration failed" in w for w in warnings),
+                f"Unexpected agent warning on SystemExit(0): {warnings}",
+            )
+
+    def test_nonzero_return_code_surfaces_warning(self):
+        with TemporaryDirectory() as d:
+            root = Path(d)
+            _make_v2_project(root)
+            cache = root / "_cache"
+            _make_cache(cache)
+            with patch("cypilot.commands.migrate.CACHE_DIR", cache):
+                with patch("cypilot.commands.init.CACHE_DIR", cache):
+                    with patch("cypilot.commands.migrate._cmd_generate_agents",
+                               return_value=1):
+                        result = run_migrate(root, yes=True)
+            self.assertEqual(result["status"], "ERROR")
+            self.assertIn("Agent entry point regeneration failed", result.get("message", ""))
 
 
 # ===========================================================================
@@ -2294,7 +2344,7 @@ class TestRunMigrateKitErrors(unittest.TestCase):
 
 
 # ===========================================================================
-# Test: JSON convert failed → preserve adapter (lines 1376, 1365, 1367)
+# Test: JSON convert failed → preserve adapter (lines 1365, 1367, 1376)
 # ===========================================================================
 
 class TestRunMigrateJsonConvertFailed(unittest.TestCase):
@@ -2310,7 +2360,7 @@ class TestRunMigrateJsonConvertFailed(unittest.TestCase):
             _make_cache(cache)
             with patch("cypilot.commands.migrate.CACHE_DIR", cache):
                 with patch("cypilot.commands.init.CACHE_DIR", cache):
-                    result = run_migrate(root, yes=True)
+                    run_migrate(root, yes=True)
             # Adapter dir should be preserved due to failed JSON conversion
             self.assertTrue((root / ".cypilot-adapter").is_dir())
 
@@ -2435,12 +2485,31 @@ class TestCleanupOldAdapterAgentFiles(unittest.TestCase):
             root = Path(d)
             wf = root / ".windsurf" / "workflows"
             wf.mkdir(parents=True)
+            old_adapter = root / ".cypilot-adapter"
+            old_adapter.mkdir()
+            (old_adapter / "AGENTS.md").write_text("# Old adapter\n")
             (wf / "some-proxy.md").write_text(
-                "# /some\n\nALWAYS open and follow `.cypilot-adapter/AGENTS.md`\n"
+                "# /some\n\nALWAYS open and follow `../../.cypilot-adapter/AGENTS.md`\n"
             )
             removed = _cleanup_old_adapter_agent_files(root, ".cypilot-adapter", ".cypilot")
             self.assertEqual(len(removed), 1)
             self.assertFalse((wf / "some-proxy.md").exists())
+
+    def test_preserves_body_mentions_without_matching_follow_target(self):
+        """Loose adapter-dir mentions outside the follow target are preserved."""
+        with TemporaryDirectory() as d:
+            root = Path(d)
+            wf = root / ".windsurf" / "workflows"
+            wf.mkdir(parents=True)
+            target = wf / "some-proxy.md"
+            target.write_text(
+                "# /some\n\n"
+                "ALWAYS open and follow `../../.cypilot/workflows/analyze.md`\n\n"
+                "Notes: legacy adapter lived in .cypilot-adapter/ before migration.\n"
+            )
+            removed = _cleanup_old_adapter_agent_files(root, ".cypilot-adapter", ".cypilot")
+            self.assertEqual(removed, [])
+            self.assertTrue(target.exists())
 
     def test_no_crash_on_missing_dirs(self):
         """No error when agent dirs don't exist."""
@@ -2501,6 +2570,129 @@ class TestInstallDefaultKitFromCache(unittest.TestCase):
             cache.mkdir()
             result = _install_default_kit_from_cache(cypilot_dir, cache)
             self.assertIsNone(result)
+
+
+# ===========================================================================
+# Regression: _run_migrate_steps merges fallback default-kit into kit_result
+# ===========================================================================
+
+class TestRunMigrateStepsFallbackKitMerge(unittest.TestCase):
+    """When _install_default_kit_from_cache fires during migration, the
+    returned kit_result must reflect the fallback kit in migrated_kits
+    and default_kit_installed — not silently drop it."""
+
+    def _call_run_migrate_steps(self, base_kit_result, default_kit_result):
+        """Call _run_migrate_steps with all internal helpers mocked.
+
+        Returns (kit_result, all_warnings) so callers can assert on both
+        the nested kit dict and the top-level migration warnings list.
+        """
+        with TemporaryDirectory() as td:
+            project_root = Path(td) / "proj"
+            project_root.mkdir()
+            cypilot_dir = project_root / "cypilot"
+            cypilot_dir.mkdir()
+            config_dir = cypilot_dir / "config"
+            config_dir.mkdir()
+            gen_dir = cypilot_dir / ".gen"
+            gen_dir.mkdir()
+            core_dir = cypilot_dir / ".core"
+            core_dir.mkdir()
+            all_warnings: list = []
+            migration_state = {"created_cypilot_dir": False}
+            mod = "cypilot.commands.migrate"
+            with patch(f"{mod}.cleanup_core_path", return_value={"success": True}), \
+                 patch(f"{mod}._init_v3_dirs", return_value=(gen_dir, core_dir, True)), \
+                 patch(f"{mod}._convert_v2_data", return_value=({}, {})), \
+                 patch(f"{mod}.migrate_kits", return_value=base_kit_result), \
+                 patch(f"{mod}._install_default_kit_from_cache", return_value=default_kit_result), \
+                 patch(f"{mod}._cleanup_v2_adapter"), \
+                 patch(f"{mod}._finalize_migration_outputs"):
+                kit_result = _run_migrate_steps(
+                    project_root, {}, ".cypilot", ".cypilot", "absent",
+                    "cypilot", cypilot_dir, config_dir, all_warnings, migration_state,
+                )
+                self.assertTrue(migration_state["created_cypilot_dir"])
+                return kit_result, all_warnings
+
+    def test_fallback_kit_merged_into_kit_result(self):
+        """migrate_kits returns no kits → fallback install → kit_result updated."""
+        base_kit_result = {
+            "migrated_kits": [],
+            "warnings": [],
+            "errors": [],
+        }
+        default_kit_result = {
+            "kit": "sdlc",
+            "status": "PASS",
+            "action": "installed",
+            "warnings": ["fallback-warn"],
+            "errors": [],
+        }
+
+        kit_result, all_warnings = self._call_run_migrate_steps(
+            base_kit_result, default_kit_result,
+        )
+
+        self.assertIn("sdlc", kit_result["migrated_kits"])
+        self.assertEqual(kit_result["default_kit_installed"], "sdlc")
+        self.assertIn("fallback-warn", kit_result["warnings"])
+        self.assertIn("fallback-warn", all_warnings,
+            "Fallback warnings must propagate to top-level all_warnings")
+
+    def test_fallback_errors_propagate_to_all_warnings(self):
+        """Fallback kit errors appear in all_warnings as 'Kit error: ...'."""
+        base_kit_result = {
+            "migrated_kits": [],
+            "warnings": [],
+            "errors": [],
+        }
+        default_kit_result = {
+            "kit": "sdlc",
+            "status": "WARN",
+            "action": "installed",
+            "warnings": [],
+            "errors": ["constraint mismatch"],
+        }
+
+        kit_result, all_warnings = self._call_run_migrate_steps(
+            base_kit_result, default_kit_result,
+        )
+
+        self.assertIn("constraint mismatch", kit_result["errors"])
+        self.assertTrue(
+            any("constraint mismatch" in w for w in all_warnings),
+            "Fallback errors must propagate to top-level all_warnings",
+        )
+
+    def test_no_fallback_when_kits_already_migrated(self):
+        """When migrate_kits already produced kits, no fallback fields added."""
+        base_kit_result = {
+            "migrated_kits": ["existing"],
+            "warnings": [],
+            "errors": [],
+        }
+        kit_result, _all_warnings = self._call_run_migrate_steps(
+            base_kit_result, None,
+        )
+
+        self.assertNotIn("default_kit_installed", kit_result)
+        self.assertEqual(kit_result["migrated_kits"], ["existing"])
+
+    def test_fallback_kit_from_cache_integration(self):
+        """Full integration: _install_default_kit_from_cache returns result
+        that would be merged by _run_migrate_steps."""
+        with TemporaryDirectory() as d:
+            cypilot_dir = Path(d) / "cypilot"
+            cypilot_dir.mkdir()
+            (cypilot_dir / "config").mkdir()
+            cache = Path(d) / "cache"
+            _make_cache(cache)
+            result = _install_default_kit_from_cache(cypilot_dir, cache)
+            self.assertIsNotNone(result)
+            # update_kit returns {"kit": slug, "version": {...}, "gen": {...}}
+            self.assertEqual(result["kit"], "sdlc")
+            self.assertIn("version", result)
 
 
 if __name__ == "__main__":

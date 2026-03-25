@@ -86,6 +86,10 @@ Without this feature, users would need to manually create and maintain agent-spe
 9. - `p1` - Inject the same managed `cypilot_path` block into root AGENTS.md and CLAUDE.md - `inst-inject-agents`
 10. [x] - `p1` - **RETURN** generation report (agents, files written, workflows discovered) - `inst-return-report`
 
+**Supporting**:
+- [x] - `p1` - Entry-point function signature and docstring for `cmd_generate_agents` - `inst-user-agents-entry`
+- [x] - `p1` - Return exit code (0 success, 1 errors) after generation completes - `inst-return-exit-code`
+
 ### Execute Generic Workflow
 
 - [x] `p1` - **ID**: `cpt-cypilot-flow-agent-integration-workflow`
@@ -113,6 +117,10 @@ Without this feature, users would need to manually create and maintain agent-spe
 4. [x] - `p1` - Resolve config/kits/ directory and registered kit dirs from core.toml for workflow/skill discovery - `inst-resolve-kits`
 5. [x] - `p1` - Parse CLI arguments, resolve project root, cypilot root, load agent config (shared context for agents commands) - `inst-resolve-context`
 
+**Supporting**:
+- [x] - `p1` - Module-level constant for all recognized agent names - `inst-define-registry-const`
+- [x] - `p1` - Helper to resolve cypilot root from `__file__` ancestry - `inst-resolve-context-helper`
+
 ### Generate Agent Shims
 
 - [x] `p1` - **ID**: `cpt-cypilot-algo-agent-integration-generate-shims`
@@ -125,6 +133,11 @@ Without this feature, users would need to manually create and maintain agent-spe
 6. [x] - `p1` - Parse YAML frontmatter, strip/quote values, render agent-native templates with variable substitution - `inst-parse-frontmatter`
 7. [x] - `p1` - Read-only `cmd_agents` command: list generated agent integration files per agent - `inst-cmd-agents-list`
 8. [x] - `p1` - Build result dict and human-friendly formatters for generate-agents and agents commands - `inst-format-output`
+
+**Supporting**:
+- [x] - `p1` - Imports, constants, and `_validate_agent_entry` for agent datamodel - `inst-agents-datamodel`
+- [x] - `p1` - Per-tool template functions (Claude, Cursor, Copilot) and `_TOOL_AGENT_CONFIG` registry - `inst-create-proxy-templates`
+- [x] - `p1` - File I/O helpers: `_load_json_file` and `_write_or_skip` for agent output management - `inst-write-helpers`
 
 ### Compose SKILL.md
 

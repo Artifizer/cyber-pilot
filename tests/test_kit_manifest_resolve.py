@@ -13,9 +13,11 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "skills" / "cypilot" / "scripts"))
 
+from _test_helpers import bootstrap_test_project
 from cypilot.utils.manifest import resolve_resource_bindings
 
 
@@ -33,29 +35,11 @@ def _write_core_toml(config_dir: Path, data: dict) -> Path:
 
 
 def _bootstrap_project(root: Path, adapter_rel: str = "cypilot") -> Path:
-    """Set up a minimal initialized project for kit commands."""
-    root.mkdir(parents=True, exist_ok=True)
-    (root / ".git").mkdir(exist_ok=True)
-    (root / "AGENTS.md").write_text(
-        f'<!-- @cpt:root-agents -->\n```toml\ncypilot_path = "{adapter_rel}"\n```\n<!-- /@cpt:root-agents -->\n',
-        encoding="utf-8",
+    return bootstrap_test_project(
+        root,
+        adapter_rel,
+        systems=[{"name": "TestProject", "slug": "test"}],
     )
-    adapter = root / adapter_rel
-    config = adapter / "config"
-    gen = adapter / ".gen"
-    for d in [adapter, config, gen, adapter / ".core"]:
-        d.mkdir(parents=True, exist_ok=True)
-    (config / "AGENTS.md").write_text("# Test\n", encoding="utf-8")
-    from cypilot.utils import toml_utils
-    toml_utils.dump({
-        "version": "1.0",
-        "project_root": "..",
-        "kits": {},
-    }, config / "core.toml")
-    toml_utils.dump({
-        "systems": [{"name": "TestProject", "slug": "test"}],
-    }, config / "artifacts.toml")
-    return adapter
 
 
 # ---------------------------------------------------------------------------
@@ -104,6 +88,112 @@ class TestResolveResourceBindings(unittest.TestCase):
                 result["constraints"],
                 (cypilot_dir / "config/kits/mykit/constraints.toml").resolve(),
             )
+
+    def test_same_os_absolute_binding_preserved(self):
+        """Same-OS absolute resource bindings stay absolute."""
+        with TemporaryDirectory() as td:
+            td_path = Path(td)
+            cypilot_dir = td_path / "proj" / "cypilot"
+            cypilot_dir.mkdir(parents=True)
+            config_dir = td_path / "config"
+            absolute_target = (td_path / "external" / "constraints.toml").resolve()
+
+            _write_core_toml(config_dir, {
+                "version": "1.0",
+                "kits": {
+                    "mykit": {
+                        "resources": {
+                            "constraints": {"path": str(absolute_target)},
+                        },
+                    },
+                },
+            })
+
+            result = resolve_resource_bindings(config_dir, "mykit", cypilot_dir)
+
+            self.assertEqual(result["constraints"], absolute_target)
+
+    def test_preserves_absolute_binding_after_relpath_fallback_behavior(self):
+        """Absolute bindings serialized via relpath fallback stay absolute when resolved."""
+        import cypilot.commands.kit as kit_module
+        from cypilot.commands.kit import _serialize_manifest_binding_path
+
+        with TemporaryDirectory() as td:
+            td_path = Path(td)
+            cypilot_dir = td_path / "proj" / "cypilot"
+            cypilot_dir.mkdir(parents=True)
+            config_dir = td_path / "config"
+            absolute_target = (td_path / "external" / "SKILL.md").resolve()
+
+            with patch.object(
+                kit_module.os.path,
+                "relpath",
+                side_effect=ValueError("cross-device fallback"),
+            ):
+                binding_path = _serialize_manifest_binding_path(absolute_target, cypilot_dir)
+
+            _write_core_toml(config_dir, {
+                "version": "1.0",
+                "kits": {
+                    "mykit": {
+                        "resources": {
+                            "skill": {"path": binding_path},
+                        },
+                    },
+                },
+            })
+
+            result = resolve_resource_bindings(config_dir, "mykit", cypilot_dir)
+
+            self.assertEqual(result["skill"], absolute_target)
+
+    def test_windows_absolute_binding_on_non_windows_fails_explicitly(self):
+        """Windows absolute bindings are rejected on non-Windows hosts."""
+        if os.name == "nt":
+            self.skipTest("Windows absolute cross-OS regression applies to non-Windows hosts")
+        with TemporaryDirectory() as td:
+            td_path = Path(td)
+            cypilot_dir = td_path / "cypilot"
+            cypilot_dir.mkdir()
+            config_dir = td_path / "config"
+
+            _write_core_toml(config_dir, {
+                "version": "1.0",
+                "kits": {
+                    "mykit": {
+                        "resources": {
+                            "constraints": {"path": "C:/external-kits/sdlc/constraints.toml"},
+                        },
+                    },
+                },
+            })
+
+            with self.assertRaisesRegex(ValueError, "not accessible on this OS"):
+                resolve_resource_bindings(config_dir, "mykit", cypilot_dir)
+
+    def test_posix_absolute_binding_on_windows_fails_explicitly(self):
+        """POSIX absolute bindings are rejected on Windows hosts."""
+        if os.name != "nt":
+            self.skipTest("POSIX absolute cross-OS regression applies to Windows hosts")
+        with TemporaryDirectory() as td:
+            td_path = Path(td)
+            cypilot_dir = td_path / "cypilot"
+            cypilot_dir.mkdir()
+            config_dir = td_path / "config"
+
+            _write_core_toml(config_dir, {
+                "version": "1.0",
+                "kits": {
+                    "mykit": {
+                        "resources": {
+                            "constraints": {"path": "/opt/cypilot/constraints.toml"},
+                        },
+                    },
+                },
+            })
+
+            with self.assertRaisesRegex(ValueError, "not accessible on this OS"):
+                resolve_resource_bindings(config_dir, "mykit", cypilot_dir)
 
     def test_missing_resources_section_returns_empty(self):
         """Kit without resources section → empty dict."""
@@ -182,8 +272,8 @@ class TestResolveResourceBindings(unittest.TestCase):
             self.assertIn("good", result)
             self.assertNotIn("bad", result)
 
-    def test_corrupted_core_toml_returns_empty(self):
-        """Corrupted core.toml that can't be parsed → empty dict."""
+    def test_corrupted_core_toml_raises_parse_error(self):
+        """Corrupted core.toml that can't be parsed → explicit parse error."""
         with TemporaryDirectory() as td:
             td_path = Path(td)
             cypilot_dir = td_path / "cypilot"
@@ -192,8 +282,8 @@ class TestResolveResourceBindings(unittest.TestCase):
             config_dir.mkdir(parents=True)
             (config_dir / "core.toml").write_text("[broken\ninvalid", encoding="utf-8")
 
-            result = resolve_resource_bindings(config_dir, "mykit", cypilot_dir)
-            self.assertEqual(result, {})
+            with self.assertRaisesRegex(ValueError, "Failed to parse"):
+                resolve_resource_bindings(config_dir, "mykit", cypilot_dir)
 
     def test_kits_not_a_dict_returns_empty(self):
         """core.toml with kits = 'string' instead of table → empty dict."""
@@ -342,6 +432,99 @@ class TestLoadedKitResourceBindings(unittest.TestCase):
             self.assertIsNotNone(lk.resource_bindings)
             self.assertIn("adr_artifacts", lk.resource_bindings)
 
+    def test_context_load_preserves_same_os_absolute_kit_path(self):
+        """CypilotContext.load() keeps same-OS absolute kits.{slug}.path absolute."""
+        from cypilot.utils.context import CypilotContext
+
+        with TemporaryDirectory() as td:
+            td_path = Path(td)
+            root = td_path / "proj"
+            adapter = _bootstrap_project(root)
+            config = adapter / "config"
+            absolute_kit_dir = (td_path / "external" / "sdlc").resolve()
+            absolute_kit_dir.mkdir(parents=True, exist_ok=True)
+            (absolute_kit_dir / "constraints.toml").write_text("[artifacts]\n", encoding="utf-8")
+            stale_registry_path = "config/kits/sdlc"
+
+            from cypilot.utils import toml_utils
+            toml_utils.dump({
+                "version": "1.0",
+                "project_root": "..",
+                "kits": {
+                    "sdlc": {
+                        "format": "Cypilot",
+                        "path": str(absolute_kit_dir),
+                        "version": "2.0",
+                    },
+                },
+            }, config / "core.toml")
+
+            toml_utils.dump({
+                "version": "1.0",
+                "project_root": "..",
+                "kits": {
+                    "sdlc": {"format": "Cypilot", "path": stale_registry_path},
+                },
+                "systems": [{"name": "Test", "slug": "test", "kit": "sdlc"}],
+            }, config / "artifacts.toml")
+
+            ctx = CypilotContext.load(root)
+
+            self.assertIsNotNone(ctx)
+            self.assertIn("sdlc", ctx.kits)
+            self.assertEqual(ctx.kits["sdlc"].kit.path, str(absolute_kit_dir))
+            self.assertNotEqual(ctx.kits["sdlc"].kit.path, stale_registry_path)
+            self.assertIsNotNone(ctx.kits["sdlc"].constraints)
+
+    def test_context_load_preserves_same_os_absolute_binding(self):
+        """CypilotContext.load() keeps same-OS absolute resource bindings absolute."""
+        from cypilot.utils.context import CypilotContext
+
+        with TemporaryDirectory() as td:
+            td_path = Path(td)
+            root = td_path / "proj"
+            adapter = _bootstrap_project(root)
+            config = adapter / "config"
+            absolute_constraints = (td_path / "external" / "constraints.toml").resolve()
+            absolute_constraints.parent.mkdir(parents=True, exist_ok=True)
+            absolute_constraints.write_text("[artifacts]\n", encoding="utf-8")
+
+            from cypilot.utils import toml_utils
+            toml_utils.dump({
+                "version": "1.0",
+                "project_root": "..",
+                "kits": {
+                    "sdlc": {
+                        "format": "Cypilot",
+                        "path": "config/kits/sdlc",
+                        "version": "2.0",
+                        "resources": {
+                            "constraints": {"path": str(absolute_constraints)},
+                        },
+                    },
+                },
+            }, config / "core.toml")
+
+            toml_utils.dump({
+                "version": "1.0",
+                "project_root": "..",
+                "kits": {
+                    "sdlc": {"format": "Cypilot", "path": "config/kits/sdlc"},
+                },
+                "systems": [{"name": "Test", "slug": "test", "kit": "sdlc"}],
+            }, config / "artifacts.toml")
+
+            kit_dir = config / "kits" / "sdlc"
+            kit_dir.mkdir(parents=True)
+
+            ctx = CypilotContext.load(root)
+
+            self.assertIsNotNone(ctx)
+            self.assertEqual(
+                ctx.kits["sdlc"].resource_bindings,
+                {"constraints": str(absolute_constraints)},
+            )
+
     def test_context_load_no_resources_is_none(self):
         """CypilotContext.load() leaves resource_bindings as None for legacy kit."""
         from cypilot.utils.context import CypilotContext
@@ -382,6 +565,53 @@ class TestLoadedKitResourceBindings(unittest.TestCase):
             self.assertIsNotNone(ctx)
             self.assertIn("sdlc", ctx.kits)
             self.assertIsNone(ctx.kits["sdlc"].resource_bindings)
+
+    def test_context_load_surfaces_invalid_binding_as_structured_error(self):
+        from cypilot.utils.context import CypilotContext
+
+        with TemporaryDirectory() as td:
+            td_path = Path(td)
+            root = td_path / "proj"
+            adapter = _bootstrap_project(root)
+            config = adapter / "config"
+            invalid_binding = "/opt/cypilot/constraints.toml" if os.name == "nt" else "C:/external-kits/sdlc/constraints.toml"
+
+            from cypilot.utils import toml_utils
+            toml_utils.dump({
+                "version": "1.0",
+                "project_root": "..",
+                "kits": {
+                    "sdlc": {
+                        "format": "Cypilot",
+                        "path": "config/kits/sdlc",
+                        "version": "2.0",
+                        "resources": {
+                            "constraints": {"path": invalid_binding},
+                        },
+                    },
+                },
+            }, config / "core.toml")
+
+            toml_utils.dump({
+                "version": "1.0",
+                "project_root": "..",
+                "kits": {
+                    "sdlc": {"format": "Cypilot", "path": "config/kits/sdlc"},
+                },
+                "systems": [{"name": "Test", "slug": "test", "kit": "sdlc"}],
+            }, config / "artifacts.toml")
+
+            kit_dir = config / "kits" / "sdlc"
+            kit_dir.mkdir(parents=True)
+            (kit_dir / "constraints.toml").write_text("[artifacts]\n", encoding="utf-8")
+
+            ctx = CypilotContext.load(root)
+
+            self.assertIsNotNone(ctx)
+            self.assertIsNone(ctx.kits["sdlc"].resource_bindings)
+            self.assertIsNotNone(ctx.kits["sdlc"].constraints)
+            self.assertTrue(any(err.get("type") == "resources" for err in ctx._errors))
+            self.assertTrue(any("not accessible on this OS" in str(err.get("message", "")) for err in ctx._errors))
 
 
 # ---------------------------------------------------------------------------

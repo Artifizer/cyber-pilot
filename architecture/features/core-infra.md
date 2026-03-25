@@ -234,8 +234,9 @@ Enables users to install Cypilot globally, initialize it in any project with sen
 **Output**: Updated or created `{project_root}/AGENTS.md`
 
 **Steps**:
-1. [x] - `p1` - Compute managed block content: TOML fenced block with `cypilot_path = "{install_dir}"`, navigation rule `ALWAYS open and follow {cypilot_path}/config/AGENTS.md FIRST` - `inst-compute-block`
-2. [x] - `p1` - **IF** `{project_root}/AGENTS.md` does not exist - `inst-if-no-agents`
+1. [x] - `p1` - Validate target file path is within project root; raise error if it would escape - `inst-validate-path`
+2. [x] - `p1` - Compute managed block content: TOML fenced block with `cypilot_path = "{install_dir}"`, navigation rule `ALWAYS open and follow {cypilot_path}/config/AGENTS.md FIRST` - `inst-compute-block`
+3. [x] - `p1` - **IF** `{project_root}/AGENTS.md` does not exist - `inst-if-no-agents`
    1. [x] - `p1` - Create file with managed block wrapped in `<!-- @cpt:root-agents -->` markers - `inst-create-agents-file`
 3. [x] - `p1` - **ELSE** read existing file content - `inst-read-existing`
    1. [x] - `p1` - **IF** managed block markers found - `inst-if-markers-exist`

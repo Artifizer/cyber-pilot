@@ -138,6 +138,11 @@ Ensures teams can upgrade Cypilot without losing configuration or customizations
 5. [x] - `p1` - Update `core.toml` kit registrations with new paths (`config/kits/{slug}`) - `inst-layout-update-core`
 6. [x] - `p1` - **IF** any step fails, restore from backup and report error - `inst-layout-rollback`
 
+**Supporting**:
+- [x] - `p1` - Migrate single entry from old `kits/{slug}/` directory to new layout - `inst-migrate-kits-entry`
+- [x] - `p1` - Migrate single entry from old `.gen/kits/{slug}/` directory to config - `inst-migrate-gen-entry`
+- [x] - `p1` - Update kit path registrations in `core.toml` after layout migration - `inst-update-core-paths`
+
 ### Compare Blueprint Versions (LEGACY)
 
 - [x] `p1` - **ID**: `cpt-cypilot-algo-version-config-compare-versions`

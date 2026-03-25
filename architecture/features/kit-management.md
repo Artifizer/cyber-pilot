@@ -13,6 +13,7 @@
   - [Kit Validate CLI](#kit-validate-cli)
   - [Kit CLI Dispatcher](#kit-cli-dispatcher)
 - [3. Processes / Business Logic (CDSL)](#3-processes--business-logic-cdsl)
+  - [GitHub Helpers](#github-helpers)
   - [Kit Content Management](#kit-content-management)
   - [Gen Aggregation](#gen-aggregation)
   - [Kit Installation](#kit-installation)
@@ -95,6 +96,11 @@ Enables users to install, update, and validate kit packages with interactive fil
 9. [x] - `p1` - Regenerate `.gen/` aggregates via `regenerate_gen_aggregates` - `inst-regen-gen`
 10. [x] - `p1` - Format and output result JSON - `inst-output-result`
 
+**Supporting**:
+- [x] - `p1` - Resolve GitHub source: parse owner/repo, download tarball, extract to temp dir - `inst-resolve-github-source`
+- [x] - `p1` - Cleanup temporary download directory in finally block - `inst-cleanup-tmp`
+- [x] - `p1` - Human-friendly output formatter for install results - `inst-human-output`
+
 ### Kit Update CLI
 
 - [x] `p1` - **ID**: `cpt-cypilot-flow-kit-update-cli`
@@ -113,6 +119,11 @@ Enables users to install, update, and validate kit packages with interactive fil
 7. [x] - `p1` - Delegate to `update_kit()` with interactive/auto_approve/force flags - `inst-delegate-update`
 8. [x] - `p1` - Regenerate `.gen/` aggregates (unless dry-run) - `inst-regen-gen`
 9. [x] - `p1` - Format version status, accepted/declined files, and output result - `inst-format-output`
+
+**Supporting**:
+- [x] - `p1` - Resolve GitHub update targets: download source kits for each registered kit - `inst-resolve-github-targets`
+- [x] - `p1` - Build normalized update result dict from kit update output - `inst-build-update-result`
+- [x] - `p1` - Human-friendly output formatter for update results - `inst-human-output`
 
 ### Kit Validate CLI
 
@@ -144,9 +155,29 @@ Enables users to install, update, and validate kit packages with interactive fil
 1. [x] - `p1` - Parse subcommand (install | update | migrate) - `inst-parse-subcmd`
 2. [x] - `p1` - Route to appropriate handler; error on unknown subcommand - `inst-route`
 
+**Supporting**:
+- [x] - `p1` - Deprecated `migrate` subcommand handler with deprecation notice - `inst-migrate-deprecated`
+
 ---
 
 ## 3. Processes / Business Logic (CDSL)
+
+### GitHub Helpers
+
+- [x] `p1` - **ID**: `cpt-cypilot-algo-kit-github-helpers`
+
+**Input**: GitHub source string (`owner/repo[@version]`), optional `GITHUB_TOKEN`
+
+**Output**: Downloaded kit directory path, resolved version string
+
+**Steps**:
+1. [x] - `p1` - Build HTTP headers for GitHub API (Accept, User-Agent, optional Bearer token) - `inst-github-headers`
+2. [x] - `p1` - Parse GitHub source string into (owner, repo, version) tuple - `inst-parse-source`
+3. [x] - `p1` - Resolve latest release tag from GitHub API; fall back to default branch if no releases - `inst-resolve-release`
+4. [x] - `p1` - Download tarball from GitHub API, extract to temp directory, return extracted path and version - `inst-download`
+
+**Supporting**:
+- [x] - `p1` - Module imports and dependencies for kit management commands - `inst-kit-imports`
 
 ### Kit Content Management
 
@@ -160,6 +191,10 @@ Enables users to install, update, and validate kit packages with interactive fil
 1. [x] - `p1` - Seed config files: copy `.toml` files from kit scripts/ to config/ (only if missing) - `inst-seed-configs`
 2. [x] - `p1` - Copy kit content: iterate `_KIT_CONTENT_DIRS` and `_KIT_CONTENT_FILES`, copy from source to config/kits/{slug}/ - `inst-copy-content`
 3. [x] - `p1` - Collect kit metadata: read SKILL.md for navigation line, AGENTS.md for content aggregation - `inst-collect-metadata`
+
+**Supporting**:
+- [x] - `p1` - Wrapper function for metadata collection from installed kit directory - `inst-collect-metadata-fn`
+- [x] - `p1` - Kit content directory/file constants and config extension definitions - `inst-content-constants`
 
 ### Gen Aggregation
 
@@ -176,6 +211,10 @@ Enables users to install, update, and validate kit packages with interactive fil
 4. [x] - `p1` - Compose and write `.gen/AGENTS.md` with navigation rules and kit agent content - `inst-write-gen-agents`
 5. [x] - `p1` - Compose and write `.gen/SKILL.md` with per-kit skill navigation pointers - `inst-write-gen-skill`
 6. [x] - `p1` - Write `.gen/README.md` using `_gen_readme()` - `inst-write-gen-readme`
+
+**Supporting**:
+- [x] - `p1` - Top-level `regenerate_gen_aggregates` function orchestrating all gen steps - `inst-regen-fn`
+- [x] - `p1` - Helper to read project name from `config/artifacts.toml` registry - `inst-read-project-name-fn`
 
 ### Kit Installation
 
@@ -210,11 +249,15 @@ Enables users to install, update, and validate kit packages with interactive fil
 4. [x] - `p1` - **IF** not force and version matches installed: return "current" status with metadata - `inst-version-check`
 5. [x] - `p1` - **IF** source has `manifest.toml` and kit has no `resources` in core.toml: trigger `migrate_legacy_kit_to_manifest` - `inst-legacy-manifest-migration`
 6. [x] - `p1` - **IF** source has `manifest.toml`: build source-path-to-resource-id mapping from manifest, resolve resource bindings from `core.toml` via `cpt-cypilot-algo-kit-manifest-resolve` - `inst-resolve-resource-bindings`
-7. [x] - `p1` - **IF** config/kits/{slug}/ does not exist: first-install via `_copy_kit_content`, seed configs, register in core.toml - `inst-first-install`
+7. [x] - `p1` - **IF** the authoritative installed root from `config/core.toml` `kits.{slug}.path` does not exist (defaulting to `config/kits/{slug}` when missing): first-install via `_copy_kit_content`, seed configs, register in core.toml - `inst-first-install`
 8. [x] - `p1` - **ELSE**: existing kit — delegate to `file_level_kit_update` for interactive diff, passing `resource_bindings`, `source_to_resource_id`, and `resource_info` for manifest-driven kits - `inst-file-level-diff`
 9. [x] - `p1` - Update version in `core.toml` from source version - `inst-update-core-toml`
 10. [x] - `p1` - Collect metadata for `.gen/` aggregation - `inst-collect-metadata`
 11. [x] - `p1` - **RETURN** result with kit, version, gen, accepted/declined files - `inst-return-result`
+
+**Supporting**:
+- [x] - `p1` - First-install helper: copy content, seed configs, register in core.toml when config dir does not exist - `inst-perform-first-install`
+- [x] - `p1` - Sync manifest resource bindings: merge new manifest resources into existing core.toml bindings - `inst-sync-manifest-bindings`
 
 ### File-Level Kit Update
 
@@ -411,6 +454,14 @@ Enables users to install, update, and validate kit packages with interactive fil
 4. [x] - `p1` - Read kit version string from conf.toml path - `inst-read-kit-version`
 5. [x] - `p1` - Register or update kit entry in `core.toml` with format, path, and version - `inst-register-core`
 
+**Supporting**:
+- [x] - `p1` - Resolve project root and cypilot directory from CWD - `inst-resolve-cypilot-dir`
+- [x] - `p1` - Read all registered kit entries from `core.toml [kits]` section - `inst-read-kits-core`
+- [x] - `p1` - Wrapper function for reading kit slug from conf.toml - `inst-read-slug-fn`
+- [x] - `p1` - Wrapper function for reading kit version from core.toml - `inst-read-version-core-fn`
+- [x] - `p1` - Wrapper function for reading kit version from conf.toml path - `inst-read-kit-version-fn`
+- [x] - `p1` - Wrapper function for registering/updating kit in core.toml - `inst-register-core-fn`
+
 ### Manifest-Driven Installation
 
 - [x] `p1` - **ID**: `cpt-cypilot-algo-kit-manifest-install`
@@ -434,6 +485,8 @@ Enables users to install, update, and validate kit packages with interactive fil
 **Supporting**:
 - [x] - `p1` - Manifest dataclass definitions (`Manifest`, `ManifestResource`) and imports - `inst-manifest-datamodel`
 - [x] - `p1` - Validate parsed manifest against kit source (unique IDs, source paths exist, type matches) - `inst-manifest-validate`
+- [x] - `p1` - Copy a single manifest resource (file or directory) from source to target path - `inst-copy-manifest-resource`
+- [x] - `p1` - Resolve `{identifier}` template variables in copied kit files - `inst-resolve-template-vars`
 
 ### Manifest Legacy Migration
 
@@ -495,8 +548,8 @@ Enables users to install, update, and validate kit packages with interactive fil
 
 | State | Condition | Transitions |
 |-------|-----------|-------------|
-| `not_installed` | `config/kits/{slug}/` does not exist | → `installed` via `install_kit` |
-| `installed` | Kit files present in `config/kits/{slug}/` | → `updated` via `update_kit`, → `current` if version matches |
+| `not_installed` | The authoritative installed root from `config/core.toml` `kits.{slug}.path` does not exist (or defaults to missing `config/kits/{slug}`) | → `installed` via `install_kit` |
+| `installed` | Kit files present at the authoritative installed root from `kits.{slug}.path` | → `updated` via `update_kit`, → `current` if version matches |
 | `current` | Installed version matches source version | → `updated` via force update |
 | `updated` | Files changed via file-level diff | → `current` on next check |
 
@@ -542,7 +595,7 @@ Enables users to install, update, and validate kit packages with interactive fil
 
 | Module | Algorithms Implemented |
 |--------|----------------------|
-| `skills/cypilot/scripts/cypilot/commands/kit.py` | `cpt-cypilot-algo-kit-content-mgmt`, `cpt-cypilot-algo-kit-regen-gen`, `cpt-cypilot-algo-kit-install`, `cpt-cypilot-algo-kit-update`, `cpt-cypilot-algo-kit-config-helpers`, `cpt-cypilot-algo-kit-manifest-install`, `cpt-cypilot-algo-kit-manifest-legacy-migration`, `cpt-cypilot-flow-kit-install-cli`, `cpt-cypilot-flow-kit-update-cli`, `cpt-cypilot-flow-kit-dispatch` |
+| `skills/cypilot/scripts/cypilot/commands/kit.py` | `cpt-cypilot-algo-kit-github-helpers`, `cpt-cypilot-algo-kit-content-mgmt`, `cpt-cypilot-algo-kit-regen-gen`, `cpt-cypilot-algo-kit-install`, `cpt-cypilot-algo-kit-update`, `cpt-cypilot-algo-kit-config-helpers`, `cpt-cypilot-algo-kit-manifest-install`, `cpt-cypilot-algo-kit-manifest-legacy-migration`, `cpt-cypilot-flow-kit-install-cli`, `cpt-cypilot-flow-kit-update-cli`, `cpt-cypilot-flow-kit-dispatch` |
 | `skills/cypilot/scripts/cypilot/utils/manifest.py` | `cpt-cypilot-algo-kit-manifest-resolve`, `cpt-cypilot-algo-kit-manifest-source-mapping` |
 | `skills/cypilot/scripts/cypilot/utils/diff_engine.py` | `cpt-cypilot-algo-kit-file-update`, `cpt-cypilot-algo-kit-file-enumerate`, `cpt-cypilot-algo-kit-file-classify`, `cpt-cypilot-algo-kit-interactive-review`, `cpt-cypilot-algo-kit-diff-display`, `cpt-cypilot-algo-kit-conflict-merge`, `cpt-cypilot-algo-kit-toc-handling`, `cpt-cypilot-algo-kit-snapshot` |
 | `skills/cypilot/scripts/cypilot/commands/validate_kits.py` | `cpt-cypilot-algo-kit-validate`, `cpt-cypilot-algo-kit-validate-by-path`, `cpt-cypilot-flow-kit-validate-cli` |

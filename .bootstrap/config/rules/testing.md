@@ -11,187 +11,60 @@ version: 1.0
 
 <!-- toc -->
 
-- [Test Framework](#test-framework)
-- [Running Tests](#running-tests)
-- [Test File Organization](#test-file-organization)
-- [Test Patterns](#test-patterns)
-  - [1. Temporary Directory Tests](#1-temporary-directory-tests)
-  - [2. CLI Command Tests](#2-cli-command-tests)
-  - [3. Mocking Tests](#3-mocking-tests)
-  - [4. Bootstrap Helpers](#4-bootstrap-helpers)
-- [Test Naming Conventions](#test-naming-conventions)
-- [Coverage Requirements](#coverage-requirements)
-  - [Per-File Threshold: 90%](#per-file-threshold-90)
-  - [Checking Coverage](#checking-coverage)
+- [Test Stack](#test-stack)
+- [How To Run Tests](#how-to-run-tests)
+- [Test Layout](#test-layout)
+- [Common Test Patterns](#common-test-patterns)
+- [Naming and Assertions](#naming-and-assertions)
+- [Coverage and Quality Gates](#coverage-and-quality-gates)
 
 <!-- /toc -->
 
-## Test Framework
+Testing rules extracted from the current Cypilot repo.
 
-- **Framework**: pytest
-- **Coverage**: pytest-cov
-- **Threshold**: 90% per file minimum
+## Test Stack
 
-## Running Tests
+- `pytest` is the test framework
+- `pytest-cov` is used for coverage reporting
+- Coverage target is `90%` per file in CI
+- `tests/conftest.py` bootstraps import paths for `tests/`, `skills/cypilot/scripts/`, and `examples/overwork_alert/src`
+
+## How To Run Tests
 
 ```bash
-# Run all tests
 make test
-
-# Run with coverage
 make test-coverage
-
-# Run specific test file
-pytest tests/test_cli_integration.py -v
-
-# Run specific test
-pytest tests/test_cli_integration.py::TestValidateCommand -v
+pytest tests/test_kit.py -v
+pytest tests/test_update.py::test_update_command -v
 ```
 
-## Test File Organization
+Prefer `pytest` for direct test execution. Use `make test` / `make test-coverage` for repo-standard verification.
 
-35 test modules in `tests/`:
+## Test Layout
 
-| File | Coverage Area |
-|------|---------------|
-| `test_adapter_info.py` | Adapter discovery |
-| `test_agents_coverage.py` | Agent integration coverage |
-| `test_ai_navigate_when.py` | WHEN clause parsing |
-| `test_artifacts_meta.py` | artifacts.toml parsing |
-| `test_blueprint_coverage.py` | Blueprint system coverage |
-| `test_cli_helpers.py` | CLI helper functions |
-| `test_cli_integration.py` | CLI command integration |
-| `test_cli_py_coverage.py` | Coverage gap tests |
-| `test_codebase.py` | Code file parsing, markers |
-| `test_constraints_utils.py` | constraints.toml parsing |
-| `test_context.py` | CypilotContext, LoadedKit |
-| `test_core_structure.py` | Project structure validation |
-| `test_coverage_utils.py` | Coverage utility functions |
-| `test_cypilot_package_init.py` | Package init, version |
-| `test_design_validation.py` | DESIGN.md validation |
-| `test_diff_engine.py` | Three-way merge diff engine |
-| `test_files_utils.py` | File operations |
-| `test_fixing.py` | Auto-fix utilities |
-| `test_hash_detection.py` | Blueprint hash detection |
-| `test_kit.py` | Kit install/update/migrate |
-| `test_language_config.py` | Language configuration |
-| `test_migrate.py` | v2→v3 migration |
-| `test_overwork_alert_*.py` | Example project tests (4 files) |
-| `test_parse_sid.py` | Cypilot ID parsing |
-| `test_parsing_utils.py` | Markdown parsing |
-| `test_quickstart_bootstrap.py` | Bootstrap quickstart flow |
-| `test_spec_coverage.py` | Spec coverage measurement |
-| `test_toc.py` | TOC generation/validation |
-| `test_ui_human_mode.py` | Human-friendly output mode |
-| `test_update.py` | Update pipeline |
-| `test_validate.py` | Validation utilities |
-| `test_workflow_parsing.py` | Workflow file parsing |
+The repo currently has `44` `test_*.py` modules under `tests/` plus shared helpers:
 
-## Test Patterns
+- CLI and integration coverage: `test_cli_integration.py`, `test_ui_human_mode.py`, `test_adapter_info.py`
+- Core parsing and validation: `test_artifacts_meta.py`, `test_constraints_utils.py`, `test_validate.py`, `test_spec_coverage.py`, `test_toc.py`
+- Kit lifecycle: `test_kit.py`, `test_kit_manifest_*.py`, `test_update.py`, `test_migrate.py`
+- Workspace and agents: `test_workspace.py`, `test_subagent_registration.py`, `test_agents_coverage.py`
+- Example coverage: `test_overwork_alert_*.py`
 
-### 1. Temporary Directory Tests
+Keep new tests in `tests/`, named `test_<subject>.py`, and align them with the subsystem they verify.
 
-```python
-from tempfile import TemporaryDirectory
-from pathlib import Path
+## Common Test Patterns
 
-def test_something():
-    with TemporaryDirectory() as tmpdir:
-        root = Path(tmpdir)
-        # Create test files
-        (root / "test.md").write_text("content")
-        # Run test
-        result = function_under_test(root)
-        assert result == expected
-```
+- Use `TemporaryDirectory()` and `Path` for filesystem-heavy flows
+- For CLI tests, switch into the temp project root, call `main([...])`, capture stdout, and assert on parsed JSON output
+- Use mocks for context loading, external calls, or side effects that are not the unit under test
+- Reuse shared bootstrapping helpers such as `_bootstrap_project_root()` or `_test_helpers.py` utilities when setting up adapter/config state
 
-### 2. CLI Command Tests
+## Naming and Assertions
 
-```python
-import io
-import json
-import os
-from pathlib import Path
-from tempfile import TemporaryDirectory
-from contextlib import redirect_stdout
-from cypilot.cli import main
+- Test functions use `test_<behavior>` naming
+- Test classes, when used, follow `Test<Area>` naming
+- Assert on exit codes, JSON `status`, and observable filesystem changes rather than incidental implementation details
 
-def test_cli_command():
-    with TemporaryDirectory() as tmpdir:
-        root = Path(tmpdir)
-        _bootstrap_project_root(root)
+## Coverage and Quality Gates
 
-        cwd = os.getcwd()
-        try:
-            os.chdir(root)
-            stdout = io.StringIO()
-            with redirect_stdout(stdout):
-                exit_code = main(["command", "--flag"])
-            assert exit_code == 0
-            out = json.loads(stdout.getvalue())
-            assert out["status"] == "PASS"
-        finally:
-            os.chdir(cwd)
-```
-
-### 3. Mocking Tests
-
-```python
-from unittest.mock import patch, MagicMock
-from cypilot.utils.context import CypilotContext
-
-def test_with_mock():
-    mock_ctx = MagicMock(spec=CypilotContext)
-    with patch("cypilot.utils.context.CypilotContext.load", return_value=mock_ctx):
-        result = function_that_uses_context()
-        assert result is not None
-```
-
-### 4. Bootstrap Helpers
-
-```python
-def _bootstrap_project_root(root: Path, adapter_rel: str = "cypilot") -> Path:
-    """Create minimal project structure for tests."""
-    (root / ".git").mkdir()
-    agents = root / "AGENTS.md"
-    agents.write_text("<!-- @cpt:root-agents -->\n```toml\ncypilot_path = \"" + adapter_rel + "\"\n```\n")
-    adapter = root / adapter_rel
-    adapter.mkdir(parents=True, exist_ok=True)
-    (adapter / "config").mkdir(exist_ok=True)
-    (adapter / "config" / "AGENTS.md").write_text("# Cypilot Adapter: Test\n")
-    return adapter
-```
-
-## Test Naming Conventions
-
-```python
-class TestClassName:
-    def test_method_behavior_when_condition(self):
-        """Description of what is being tested."""
-        pass
-
-# Examples:
-def test_validate_returns_pass_for_valid_artifact(self):
-def test_scan_ids_finds_all_defined_ids(self):
-def test_init_creates_adapter_directory(self):
-def test_context_load_returns_none_when_no_adapter(self):
-```
-
-## Coverage Requirements
-
-### Per-File Threshold: 90%
-
-```
-skills/cypilot/scripts/cypilot/cli.py          90%+
-skills/cypilot/scripts/cypilot/utils/*.py      90%+
-```
-
-### Checking Coverage
-
-```bash
-# Run coverage check
-make test-coverage
-
-# View HTML report
-open htmlcov/index.html
-```
+`make test-coverage` produces the HTML report in `htmlcov/`. CI also runs validation, version checks, spec coverage, and dead-code detection, so new tests should help keep both deterministic command behavior and coverage thresholds healthy.
