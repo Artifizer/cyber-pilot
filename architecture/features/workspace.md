@@ -78,7 +78,7 @@ Enables teams working across multiple repositories to federate their Cypilot-man
 
 The following quality domains are not applicable to this feature:
 
-- **Performance**: Core operations (init, add, info) are local filesystem reads/writes on small TOML configs. Git URL source resolution clones on first access only; subsequent reads reuse the cached checkout without network operations. Explicit updates via `workspace-sync` delegate to the user's git CLI with a 120-second timeout; no custom performance-sensitive code paths beyond subprocess delegation
+- **Performance**: Core operations (init, add, info) are local filesystem reads/writes on small TOML configs. Git URL source resolution clones on first access only; subsequent reads reuse the cached checkout without network operations. Explicit updates via `workspace-sync` delegate to the user's git CLI with a 300-second (5 min) default timeout, configurable via `GIT_TIMEOUT` environment variable; no custom performance-sensitive code paths beyond subprocess delegation
 - **Security**: Local-path mode has no network access. Git URL sources perform `git clone` (first access) and `git fetch` (only via explicit `workspace-sync`) using the user's existing Git CLI credentials — no custom authentication or credential handling. CLI arguments parsed by argparse with no untrusted input
 - **Compliance**: No regulatory, privacy, or audit requirements
 - **Usability (UI)**: CLI-only interaction with structured JSON output; no graphical UI
@@ -386,7 +386,7 @@ The following quality domains are not applicable to this feature:
 7. [x] - `p1` - Determine branch: source `branch` field if set, else `"HEAD"` - `inst-git-determine-branch`
 8. [x] - `p1` - **IF** local path exists AND is a git repo, **RETURN** local path (no network operation — use `workspace-sync` to update) - `inst-git-if-exists-fetch`
 9. [x] - `p1` - **ELSE** run `git clone --branch {branch} {url} {local_path}` - `inst-git-else-clone`
-10. [x] - `p1` - **IF** git command fails or times out (120s default), mark source as unreachable with error message - `inst-git-if-fail`
+10. [x] - `p1` - **IF** git command fails or times out (300s default, override via `GIT_TIMEOUT` env var), mark source as unreachable with error message - `inst-git-if-fail`
 11. [x] - `p1` - **RETURN** resolved local path - `inst-git-return-path`
 12. [x] - `p1` - Data model: `TraceabilityConfig`, `NamespaceRule`, `ResolveConfig` classes and URL patterns - `inst-git-datamodel`
 13. [x] - `p1` - Clone or return existing local path via subprocess - `inst-git-clone-or-fetch`

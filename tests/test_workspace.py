@@ -1703,7 +1703,7 @@ class TestRunGit:
     def test_timeout(self):
         import subprocess as _sp
 
-        with patch("cypilot.utils.git_utils.subprocess.run", side_effect=_sp.TimeoutExpired("git", 120)):
+        with patch("cypilot.utils.git_utils.subprocess.run", side_effect=_sp.TimeoutExpired("git", 300)):
             rc, _, err = _run_git(["clone", "x"])
             assert rc == 1
             assert "timed out" in err
