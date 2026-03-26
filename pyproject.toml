@@ -39,6 +39,11 @@ max-positional-arguments = 8
 [tool.pylint.reports]
 score = false
 
+[tool.pylint."messages control"]
+disable = [
+    "all",
+]
+
 # [tool.pylint."messages control"]
 # disable = [
 #     "duplicate-code",
