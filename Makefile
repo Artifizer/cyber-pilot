@@ -128,12 +128,14 @@ test-coverage: check-pytest-cov
 		--cov=skills/cypilot/scripts/cypilot \
 		--cov-report=term-missing \
 		--cov-report=json:coverage.json \
+		--cov-report=xml:coverage.xml \
 		--cov-report=html \
 		-v --tb=short
 	@$(PYTHON) scripts/check_coverage.py coverage.json --root skills/cypilot/scripts/cypilot --min 90
 	@echo ""
 	@echo "Coverage report generated:"
 	@echo "  HTML: htmlcov/index.html"
+	@echo "  XML: coverage.xml"
 	@echo "  Open with: open htmlcov/index.html"
 
 vulture: check-vulture
@@ -203,7 +205,7 @@ lint-ci:
 # Runs jobs sequentially — stops on first failure.
 # Auto-detects arm64/amd64. Override: make ci ACT_FLAGS="--your-flags"
 ci: lint-ci
-	@for job in $$(act push --list $(ACT_FLAGS) 2>/dev/null | tail -n +2 | awk '{print $$2}'); do \
+	@for job in $$(act push --list $(ACT_FLAGS) 2>/dev/null | tail -n +2 | awk '{print $$2}' | grep -v '^sonarqube$$'); do \
 		echo "▶ Running job: $$job"; \
 		act push -j $$job $(ACT_FLAGS) || exit 1; \
 	done
