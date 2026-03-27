@@ -615,7 +615,7 @@ class TestCLIPyCoverageSelfCheckMoreBranches(unittest.TestCase):
             kit = meta.kits["k"]
 
             def _boom(_kind: str) -> str:
-                raise Exception("boom")
+                raise ValueError("boom")
 
             kit.get_template_path = _boom
             kit.get_examples_path = _boom
@@ -948,7 +948,7 @@ class TestCLIPyCoverageValidateBranches(unittest.TestCase):
         class _BadKit:
             @property
             def path(self):
-                raise RuntimeError("boom")
+                raise OSError("boom")
 
         class _FakeLoadedKit:
             kit = _BadKit()
@@ -989,7 +989,7 @@ class TestCLIPyCoverageValidateBranches(unittest.TestCase):
             ctx = _FakeCtx(root, art_rel)
             buf = io.StringIO()
             with patch("cypilot.utils.context.get_context", return_value=ctx):
-                with patch("cypilot.commands.validate.scan_cpt_ids", side_effect=RuntimeError("scan boom")):
+                with patch("cypilot.commands.validate.scan_cpt_ids", side_effect=ValueError("scan boom")):
                     with patch(
                         "cypilot.commands.validate.validate_artifact_file",
                         return_value={"errors": [{"type": "x", "message": "boom", "path": str(root / art_rel), "line": 1}], "warnings": []},
@@ -1157,7 +1157,7 @@ class TestCLIPyCoverageValidateBranches(unittest.TestCase):
             def _scan(_p: Path):
                 calls["n"] += 1
                 if calls["n"] == 1:
-                    raise RuntimeError("boom")
+                    raise ValueError("boom")
                 return []
 
             with patch("cypilot.utils.context.get_context", return_value=ctx):
@@ -2787,13 +2787,14 @@ class TestCLIPyCoverageValidateWorkspaceBranches(unittest.TestCase):
         class _FakeCtx:
             meta = _FakeMeta()
             project_root = Path("/fake")
+            adapter_dir = Path("/fake")
             registered_systems = set()
             kits = {"x": types.SimpleNamespace(kit=types.SimpleNamespace(path="kits/x"), constraints=None)}
             _errors = []
             def get_known_id_kinds(self): return set()
         buf = io.StringIO()
         with patch("cypilot.utils.context.get_context", return_value=_FakeCtx()):
-            with patch("cypilot.commands.self_check.run_self_check_from_meta", side_effect=RuntimeError("boom")):
+            with patch("cypilot.commands.validate_kits.run_validate_kits", side_effect=ValueError("boom")):
                 with redirect_stdout(buf):
                     rc = validate_cmd.cmd_validate([])
         self.assertEqual(rc, 1)

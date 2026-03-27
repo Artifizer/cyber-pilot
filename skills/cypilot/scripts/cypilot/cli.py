@@ -11,7 +11,6 @@ IMPORTANT: This module MUST NOT contain business logic.
 
 # @cpt-begin:cpt-cypilot-algo-core-infra-route-command:p1:inst-route-helpers
 import sys
-import json
 from pathlib import Path
 from typing import List, Optional
 
@@ -77,9 +76,8 @@ def _cmd_kit(argv: List[str]) -> int:
     from .commands.kit import cmd_kit
     return cmd_kit(argv)
 
-def _cmd_generate_resources(argv: List[str]) -> int:
-    import sys as _sys
-    _sys.stderr.write(
+def _cmd_generate_resources(_argv: List[str]) -> int:
+    sys.stderr.write(
         "WARNING: 'generate-resources' is deprecated.\n"
         "         Kits are direct file packages — use 'cpt kit update <path>' instead.\n"
     )
@@ -223,8 +221,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             ("Migration", ["migrate", "migrate-config"]),
         ]
         if is_json_mode():
-            import json as _json
-            print(_json.dumps({
+            import json  # pylint: disable=import-outside-toplevel  # lazy: only needed in JSON output mode
+            print(json.dumps({
                 "usage": "cypilot <command> [options]",
                 "commands": _cmd_descriptions,
                 "sections": {name: cmds for name, cmds in _sections},
@@ -271,7 +269,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 if install_rel:
                     _inject_root_agents(project_root, install_rel)
                     _inject_root_claude(project_root, install_rel)
-        except Exception:
+        except (OSError, ValueError, KeyError):
             pass  # Non-fatal: don't block command execution
     # @cpt-end:cpt-cypilot-algo-core-infra-route-command:p1:inst-verify-agents
 

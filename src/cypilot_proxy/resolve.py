@@ -8,7 +8,6 @@ Walks directory tree to find project-installed skill, falls back to cache.
 
 # @cpt-begin:cpt-cypilot-algo-core-infra-resolve-skill:p1:inst-resolve-helpers
 import re
-import sys
 import tomllib
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -48,7 +47,7 @@ def _parse_toml_from_markdown(text: str) -> Dict[str, Any]:
         try:
             data = tomllib.loads(m.group(1))
             merged.update(data)
-        except Exception:
+        except (tomllib.TOMLDecodeError, ValueError):
             continue
     return merged
 

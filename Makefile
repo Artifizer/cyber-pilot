@@ -1,5 +1,5 @@
 # @cpt-algo:cpt-cypilot-spec-init-structure-change-infrastructure:p1
-.PHONY: test test-verbose test-quick test-coverage validate validate-examples validate-feature validate-code validate-code-feature self-check validate-kits validate-kits-sdlc vulture vulture-ci pylint install install-pipx install-proxy clean help check-pytest check-pytest-cov check-pipx check-vulture check-pylint check-versions update spec-coverage ci lint-ci
+.PHONY: test test-verbose test-quick test-coverage test-coverage-diff validate validate-examples validate-feature validate-code validate-code-feature self-check validate-kits validate-kits-sdlc vulture vulture-ci pylint install install-pipx install-proxy clean help check-pytest check-pytest-cov check-pipx check-vulture check-pylint check-versions update spec-coverage ci lint-ci
 
 # Detect container architecture for act (arm64 on Apple Silicon, amd64 otherwise)
 UNAME_M := $(shell uname -m)
@@ -19,6 +19,9 @@ PYTEST_PIPX ?= $(PIPX) run --spec pytest pytest
 PYTEST_PIPX_COV ?= $(PIPX) run --spec pytest-cov pytest
 VULTURE_PIPX ?= $(PIPX) run --spec vulture vulture
 PYLINT_PIPX ?= $(PIPX) run --spec pylint pylint
+DIFF_COVER_PIPX ?= $(PIPX) run --spec diff-cover diff-cover
+DIFF_COVER_COMPARE ?= main
+DIFF_COVER_MIN ?= 80
 VULTURE_MIN_CONF ?= 0
 PYLINT_TARGETS ?= src/cypilot_proxy skills/cypilot/scripts/cypilot
 
@@ -31,6 +34,7 @@ help:
 	@echo "  make test-verbose                  - Run tests with verbose output"
 	@echo "  make test-quick                    - Run fast tests only (skip slow integration tests)"
 	@echo "  make test-coverage                 - Run tests with coverage report"
+	@echo "  make test-coverage-diff            - Coverage for diff vs main (≥$(DIFF_COVER_MIN)%)"
 	@echo "  make validate-examples             - Validate requirements examples under examples/requirements"
 	@echo "  make validate                      - Validate core methodology spec"
 	@echo "  make self-check                    - Validate SDLC examples against their templates"
@@ -137,6 +141,37 @@ test-coverage: check-pytest-cov
 	@echo "  HTML: htmlcov/index.html"
 	@echo "  XML: coverage.xml"
 	@echo "  Open with: open htmlcov/index.html"
+	@if git rev-parse --verify $(DIFF_COVER_COMPARE) >/dev/null 2>&1 && \
+	    ! git diff --quiet $(DIFF_COVER_COMPARE) -- 2>/dev/null; then \
+		echo ""; \
+		echo "Checking diff coverage vs $(DIFF_COVER_COMPARE) (min $(DIFF_COVER_MIN)%)..."; \
+		$(DIFF_COVER_PIPX) coverage.xml \
+			--compare-branch=$(DIFF_COVER_COMPARE) \
+			--fail-under=$(DIFF_COVER_MIN) \
+			--diff-range-notation='..' \
+			--show-uncovered; \
+	else \
+		echo ""; \
+		echo "Skipping diff coverage (no diff vs $(DIFF_COVER_COMPARE) or branch not found)"; \
+	fi
+
+# Run diff-coverage standalone (reuses existing coverage.xml)
+test-coverage-diff:
+	@if [ ! -f coverage.xml ]; then \
+		echo "ERROR: coverage.xml not found. Run 'make test-coverage' first."; \
+		exit 1; \
+	fi
+	@if git rev-parse --verify $(DIFF_COVER_COMPARE) >/dev/null 2>&1 && \
+	    ! git diff --quiet $(DIFF_COVER_COMPARE) -- 2>/dev/null; then \
+		echo "Checking diff coverage vs $(DIFF_COVER_COMPARE) (min $(DIFF_COVER_MIN)%)..."; \
+		$(DIFF_COVER_PIPX) coverage.xml \
+			--compare-branch=$(DIFF_COVER_COMPARE) \
+			--fail-under=$(DIFF_COVER_MIN) \
+			--diff-range-notation='..' \
+			--show-uncovered; \
+	else \
+		echo "Skipping diff coverage (no diff vs $(DIFF_COVER_COMPARE) or branch not found)"; \
+	fi
 
 vulture: check-vulture
 	@echo "Running vulture dead-code scan (excluding tests by scanning only skills/cypilot/scripts/cypilot)..."

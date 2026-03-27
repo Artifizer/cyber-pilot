@@ -1,0 +1,8 @@
+I have a Cypilot execution plan at:
+  .bootstrap/.plans/implement-systematic-pylint-remediation/plan.toml
+
+Phase 3 is complete (PASS).
+Please read the plan manifest, then execute Phase 4: "Control-flow hotspots I".
+The phase file is: .bootstrap/.plans/implement-systematic-pylint-remediation/phase-04-control-flow-hotspots-i.md
+It is self-contained — follow its instructions exactly.
+After completion, report results and generate the prompt for the next phase.

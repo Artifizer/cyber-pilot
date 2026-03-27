@@ -12,11 +12,10 @@ All actual logic lives in the skill engine — this proxy only routes.
 """
 
 # @cpt-begin:cpt-cypilot-flow-core-infra-cli-invocation:p1:inst-cli-proxy-helpers
-import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, NoReturn, Optional
+from typing import List, Optional
 
 from cypilot_proxy.resolve import (
     find_cached_skill,
@@ -262,6 +261,7 @@ def _forward_to_skill(skill_path: Path, args: List[str]) -> int:
             stdin=sys.stdin,
             stdout=sys.stdout,
             stderr=sys.stderr,
+            check=False,
         )
         return proc.returncode
     except FileNotFoundError:
@@ -301,6 +301,6 @@ def _background_version_check(project_skill_path: Path) -> None:
             # @cpt-end:cpt-cypilot-flow-core-infra-cli-invocation:p1:inst-show-update-notice
         # @cpt-end:cpt-cypilot-state-core-infra-project-install:p1:inst-version-mismatch
         # @cpt-end:cpt-cypilot-flow-core-infra-cli-invocation:p1:inst-if-version-mismatch
-    except Exception:
+    except (OSError, ValueError):
         pass  # Never fail the actual command for a version check
 # @cpt-end:cpt-cypilot-flow-core-infra-cli-invocation:p1:inst-cli-proxy-helpers

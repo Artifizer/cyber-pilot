@@ -427,7 +427,7 @@ class TestLoadArtifactsMeta(unittest.TestCase):
             orig = ArtifactsMeta.from_dict
 
             def boom(data):
-                raise RuntimeError("boom")
+                raise ValueError("boom")
 
             try:
                 ArtifactsMeta.from_dict = staticmethod(boom)
@@ -477,7 +477,7 @@ class TestCreateBackup(unittest.TestCase):
             orig = shutil.copy2
 
             def boom(*args, **kwargs):
-                raise RuntimeError("boom")
+                raise OSError("boom")
 
             try:
                 shutil.copy2 = boom

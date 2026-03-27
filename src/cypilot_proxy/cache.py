@@ -108,7 +108,7 @@ def resolve_latest_version(
         body = ""
         try:
             body = e.read().decode("utf-8", errors="replace")
-        except Exception:
+        except OSError:
             pass
         sys.stderr.write(f"GitHub API error: HTTP {e.code} — {e.reason}\n")
         if body:
@@ -271,7 +271,6 @@ def download_and_cache(
     # @cpt-begin:cpt-cypilot-algo-core-infra-cache-skill:p1:inst-mkdir-cache
     # Remove old cache to prevent version mixing
     if cache_dir.exists():
-        import shutil
         shutil.rmtree(cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
     # @cpt-end:cpt-cypilot-algo-core-infra-cache-skill:p1:inst-mkdir-cache

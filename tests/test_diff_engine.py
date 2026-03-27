@@ -148,7 +148,7 @@ class TestOpenEditorForFile(unittest.TestCase):
     def test_editor_exception_returns_none(self):
         """Editor raises exception → returns None."""
         from cypilot.utils.diff_engine import _open_editor_for_file
-        with patch("subprocess.check_call", side_effect=RuntimeError("editor crash")):
+        with patch("subprocess.check_call", side_effect=OSError("editor crash")):
             with patch.dict("os.environ", {"VISUAL": "cat"}):
                 result = _open_editor_for_file("test.md", b"old\n", b"new\n")
         self.assertIsNone(result)
@@ -1251,7 +1251,7 @@ class TestFileLevelKitUpdateTocIntegration(unittest.TestCase):
                 ),
                 patch(
                     "cypilot.utils.diff_engine._regenerate_toc",
-                    side_effect=RuntimeError("toc broken"),
+                    side_effect=ValueError("toc broken"),
                 ),
             ):
                 file_level_kit_update(
@@ -1297,7 +1297,7 @@ class TestFileLevelKitUpdateTocIntegration(unittest.TestCase):
                 ),
                 patch(
                     "cypilot.utils.diff_engine._regenerate_toc",
-                    side_effect=RuntimeError("toc broken"),
+                    side_effect=ValueError("toc broken"),
                 ),
             ):
                 result = file_level_kit_update(

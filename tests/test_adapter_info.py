@@ -594,7 +594,7 @@ class TestAdapterInfoWorkspaceSection(unittest.TestCase):
         from unittest.mock import patch
         def _side_effect(*args, **kwargs):
             # Called from adapter_info workspace section
-            raise RuntimeError("boom")
+            raise OSError("boom")
 
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

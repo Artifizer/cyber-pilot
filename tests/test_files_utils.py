@@ -78,7 +78,7 @@ class TestLoadText(unittest.TestCase):
             orig = Path.read_text
 
             def boom(self, *args, **kwargs):
-                raise RuntimeError("boom")
+                raise OSError("boom")
 
             try:
                 Path.read_text = boom  # type: ignore
@@ -406,7 +406,7 @@ class TestLoadAdapterConfigExceptionHandling(unittest.TestCase):
 
             def boom(self, *args, **kwargs):
                 if "AGENTS" in str(self):
-                    raise RuntimeError("boom")
+                    raise OSError("boom")
                 return orig(self, *args, **kwargs)
 
             try:
