@@ -49,6 +49,7 @@ Works with any language, stack, or repository.
     - [Global CLI (recommended)](#global-cli-recommended)
   - [Project Setup](#project-setup)
     - [Update](#update)
+  - [Configuration](#configuration)
   - [Using Cypilot](#using-cypilot)
     - [Example Prompts](#example-prompts)
     - [Agent Skill](#agent-skill)
@@ -59,6 +60,9 @@ Works with any language, stack, or repository.
     - [Directory Structure](#directory-structure)
     - [Kit System](#kit-system)
   - [Multi-Repo Workspaces](#multi-repo-workspaces)
+    - [Quick Setup](#quick-setup)
+    - [How It Works](#how-it-works)
+    - [Cross-Repo Commands](#cross-repo-commands)
   - [Extensibility](#extensibility)
     - [Kit: **Cypilot SDLC**](#kit-cypilot-sdlc)
   - [Contributing](#contributing)
@@ -141,6 +145,28 @@ cpt update
 ```
 
 Updates `.core/` from cache, regenerates `.gen/` aggregates, and updates kit files in `config/kits/` with interactive diff prompts for modified files.
+
+---
+
+## Configuration
+
+All user-editable config lives in `config/` inside your Cypilot directory:
+
+| File | What it controls |
+|------|-----------------|
+| `core.toml` | Project settings, installed kits, kit resource paths (single source of truth) |
+| `artifacts.toml` | Registered systems, artifact types, codebase paths, traceability modes |
+| `AGENTS.md` | Agent navigation WHEN-rules (which files the agent opens per task) |
+| `SKILL.md` | Custom skill instructions loaded into agent context |
+| `rules/*.md` | Project rules — conventions, architecture, testing, patterns, etc. |
+
+Kit resources (templates, rules, checklists, constraints, workflows) are registered in `core.toml` under `[kits.<slug>.resources]`. To see all resolved paths:
+
+```bash
+cpt resolve-vars --flat
+```
+
+For the full configuration guide — including how to customize agent behavior, `@cpt-*` identifiers and traceability, artifact templates, checklists, constraints, code rules, workflows, and more — with copy-pastable prompts for every use case — see **[guides/CONFIGURATION.md](guides/CONFIGURATION.md)**.
 
 ---
 
