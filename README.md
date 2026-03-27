@@ -4,6 +4,7 @@
 [![Version](https://img.shields.io/badge/version-3.3-green.svg)]()
 [![Status](https://img.shields.io/badge/status-active-brightgreen.svg)]()
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)]()
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=cyberfabric_cyber-pilot&metric=coverage)](https://sonarcloud.io/summary/new_code?id=cyberfabric_cyber-pilot)
 
 **Version**: 3.0 | **Status**: Active | **Language**: English
 
