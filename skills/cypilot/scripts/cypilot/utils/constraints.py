@@ -900,9 +900,6 @@ def cross_validate_artifacts(
     errors: List[Dict[str, object]] = []
     warnings: List[Dict[str, object]] = []
 
-    if known_kinds is not None:
-        _kinds_set = {str(k).lower() for k in known_kinds}  # reserved for future kind validation
-
     constraints_by_artifact_kind: Dict[str, ArtifactKindConstraints] = {}
     missing_constraints_kinds: set[str] = set()
     composite_nested_kinds_by_base_kind: Dict[str, set[str]] = {}

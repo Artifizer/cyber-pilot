@@ -382,7 +382,7 @@ def _collect_def_ids_from_artifacts(
                     continue
                 has_ids = True
                 all_def_ids.append(str(h["id"]))
-        except Exception as exc:
+        except (OSError, ValueError) as exc:
             if errors is not None:
                 errors.append(f"Failed to scan IDs in {art_abs}: {exc}")
             continue
@@ -645,7 +645,7 @@ class ArtifactsMeta:
         def _rel_to_project_root(p: Path) -> Optional[str]:
             try:
                 return p.relative_to(project_root).as_posix()
-            except Exception:
+            except ValueError:
                 return None
 
         def _glob_files(root_abs: Path, pat: str) -> List[Path]:
@@ -717,7 +717,7 @@ class ArtifactsMeta:
             for h in hits:
                 try:
                     h = h.resolve()
-                except Exception:
+                except OSError:
                     continue
                 if not h.exists() or not h.is_dir():
                     continue
@@ -792,7 +792,7 @@ class ArtifactsMeta:
                 for mf in md_files:
                     try:
                         rel_to_root = mf.relative_to(artifacts_root_abs).as_posix()
-                    except Exception:
+                    except ValueError:
                         continue
                     matched = False
                     for pat in used_patterns:
@@ -970,10 +970,6 @@ class ArtifactsMeta:
     # @cpt-begin:cpt-cypilot-algo-core-infra-registry-parsing:p1:inst-reg-query-methods
     # === Kit Methods ===
 
-    def get_kit(self, kit_id: str) -> Optional[Kit]:
-        """Get a kit by ID."""
-        return self.kits.get(kit_id)
-
     # === Artifact Methods ===
 
     def get_artifact_by_path(self, path: str) -> Optional[Tuple[Artifact, SystemNode]]:
@@ -1011,7 +1007,7 @@ class ArtifactsMeta:
         def _iter_system(node: SystemNode) -> Iterator[str]:
             try:
                 prefix = node.get_hierarchy_prefix()
-            except Exception:
+            except (ValueError, AttributeError):
                 prefix = ""
             if prefix:
                 yield prefix
@@ -1063,6 +1059,9 @@ def load_artifacts_meta(adapter_dir: Path) -> Tuple[Optional[ArtifactsMeta], Opt
         else:
             data = json.loads(path.read_text(encoding="utf-8"))
 
+        if not isinstance(data, dict):
+            return None, f"Failed to load artifacts registry {path}: expected mapping at root, got {type(data).__name__}"
+
         # Merge fields from core.toml into registry data (new layout)
         core_path = config_dir / "core.toml"
         if not core_path.is_file():
@@ -1088,7 +1087,7 @@ def load_artifacts_meta(adapter_dir: Path) -> Tuple[Optional[ArtifactsMeta], Opt
         # @cpt-begin:cpt-cypilot-algo-core-infra-registry-parsing:p1:inst-reg-return
         return meta, None
         # @cpt-end:cpt-cypilot-algo-core-infra-registry-parsing:p1:inst-reg-return
-    except Exception as e:
+    except (OSError, ValueError, KeyError) as e:
         return None, f"Failed to load artifacts registry {path}: {e}"
 
 # @cpt-begin:cpt-cypilot-algo-core-infra-registry-parsing:p1:inst-reg-utilities
@@ -1117,7 +1116,7 @@ def create_backup(path: Path) -> Optional[Path]:
         else:
             shutil.copy2(path, backup_path)
         return backup_path
-    except Exception:
+    except OSError:
         return None
 
 def extract_system_slug_candidates(cpt_id: str, parent_prefix: str, kind_tokens: Set[str]) -> List[str]:

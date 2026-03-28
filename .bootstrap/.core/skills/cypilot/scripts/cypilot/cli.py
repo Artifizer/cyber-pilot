@@ -11,7 +11,6 @@ IMPORTANT: This module MUST NOT contain business logic.
 
 # @cpt-begin:cpt-cypilot-algo-core-infra-route-command:p1:inst-route-helpers
 import sys
-import json
 from pathlib import Path
 from typing import List, Optional
 
@@ -77,9 +76,8 @@ def _cmd_kit(argv: List[str]) -> int:
     from .commands.kit import cmd_kit
     return cmd_kit(argv)
 
-def _cmd_generate_resources(argv: List[str]) -> int:
-    import sys as _sys
-    _sys.stderr.write(
+def _cmd_generate_resources(_argv: List[str]) -> int:
+    sys.stderr.write(
         "WARNING: 'generate-resources' is deprecated.\n"
         "         Kits are direct file packages — use 'cpt kit update <path>' instead.\n"
     )
@@ -140,6 +138,18 @@ def _cmd_workspace_info(argv: List[str]) -> int:
 def _cmd_workspace_sync(argv: List[str]) -> int:
     from .commands.workspace_sync import cmd_workspace_sync
     return cmd_workspace_sync(argv)
+
+# =============================================================================
+# DIAGNOSTICS COMMANDS
+# =============================================================================
+
+def _cmd_doctor(argv: List[str]) -> int:
+    from .commands.doctor import cmd_doctor
+    return cmd_doctor(argv)
+
+def _cmd_delegate(argv: List[str]) -> int:
+    from .commands.delegate import cmd_delegate
+    return cmd_delegate(argv)
 # @cpt-end:cpt-cypilot-algo-core-infra-route-command:p1:inst-route-helpers
 
 # =============================================================================
@@ -183,7 +193,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     workspace_commands = [
         "workspace-init", "workspace-add", "workspace-info", "workspace-sync",
     ]
-    all_commands = analysis_commands + kit_commands + migration_commands + search_commands + workspace_commands + utility_commands + legacy_aliases
+    delegation_commands = ["delegate"]
+    diagnostics_commands = ["doctor"]
+    all_commands = analysis_commands + kit_commands + migration_commands + search_commands + workspace_commands + utility_commands + delegation_commands + diagnostics_commands + legacy_aliases
 
     # Handle --help / -h at top level (or no subcommand)
     if not argv_list or argv_list[0] in ("-h", "--help"):
@@ -212,6 +224,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             "workspace-add": "Add a source to workspace config",
             "workspace-info": "Show workspace config and source status",
             "workspace-sync": "Fetch and update Git URL source worktrees",
+            "delegate": "Compile and delegate a Cypilot plan to ralphex",
+            "doctor": "Run environment health checks",
         }
         _sections = [
             ("Setup & Configuration", ["init", "update", "info", "resolve-vars", "generate-agents", "agents"]),
@@ -221,10 +235,12 @@ def main(argv: Optional[List[str]] = None) -> int:
             ("Utility", ["toc"]),
             ("Workspace", ["workspace-init", "workspace-add", "workspace-info", "workspace-sync"]),
             ("Migration", ["migrate", "migrate-config"]),
+            ("Delegation", ["delegate"]),
+            ("Diagnostics", ["doctor"]),
         ]
         if is_json_mode():
-            import json as _json
-            print(_json.dumps({
+            import json  # pylint: disable=import-outside-toplevel  # lazy: only needed in JSON output mode
+            print(json.dumps({
                 "usage": "cypilot <command> [options]",
                 "commands": _cmd_descriptions,
                 "sections": {name: cmds for name, cmds in _sections},
@@ -271,7 +287,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 if install_rel:
                     _inject_root_agents(project_root, install_rel)
                     _inject_root_claude(project_root, install_rel)
-        except Exception:
+        except (OSError, ValueError, KeyError):
             pass  # Non-fatal: don't block command execution
     # @cpt-end:cpt-cypilot-algo-core-infra-route-command:p1:inst-verify-agents
 
@@ -332,6 +348,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _cmd_workspace_info(rest)
     elif cmd == "workspace-sync":
         return _cmd_workspace_sync(rest)
+    elif cmd == "delegate":
+        return _cmd_delegate(rest)
+    elif cmd == "doctor":
+        return _cmd_doctor(rest)
     else:
         # @cpt-begin:cpt-cypilot-algo-core-infra-route-command:p1:inst-if-no-handler
         # @cpt-begin:cpt-cypilot-algo-core-infra-route-command:p1:inst-return-unknown

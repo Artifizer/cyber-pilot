@@ -140,6 +140,7 @@ def _run_git(args: list, cwd: Optional[Path] = None) -> Tuple[int, str, str]:
             capture_output=True,
             text=True,
             timeout=_GIT_TIMEOUT,
+            check=False,
         )
         return (result.returncode, result.stdout, result.stderr)
     except FileNotFoundError:

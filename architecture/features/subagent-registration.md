@@ -48,6 +48,8 @@ Key assumptions: Subagent formats across tools have stabilized sufficiently for 
 
 Enable `cypilot generate-agents` to generate tool-specific subagent definitions so that two purpose-built workflows (`cypilot-codegen` and `cypilot-pr-review`) run as isolated subagents with appropriate tool restrictions, model selection, and custom prompts.
 
+**Boundary clarification**: Subagents in this feature are **host-tool-native** — they run as isolated agent contexts within the IDE/chat tool (Claude Code, Cursor, Copilot, Codex). ralphex is **not** modeled as a subagent: it is an external autonomous executor that consumes exported plan files rather than operating within the host tool's agent framework. ralphex delegation is owned by `cpt-cypilot-feature-ralphex-delegation` and does not replace or overlap with the subagent registration surface (see `cpt-cypilot-adr-ralphex-delegation-skill`).
+
 ### 1.3 Actors
 
 | Actor | Role in Feature |

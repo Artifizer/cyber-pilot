@@ -1,15 +1,13 @@
 # @cpt-begin:cpt-cypilot-flow-core-infra-project-init:p1:inst-init-helpers
 import argparse
 import json
-import os
 import re
 import shutil
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from ..utils.artifacts_meta import create_backup, generate_default_registry, generate_slug
-from ..utils.files import find_project_root
 from ..utils import toml_utils
 from ..utils.ui import ui
 
@@ -268,7 +266,7 @@ def _read_existing_install(project_root: Path) -> Optional[str]:
                 adapter_dir = project_root / val.strip()
                 if adapter_dir.is_dir():
                     return val.strip()
-        except Exception:
+        except (OSError, ValueError, KeyError):
             continue
     return None
 # @cpt-end:cpt-cypilot-flow-core-infra-project-init:p1:inst-init-detect-existing
@@ -403,7 +401,7 @@ def _install_default_kit(
             ui.warn(f"Kit '{kit_slug}' installed with status: {kit_status}")
         else:
             ui.substep(f"Kit '{kit_slug}' installed (v{resolved_version or 'dev'})")
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         ui.warn(f"Kit installation failed: {exc}")
         errors.append({"path": "kit", "error": str(exc)})
     finally:
@@ -736,7 +734,7 @@ def cmd_init(argv: List[str]) -> int:
 def _human_init_ok(
     data: Dict[str, object],
     project_root: Path,
-    cypilot_dir: Path,
+    _cypilot_dir: Path,
     install_rel: str,
     project_name: str,
     kit_results: Dict[str, Any],

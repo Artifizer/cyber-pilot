@@ -24,18 +24,19 @@
   - [Phase File Template](#phase-file-template)
   - [Decomposition Strategies](#decomposition-strategies)
   - [Plan Storage](#plan-storage)
+  - [Plan Export Contract](#plan-export-contract)
 - [6. Acceptance Criteria](#6-acceptance-criteria)
 
 <!-- /toc -->
 
-- [x] `p1` - **ID**: `cpt-cypilot-featstatus-execution-plans`
+- [ ] `p1` - **ID**: `cpt-cypilot-featstatus-execution-plans`
 ## 1. Feature Context
 
-- [x] `p1` - `cpt-cypilot-feature-execution-plans`
+- [ ] `p1` - `cpt-cypilot-feature-execution-plans`
 
 ### 1.1 Overview
 
-Execution Plans decompose large agent tasks (artifact generation, validation, code implementation) into self-contained phase files that fit within a single LLM context window. Each phase file is a compiled prompt — all rules, constraints, conventions, and context are pre-resolved and inlined so that any AI agent can execute it without Cypilot knowledge.
+Execution Plans decompose large agent tasks (artifact generation, validation, code implementation) into self-contained phase files that fit within a single LLM context window. Each phase file is a compiled prompt — all rules, constraints, conventions, and context are pre-resolved and inlined so that any AI agent can execute it without Cypilot knowledge. Accepted delegated execution extends this model by allowing plan outputs to be exported into executor-specific grammars — beginning with ralphex Markdown plans under `docs/plans/` — while Cypilot remains authoritative for decomposition, phase compilation, and deterministic validation commands (see `cpt-cypilot-adr-ralphex-delegation-skill`).
 
 ### 1.2 Purpose
 
@@ -62,6 +63,7 @@ Execution Plans solve this by moving decomposition from the user to the tool. Th
 
 - **PRD**: [PRD.md](../PRD.md) — `cpt-cypilot-fr-core-workflows`, `cpt-cypilot-fr-core-execution-plans`
 - **Design**: [DESIGN.md](../DESIGN.md) — `cpt-cypilot-component-agent-generator`
+- **ADRs**: [ADR-0018](../ADR/0018-cpt-cypilot-adr-ralphex-delegation-skill-v1.md) — `cpt-cypilot-adr-ralphex-delegation-skill` (plan export contract)
 - **Dependencies**: `cpt-cypilot-feature-agent-integration` (builds on generate/analyze workflows)
 
 ## 2. Actor Flows (CDSL)
@@ -317,6 +319,29 @@ The system MUST store execution plans in `{cypilot_path}/.plans/{task-slug}/` di
 **Touches**:
 - Directory: `{cypilot_path}/.plans/` (new, git-ignored)
 
+### Plan Export Contract
+
+- [ ] `p1` - **ID**: `cpt-cypilot-dod-execution-plans-export`
+
+The system MUST support exporting Cypilot plan outputs into executor-specific grammars for delegated execution. The initial target grammar is ralphex Markdown plans.
+
+**Export rules**:
+- One Cypilot execution plan exports to one ralphex plan file under the ralphex-resolved `plans_dir` (default `docs/plans/`; resolved from ralphex config precedence, not Cypilot-owned)
+- One Cypilot phase maps to one `### Task N:` block or a small contiguous task group inside the exported plan
+- Cypilot phase instructions, task steps, and acceptance criteria are flattened into ralphex-compatible checkboxes and validation commands
+- Exported plans MUST contain a `## Validation Commands` section derived from Cypilot's deterministic validation contract
+- `{cypilot_path}/.plans/{task}/out/` remains the stable interchange point for intermediate outputs consumed by later export passes
+- Exported plans are derived artifacts compiled from canonical Cypilot sources — they are not a second SDLC source of truth
+- Export MUST NOT copy the entire SDLC kit into the executor plan; only the bounded slices needed for the delegated task are included
+
+This feature owns the canonical plan structure and export contract definition. Concrete delegated export (compilation into ralphex grammar, `.ralphex/` overrides, CLI invocation) is implemented by `cpt-cypilot-feature-ralphex-delegation` — specifically `cpt-cypilot-algo-ralphex-delegation-compile-plan` and `cpt-cypilot-algo-ralphex-delegation-map-phase`.
+
+**Constraints**: `cpt-cypilot-constraint-markdown-contract`
+
+**Touches**:
+- Directory: `{plans_dir}/` (exported ralphex-compatible plans, written by ralphex-delegation feature; path resolved from ralphex config, default `docs/plans/`)
+- Directory: `{cypilot_path}/.plans/{task}/out/` (intermediate interchange outputs)
+
 ## 6. Acceptance Criteria
 
 - [x] Plan workflow file (`workflows/plan.md`) exists and follows workflow structure conventions
@@ -327,3 +352,6 @@ The system MUST store execution plans in `{cypilot_path}/.plans/{task-slug}/` di
 - [x] Phase files can be executed by any AI agent without Cypilot context or tools
 - [x] Plan manifest (`plan.toml`) correctly tracks phase status across executions
 - [ ] `.plans/` directory is automatically git-ignored *(only `.archive/` is currently gitignored)*
+- [ ] Cypilot plan outputs can be exported into ralphex-compatible Markdown plan files under the ralphex-resolved `plans_dir`
+- [ ] Exported plans contain `## Validation Commands` and `### Task N:` sections matching ralphex grammar
+- [ ] Phase-to-task mapping flattens Cypilot acceptance criteria into ralphex checkboxes

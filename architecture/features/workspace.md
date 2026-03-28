@@ -58,6 +58,8 @@ Multi-repo workspace federation enabling nested sub-directory repo discovery, so
 
 Enables teams working across multiple repositories to federate their Cypilot-managed artifacts — discovering repos in nested sub-directories, resolving cross-repo artifact paths, and collecting IDs across workspace boundaries — without merging adapters or modifying individual project configs. Addresses PRD requirement for workspace federation (`cpt-cypilot-fr-core-workspace`) and extends the core traceability system (`cpt-cypilot-fr-core-traceability`) with cross-repo resolution.
 
+**Delegation context note**: When Cypilot delegates execution to an external executor (e.g., ralphex), the delegated execution uses the same workspace/source-resolved context as the primary Cypilot session. Workspace source paths, adapter bindings, and cross-repo artifact resolution remain authoritative for delegated tasks. This feature does not own delegation logic — that belongs to `cpt-cypilot-feature-ralphex-delegation` — but it provides the context foundation that delegation consumers rely on (see `cpt-cypilot-adr-ralphex-delegation-skill`).
+
 ### 3. Actors
 
 | Actor | Role in Feature |

@@ -156,7 +156,7 @@ def cmd_validate(argv: List[str]) -> int:
                 }
                 ui.result(out)
                 return 2 if rc == 2 else 1
-        except Exception as e:
+        except (OSError, ValueError, KeyError) as e:
             out = {
                 "status": "ERROR",
                 "message": "self-check failed to run",
@@ -324,7 +324,7 @@ def cmd_validate(argv: List[str]) -> int:
                     project_root,
                     loaded_kit,
                 )
-            except Exception:
+            except (OSError, ValueError, KeyError):
                 constraints_path = None
 
         artifact_records.append(ArtifactRecord(path=artifact_path, artifact_kind=str(artifact_type), constraints=constraints_for_kind))
@@ -362,7 +362,7 @@ def cmd_validate(argv: List[str]) -> int:
                 _hits = scan_cpt_ids(artifact_path)
                 artifact_report["id_definitions"] = len([h for h in _hits if h.get("type") == "definition"])
                 artifact_report["id_references"] = len([h for h in _hits if h.get("type") == "reference"])
-            except Exception:
+            except (OSError, ValueError):
                 artifact_report["id_definitions"] = 0
                 artifact_report["id_references"] = 0
 
@@ -483,7 +483,7 @@ def cmd_validate(argv: List[str]) -> int:
                 if h.get("type") != "definition" or not h.get("id"):
                     continue
                 full_ids_to_check.add(str(h["id"]))
-        except Exception:
+        except (OSError, ValueError):
             continue
 
     strict_code_validation = not args.artifact
@@ -551,7 +551,7 @@ def cmd_validate(argv: List[str]) -> int:
                 # Apply registry root ignore rules as a hard visibility filter.
                 try:
                     rel = file_path.resolve().relative_to(project_root).as_posix()
-                except Exception:
+                except ValueError:
                     rel = None
                 if rel and meta.is_ignored(rel):
                     continue
@@ -617,7 +617,7 @@ def cmd_validate(argv: List[str]) -> int:
                             artifact_instances_all.setdefault(pid, set()).add(inst)
                             if checked:
                                 artifact_instances.setdefault(pid, set()).add(inst)
-                except Exception:
+                except (OSError, ValueError):
                     continue
 
             cv = cross_validate_code(
@@ -652,7 +652,7 @@ def cmd_validate(argv: List[str]) -> int:
                     if not rid:
                         continue
                     refs_by_id.setdefault(rid, set()).add(kind)
-            except Exception:
+            except (OSError, ValueError):
                 continue
 
         # Enforce rule for validated artifacts with no constraints.
@@ -669,7 +669,7 @@ def cmd_validate(argv: List[str]) -> int:
 
             try:
                 defs = [h for h in scan_cpt_ids(art.path) if h.get("type") == "definition" and h.get("id")]
-            except Exception:
+            except (OSError, ValueError):
                 defs = []
 
             for d in defs:
@@ -793,7 +793,7 @@ def _enrich_target_artifact_paths(
     - ``target_artifact_suggested_path`` set → artifact missing, autodetect knows where → "create `path`"
     - neither set → no autodetect rule → prompt asks LLM to request path from user
     """
-    from ..utils.artifacts_meta import ArtifactsMeta, SystemNode, AutodetectRule
+    from ..utils.artifacts_meta import ArtifactsMeta, SystemNode
 
     if not isinstance(meta, ArtifactsMeta):
         return

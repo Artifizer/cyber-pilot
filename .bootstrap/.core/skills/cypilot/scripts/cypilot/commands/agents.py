@@ -19,7 +19,6 @@ composes SKILL.md from kit @cpt:skill sections, and creates workflow proxies.
 # @cpt-begin:cpt-cypilot-algo-agent-integration-generate-shims:p1:inst-agents-datamodel
 import argparse
 import json
-import os
 import re
 import shutil
 import sys
@@ -199,7 +198,7 @@ def _ensure_cypilot_local(
                 file_count += 1
 
         return local_dot, {"action": "copied", "file_count": file_count}
-    except Exception as exc:
+    except OSError as exc:
         return cypilot_root, {"action": "error", "message": str(exc)}
 # @cpt-end:cpt-cypilot-algo-agent-integration-generate-shims:p1:inst-ensure-local-copy
 
@@ -235,7 +234,7 @@ def _write_or_skip(
     else:
         try:
             old = out_path.read_text(encoding="utf-8")
-        except Exception:
+        except OSError:
             old = ""
         if old != content:
             result["updated"].append(out_path.as_posix())
@@ -273,7 +272,7 @@ def _discover_kit_agents(
         try:
             with open(toml_path, "rb") as f:
                 data = tomllib.load(f)
-        except Exception as exc:
+        except (OSError, tomllib.TOMLDecodeError) as exc:
             sys.stderr.write(f"WARNING: failed to parse {toml_path}: {exc}\n")
             return
         agents_section = data.get("agents")
@@ -290,14 +289,15 @@ def _discover_kit_agents(
     config_kits = _resolve_config_kits(cypilot_root, project_root)
     if config_kits.is_dir():
         registered = _registered_kit_dirs(project_root)
+        registered_dirs: Set[str] = registered if isinstance(registered, set) else set()
         try:
             kit_dirs = sorted(config_kits.iterdir())
-        except Exception:
+        except OSError:
             kit_dirs = []
         for kit_dir in kit_dirs:
             if not kit_dir.is_dir():
                 continue
-            if registered is not None and kit_dir.name not in registered:
+            if registered_dirs and kit_dir.name not in registered_dirs:
                 continue
             _load_agents_toml(kit_dir / "agents.toml", kit_dir)
 
@@ -376,31 +376,36 @@ _TOOL_AGENT_CONFIG: Dict[str, Dict[str, Any]] = {
     "openai": {
         "output_dir": ".codex/agents",
         "format": "toml",
+        "filename_format": "{name}.toml",
     },
 }
 
 
 def _render_toml_agents(agents: List[Dict[str, Any]], target_agent_paths: Dict[str, str]) -> str:
-    """Render OpenAI Codex TOML agent configuration.
+    """Render one OpenAI Codex TOML role-definition file per agent.
 
-    Generated TOML uses ``ALWAYS open and follow`` pointers to shared agent
-    definition files, consistent with the proxy pattern used for markdown tools.
+    Codex treats each ``.toml`` file in ``.codex/agents/`` as a single role
+    definition, so the generated file must expose top-level
+    ``description``/``developer_instructions`` keys rather than nested
+    ``[agents.*]`` tables.
 
-    *agents* is a list of semantic agent dicts from ``_discover_kit_agents()``.
+    *agents* must contain exactly one semantic agent dict and *target_agent_paths*
+    must contain its resolved prompt target.
     """
-    lines: List[str] = ["# Cypilot subagent definitions for OpenAI Codex", ""]
-    for agent in agents:
-        name = agent["name"]
-        desc = " ".join(agent.get("description", "").split())
-        agent_path = target_agent_paths.get(name, "")
-        prompt = f"ALWAYS open and follow `{agent_path}`"
-        desc_escaped = desc.replace("\\", "\\\\").replace('"', '\\"')
-        lines.append(f'[agents.{name.replace("-", "_")}]')
-        lines.append(f'description = "{desc_escaped}"')
-        lines.append('developer_instructions = """')
-        lines.append(prompt)
-        lines.append('"""')
-        lines.append("")
+    if len(agents) != 1:
+        raise ValueError("_render_toml_agents() expects exactly one agent for Codex TOML output")
+    agent = agents[0]
+    name = agent["name"]
+    desc = " ".join(agent.get("description", "").split())
+    agent_path = target_agent_paths.get(name, "")
+    prompt = f"ALWAYS open and follow `{agent_path}`"
+    desc_escaped = desc.replace("\\", "\\\\").replace('"', '\\"')
+    lines: List[str] = [f"# Cypilot subagent definition for OpenAI Codex: {name}", ""]
+    lines.append(f'name = "{name}"')
+    lines.append(f'description = "{desc_escaped}"')
+    lines.append('developer_instructions = """')
+    lines.append(prompt)
+    lines.append('"""')
     return "\n".join(lines).rstrip() + "\n"
 # @cpt-end:cpt-cypilot-algo-agent-integration-generate-shims:p1:inst-create-proxy-templates
 
@@ -646,7 +651,7 @@ def _parse_frontmatter(file_path: Path) -> Dict[str, str]:
     result: Dict[str, str] = {}
     try:
         content = file_path.read_text(encoding="utf-8")
-    except Exception:
+    except OSError:
         return result
 
     lines = content.splitlines()
@@ -731,7 +736,7 @@ def _render_template(lines: List[str], variables: Dict[str, str]) -> str:
         try:
             out.append(line.format(**variables))
         except KeyError as e:
-            raise SystemExit(f"Missing template variable: {e}")
+            raise SystemExit(f"Missing template variable: {e}") from e
     rendered = "\n".join(out).rstrip() + "\n"
     return _ensure_frontmatter_description_quoted(rendered)
 
@@ -850,14 +855,14 @@ def _list_workflow_files(cypilot_root: Path, project_root: Optional[Path] = None
                     continue
                 try:
                     head = "\n".join(p.read_text(encoding="utf-8").splitlines()[:30])
-                except Exception:
+                except OSError:
                     continue
                 if "type: workflow" not in head:
                     continue
                 if p.name not in seen_names:
                     seen_names.add(p.name)
                     out.append((p.name, p.resolve()))
-        except Exception:
+        except OSError:
             pass
 
     # 1. Core workflows
@@ -865,14 +870,15 @@ def _list_workflow_files(cypilot_root: Path, project_root: Optional[Path] = None
 
     # 2. Kit workflows (config/kits/*/workflows/)
     registered = _registered_kit_dirs(project_root)
+    registered_dirs: Set[str] = registered if isinstance(registered, set) else set()
     config_kits = _resolve_config_kits(cypilot_root, project_root)
     if config_kits.is_dir():
         try:
             for kit_dir in sorted(config_kits.iterdir()):
-                if registered is not None and kit_dir.name not in registered:
+                if registered_dirs and kit_dir.name not in registered_dirs:
                     continue
                 _scan_dir(kit_dir / "workflows")
-        except Exception:
+        except OSError:
             pass
 
     out.sort(key=lambda t: t[0])
@@ -993,13 +999,13 @@ def _process_single_agent(
                 if not pth.name.startswith(prefix):
                     try:
                         head = "\n".join(pth.read_text(encoding="utf-8").splitlines()[:5])
-                    except Exception:
+                    except OSError:
                         continue
                     if not head.lstrip().startswith("# /"):
                         continue
                 try:
                     txt = pth.read_text(encoding="utf-8")
-                except Exception:
+                except OSError:
                     continue
                 if "ALWAYS open and follow `" not in txt:
                     continue
@@ -1037,7 +1043,7 @@ def _process_single_agent(
                     continue
                 try:
                     old = pth.read_text(encoding="utf-8")
-                except Exception:
+                except OSError:
                     old = ""
                 if old != meta["content"]:
                     workflows_result["updated"].append(p_str)
@@ -1055,7 +1061,7 @@ def _process_single_agent(
                     continue
                 try:
                     txt = pth.read_text(encoding="utf-8")
-                except Exception:
+                except OSError:
                     continue
                 m = _FOLLOW_LINK_RE.search(txt)
                 if not m:
@@ -1111,12 +1117,13 @@ def _process_single_agent(
 
                 # Enrich description with per-kit skill descriptions from config/kits/*/SKILL.md
                 registered = _registered_kit_dirs(project_root)
+                registered_dirs: Set[str] = registered if isinstance(registered, set) else set()
                 config_kits = _resolve_config_kits(cypilot_root, project_root)
                 if config_kits.is_dir():
                     kit_descs: List[str] = []
                     try:
                         for kit_dir in sorted(config_kits.iterdir()):
-                            if registered is not None and kit_dir.name not in registered:
+                            if registered_dirs and kit_dir.name not in registered_dirs:
                                 continue
                             kit_skill = kit_dir / "SKILL.md"
                             if kit_skill.is_file():
@@ -1124,7 +1131,7 @@ def _process_single_agent(
                                 kit_desc = kit_fm.get("description", "")
                                 if kit_desc:
                                     kit_descs.append(f"Kit {kit_dir.name}: {kit_desc}")
-                    except Exception:
+                    except OSError:
                         pass
                     if kit_descs:
                         skill_source_description = skill_source_description.rstrip(".") + ". " + ". ".join(kit_descs) + "."
@@ -1222,7 +1229,7 @@ def _process_single_agent(
                         skills_result["deleted"].append(rel_path)
 
     # ── Subagent generation ────────────────────────────────────────────
-    subagents_result: Dict[str, Any] = {"created": [], "updated": [], "skipped": False, "outputs": [], "errors": []}
+    subagents_result: Dict[str, Any] = {"created": [], "updated": [], "deleted": [], "skipped": False, "outputs": [], "errors": []}
 
     tool_cfg = _TOOL_AGENT_CONFIG.get(agent)
     kit_agents = _discover_kit_agents(cypilot_root, project_root)
@@ -1248,11 +1255,50 @@ def _process_single_agent(
                 )
 
         if output_format == "toml":
-            # Render all agents into a single TOML file
-            toml_path = (output_dir / "cypilot-agents.toml").resolve()
             filtered_kit_agents = [ka for ka in kit_agents if ka.get("prompt_file_abs")]
-            content = _render_toml_agents(filtered_kit_agents, target_agent_paths)
-            _write_or_skip(toml_path, content, subagents_result, project_root, dry_run)
+
+            legacy_toml_path = (output_dir / "cypilot-agents.toml").resolve()
+            if legacy_toml_path.is_file():
+                if dry_run:
+                    subagents_result["deleted"].append(legacy_toml_path.as_posix())
+                    subagents_result["outputs"].append({
+                        "path": _safe_relpath(legacy_toml_path, project_root),
+                        "action": "deleted",
+                    })
+                else:
+                    try:
+                        legacy_toml_path.unlink()
+                        subagents_result["deleted"].append(legacy_toml_path.as_posix())
+                        subagents_result["outputs"].append({
+                            "path": _safe_relpath(legacy_toml_path, project_root),
+                            "action": "deleted",
+                        })
+                    except OSError:
+                        subagents_result["errors"].append(
+                            f"failed to delete legacy OpenAI agent config: {_safe_relpath(legacy_toml_path, project_root)}"
+                        )
+
+            for ka in filtered_kit_agents:
+                name = ka["name"]
+                target_agent_rel = target_agent_paths.get(name, "")
+                if not target_agent_rel:
+                    sys.stderr.write(
+                        f"WARNING: agent {name!r} has no resolved prompt target, skipping subagent proxy\n"
+                    )
+                    subagents_result["skipped"] = True
+                    subagents_result["skip_reason"] = subagents_result.get("skip_reason", "") or "one or more agents missing prompt target"
+                    continue
+                content = _render_toml_agents([ka], {name: target_agent_rel})
+                filename = filename_fmt.format(name=name)
+                out_path = (output_dir / filename).resolve()
+                try:
+                    out_path.relative_to(output_dir)
+                except ValueError:
+                    subagents_result["errors"].append(
+                        f"agent {name!r} would write outside {output_dir_rel}, skipped"
+                    )
+                    continue
+                _write_or_skip(out_path, content, subagents_result, project_root, dry_run)
         else:
             # Markdown + YAML frontmatter (claude, cursor, copilot)
             template_fn = tool_cfg.get("template_fn")
@@ -1330,12 +1376,14 @@ def _process_single_agent(
         "subagents": {
             "created": subagents_result["created"],
             "updated": subagents_result["updated"],
+            "deleted": subagents_result["deleted"],
             "skipped": subagents_result["skipped"],
             "skip_reason": subagents_result.get("skip_reason", ""),
             "outputs": subagents_result["outputs"],
             "counts": {
                 "created": len(subagents_result["created"]),
                 "updated": len(subagents_result["updated"]),
+                "deleted": len(subagents_result["deleted"]),
             },
         },
         "errors": all_errors if all_errors else None,
@@ -1483,7 +1531,7 @@ def cmd_agents(argv: List[str]) -> int:
     ctx = _resolve_agents_context(argv, prog="agents", description="Show generated agent integration files", read_only=True)
     if ctx is None:
         return 1
-    args, agents_to_process, project_root, cypilot_root, copy_report, cfg_path, cfg = ctx
+    _args, agents_to_process, project_root, cypilot_root, _copy_report, cfg_path, cfg = ctx
 
     # Scan for existing agent files (dry-run to see what exists)
     results: Dict[str, Any] = {}
@@ -1634,8 +1682,8 @@ def _build_result(
 # ---------------------------------------------------------------------------
 
 def _human_agents_list(
-    data: Dict[str, Any],
-    agents_to_process: List[str],
+    _data: Dict[str, Any],
+    _agents_to_process: List[str],
     results: Dict[str, Any],
     project_root: Path,
 ) -> None:
@@ -1677,7 +1725,7 @@ def _human_agents_list(
 def _human_generate_agents_preview(
     agents_to_process: List[str],
     results: Dict[str, Any],
-    project_root: Path,
+    _project_root: Path,
 ) -> None:
     agent_label = ", ".join(agents_to_process)
     ui.header(f"Generate Agent Integration — {agent_label}")

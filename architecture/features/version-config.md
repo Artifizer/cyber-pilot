@@ -22,6 +22,7 @@
   - [Update Command](#update-command)
   - [Config CLI Commands](#config-cli-commands)
   - [Config Migration](#config-migration)
+  - [ralphex Integration Settings](#ralphex-integration-settings)
 - [6. Implementation Modules](#6-implementation-modules)
 - [7. Acceptance Criteria](#7-acceptance-criteria)
 
@@ -204,6 +205,20 @@ Ensures teams can upgrade Cypilot without losing configuration or customizations
 - [ ] - `p2` - Backup created before any migration
 - [ ] - `p2` - User settings preserved across version upgrades
 
+### ralphex Integration Settings
+
+- [ ] `p1` - **ID**: `cpt-cypilot-dod-version-config-ralphex-settings`
+
+The Config Manager MUST persist resolved `ralphex` executable path and related integration settings in `core.toml` so that future delegation does not require re-discovery. Settings are stored under a dedicated `[integrations.ralphex]` section in `core.toml`.
+
+**Persisted settings**:
+- `executable_path` — resolved absolute path to the `ralphex` binary
+
+Note: `plans_dir` and other execution-time settings are owned by ralphex's own config precedence chain (CLI flags > local `.ralphex/` > global `~/.config/ralphex/` > embedded defaults). Cypilot does not duplicate or override ralphex's `plans_dir` resolution — it queries ralphex at export time to determine the active plans directory.
+
+**Implements**:
+- `cpt-cypilot-component-config-manager` (see `cpt-cypilot-adr-ralphex-delegation-skill`)
+
 ## 6. Implementation Modules
 
 | Module | Path | Responsibility |
@@ -218,4 +233,5 @@ Ensures teams can upgrade Cypilot without losing configuration or customizations
 - [x] [LEGACY] Blueprint version comparison correctly identifies same, migration needed, and missing states
 - [ ] `cpt config show` displays readable config summary
 - [ ] Config migration preserves all user settings with backup
+- [ ] `core.toml` `[integrations.ralphex]` section persists resolved executable path
 - [x] `cpt update` automatically runs self-check after update and reports WARN if integrity check fails

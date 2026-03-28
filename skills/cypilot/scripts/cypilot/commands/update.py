@@ -127,7 +127,6 @@ def cmd_update(argv: List[str]) -> int:
     warnings: List[str] = []
 
     core_dir = cypilot_dir / CORE_SUBDIR
-    _gen_dir = cypilot_dir / GEN_SUBDIR  # used later by regenerate_gen_aggregates
     config_dir = cypilot_dir / "config"
 
     # ── Show core whatsnew (before .core/ is replaced) ────────────────────

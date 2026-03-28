@@ -874,6 +874,50 @@ RELATED:
   - @CLI.validate
 ---
 
+COMMAND delegate
+SYNOPSIS: python3 scripts/cypilot.py delegate <plan_dir> [options]
+DESCRIPTION: Compile a Cypilot plan and delegate to ralphex for autonomous execution. Discovers ralphex, validates availability, exports the plan, and invokes the delegation command. Supports dry-run mode to assemble the command without invoking.
+
+ARGUMENTS:
+  plan_dir  <path>  required  Path to the Cypilot plan directory containing plan.toml
+
+OPTIONS:
+  --mode  <string>  Delegation mode: execute, tasks-only, or review (default: execute)
+  --worktree  <boolean>  Request worktree isolation (execute and tasks-only only)
+  --serve / --no-serve  <boolean>  Enable or disable dashboard serving (default: True)
+  --dry-run  <boolean>  Assemble the command without invoking ralphex
+  --default-branch  <string>  Default branch for review precondition (default: main)
+  --plans-dir  <path>  Override plans directory (highest precedence)
+  --root  <path>  Project root directory (default: current directory)
+
+EXIT CODES:
+  0  Delegation successful (or dry-run command assembled)
+  1  Input error (missing plan directory, missing plan.toml, invalid root)
+  2  Delegation error (ralphex not found, validation failed, ralphex non-zero exit)
+
+OUTPUT:
+  JSON object with:
+  - status: ready (dry-run), delegated (success), or error
+  - ralphex_path: Discovered ralphex executable path
+  - validation: Ralphex availability validation result
+  - bootstrap: Bootstrap gate check result
+  - plan_file: Path to the written exported plan
+  - command: Assembled delegation command list
+  - mode: Delegation mode used
+  - lifecycle_state: Final lifecycle state
+  - error: Error message (when status is error)
+
+EXAMPLE:
+  $ python3 scripts/cypilot.py delegate .bootstrap/.plans/my-plan --dry-run
+  $ python3 scripts/cypilot.py delegate .bootstrap/.plans/my-plan --mode tasks-only
+  $ python3 scripts/cypilot.py delegate .bootstrap/.plans/my-plan --worktree --serve
+  $ python3 scripts/cypilot.py delegate .bootstrap/.plans/my-plan --root /path/to/project
+
+RELATED:
+  - @CLI.validate
+  - @CLI.info
+---
+
 COMMAND workspace-sync
 SYNOPSIS: python3 scripts/cypilot.py workspace-sync [--source <name>] [--dry-run] [--force]
 DESCRIPTION: Fetch and update worktrees for Git URL workspace sources. Iterates all sources with a url field (or a single --source) and runs git fetch + checkout to update the local worktree. Local path sources are skipped. Source resolution does not perform network operations for existing repos — use workspace-sync to explicitly update.

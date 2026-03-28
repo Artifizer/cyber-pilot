@@ -350,7 +350,10 @@ class TestAgentsStructure:
 
     def test_all_agents_valid(self):
         """Assert all AGENTS.md files are valid."""
-        agents_files = list(PROJECT_ROOT.rglob("AGENTS.md"))
+        agents_files = [
+            f for f in PROJECT_ROOT.rglob("AGENTS.md")
+            if "worktrees" not in f.parts
+        ]
         assert len(agents_files) >= 2, "Expected at least 2 AGENTS.md files"
         for f in agents_files:
             text = f.read_text(encoding="utf-8")

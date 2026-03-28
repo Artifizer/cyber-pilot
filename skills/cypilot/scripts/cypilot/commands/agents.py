@@ -376,6 +376,7 @@ _TOOL_AGENT_CONFIG: Dict[str, Dict[str, Any]] = {
     "openai": {
         "output_dir": ".codex/agents",
         "format": "toml",
+        "filename_format": "{name}.toml",
     },
 }
 
@@ -402,6 +403,7 @@ def _render_toml_agent(agent: Dict[str, Any], target_agent_path: str) -> str:
         '"""',
     ]
     return "\n".join(lines) + "\n"
+
 
 
 # @cpt-end:cpt-cypilot-algo-agent-integration-generate-shims:p1:inst-create-proxy-templates
@@ -1274,7 +1276,7 @@ def _process_single_agent(
                         skills_result["deleted"].append(rel_path)
 
     # ── Subagent generation ────────────────────────────────────────────
-    subagents_result: Dict[str, Any] = {"created": [], "updated": [], "skipped": False, "outputs": [], "errors": []}
+    subagents_result: Dict[str, Any] = {"created": [], "updated": [], "deleted": [], "skipped": False, "outputs": [], "errors": []}
 
     tool_cfg = _TOOL_AGENT_CONFIG.get(agent)
     kit_agents = _discover_kit_agents(cypilot_root, project_root)
@@ -1407,12 +1409,14 @@ def _process_single_agent(
         "subagents": {
             "created": subagents_result["created"],
             "updated": subagents_result["updated"],
+            "deleted": subagents_result["deleted"],
             "skipped": subagents_result["skipped"],
             "skip_reason": subagents_result.get("skip_reason", ""),
             "outputs": subagents_result["outputs"],
             "counts": {
                 "created": len(subagents_result["created"]),
                 "updated": len(subagents_result["updated"]),
+                "deleted": len(subagents_result["deleted"]),
             },
         },
         "errors": all_errors if all_errors else None,

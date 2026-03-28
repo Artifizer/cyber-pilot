@@ -57,8 +57,13 @@ Spaider.code-workspace
 # Cypilot plans (ephemeral)
 .bootstrap/.plans/.archive/
 .bootstrap/.plans/analyze-path-skills-cypilot-scripts-cypilot/
+.bootstrap/.plans/analyze-path-current-branch-vs-main-comprehensive/
 
 # Artifacts
 .prs/*
 coverage.xml
 .workspace-sources/*
+# ralphex runtime artifacts (progress logs, derived prompts)
+.ralphex/progress/
+# generated analysis output
+/out/
