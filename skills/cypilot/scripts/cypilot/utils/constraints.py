@@ -897,6 +897,7 @@ def cross_validate_artifacts(
 ) -> Dict[str, List[Dict[str, object]]]:
     from .document import headings_by_line, scan_cpt_ids
 
+    _ = known_kinds
     errors: List[Dict[str, object]] = []
     warnings: List[Dict[str, object]] = []
 
