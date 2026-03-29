@@ -876,7 +876,7 @@ def file_level_kit_update(
                 try:
                     regenerated = _regenerate_toc(pre_toc_content, toc_fmt)
                     dest.write_bytes(regenerated)
-                except Exception as exc:
+                except Exception as exc:  # pylint: disable=broad-exception-caught
                     dest.write_bytes(user_files.get(rel_path, pre_toc_content))
                     if interactive:
                         if not _prompt_toc_error_continue(rel_path, exc):

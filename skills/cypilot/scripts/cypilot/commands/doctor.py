@@ -43,7 +43,7 @@ def cmd_doctor(argv: List[str]) -> int:
     for check_name, check_fn in check_fns:
         try:
             checks.append(check_fn(project_root))
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=broad-exception-caught
             checks.append({
                 "level": "FAIL",
                 "name": check_name,
