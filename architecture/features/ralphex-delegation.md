@@ -339,7 +339,7 @@ The skill MUST report delegation results after ralphex completes: exit status, o
 
 | Module | Path | Responsibility |
 |--------|------|----------------|
-| ralphex Delegation Skill | `skills/.../workflows/cypilot-ralphex.md` (skill entry point) | Discovery, export, delegation, handoff orchestration |
+| ralphex Delegation Skill | `skills/.../agents/cypilot-ralphex.md` (skill entry point) | Discovery, export, delegation, handoff orchestration |
 | Plan Export Compiler | `skills/.../scripts/cypilot/ralphex_export.py` | Cypilot plan → ralphex Markdown plan compilation |
 
 ## 7. Acceptance Criteria

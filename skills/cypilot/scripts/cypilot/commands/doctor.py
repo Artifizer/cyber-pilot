@@ -36,9 +36,19 @@ def cmd_doctor(argv: List[str]) -> int:
 
     has_fail = False
     has_warn = False
-    checks = [
-        _check_ralphex(project_root),
+    check_fns = [
+        ("ralphex", _check_ralphex),
     ]
+    checks = []
+    for check_name, check_fn in check_fns:
+        try:
+            checks.append(check_fn(project_root))
+        except Exception as exc:
+            checks.append({
+                "level": "FAIL",
+                "name": check_name,
+                "message": f"Check raised an exception: {exc}",
+            })
 
     for check in checks:
         level = check["level"]

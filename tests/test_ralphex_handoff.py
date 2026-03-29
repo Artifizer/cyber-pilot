@@ -404,8 +404,10 @@ class TestValidationRoundTrip:
         }
         commands = extract_validation_commands(manifest)
         assert len(commands) == 1
-        # run_validation_commands accepts the same list
-        result = run_validation_commands(commands)
+        # run_validation_commands accepts the same list — mock subprocess for hermeticity
+        mock_result = MagicMock(returncode=0, stdout="ok\n", stderr="")
+        with patch("cypilot.ralphex_export.subprocess.run", return_value=mock_result):
+            result = run_validation_commands(commands)
         assert result["passed"] is True
         assert result["results"][0]["command"] == "echo ok"
 

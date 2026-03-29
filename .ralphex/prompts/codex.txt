@@ -56,4 +56,4 @@
 
 # CRITICAL: Never run codex commands yourself. The external loop handles codex execution.
 
-# OUTPUT FORMAT: No markdown formatting (no **bold**, `code`, # headers). Plain text and - lists are fine.
+# OUTPUT FORMAT: No Markdown formatting (no **bold**, `code`, # headers). Plain text and - lists are fine.

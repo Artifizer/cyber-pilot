@@ -222,7 +222,7 @@ class TestPrintHumanDelegatedBranch:
         finally:
             set_json_mode(saved)
         output = stderr.getvalue()
-        assert "Delegation started" in output
+        assert "Delegation completed" in output
         assert "Dashboard" in output
 
     def test_print_human_delegated_no_dashboard(self):
@@ -243,7 +243,7 @@ class TestPrintHumanDelegatedBranch:
         finally:
             set_json_mode(saved)
         output = stderr.getvalue()
-        assert "Delegation started" in output
+        assert "Delegation completed" in output
         assert "Dashboard" not in output
 
 
@@ -557,6 +557,12 @@ class TestReviewArtifactFailureLifecycleConsistency:
                     config={}, plan_dir=plan_dir, repo_root=repo,
                     mode="review", dry_run=True,
                 )
+            # Verify no exported plan files were written (review mode skips
+            # compile_delegation_plan so the output plans dir should not exist).
+            export_dir = Path(repo) / "docs" / "plans"
+            if export_dir.exists():
+                exported = list(export_dir.rglob("*.md"))
+                assert exported == [], f"Unexpected plan files in export dir: {exported}"
         assert result["status"] == "error"
         assert result["plan_file"] is None
         assert result["lifecycle_state"] == "failed"

@@ -353,7 +353,7 @@ Then immediately report:
 ```text
 Native execution options available:
   This plan can be delegated to ralphex using Cypilot's native delegation feature.
-  Command: {cpt_cmd} delegate {cypilot_path}/.plans/{task-slug}
+  Command: {cpt_cmd} delegate "{cypilot_path}/.plans/{task-slug}"
 
 Delegation prompt:
   I have a Cypilot execution plan ready at:

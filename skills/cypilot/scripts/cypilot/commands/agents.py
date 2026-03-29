@@ -391,7 +391,7 @@ def _render_toml_agent(agent: Dict[str, Any], target_agent_path: str) -> str:
     name = agent["name"]
     raw_desc = agent.get("description", "")
     if not isinstance(raw_desc, str):
-        raw_desc = str(raw_desc)
+        raw_desc = str(raw_desc) if raw_desc is not None else ""
     desc = " ".join(raw_desc.split())
     desc_escaped = desc.replace("\\", "\\\\").replace('"', '\\"')
     prompt = f"ALWAYS open and follow `{target_agent_path}`"
@@ -1839,6 +1839,8 @@ def _render_agent_file_actions(
         ui.file_action(path, "created")
     for path in sub.get("updated", []):
         ui.file_action(path, "updated")
+    for path in sub.get("deleted", []):
+        ui.file_action(path, "deleted")
     if sub.get("skipped") and sub.get("skip_reason"):
         ui.substep(f"subagents skipped: {sub.get('skip_reason')}")
 

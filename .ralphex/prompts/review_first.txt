@@ -39,7 +39,11 @@ Cypilot-managed final review step.
 # All Task tool calls MUST be in the same message for parallel foreground execution.
 # Do NOT use run_in_background. Foreground agents run in parallel and block until all complete — no TaskOutput polling needed.
 
-# CRITICAL: Do NOT proceed to Step 3 until ALL 5 agents have returned results.
+# CRITICAL: Do NOT proceed to Step 3 until ALL 5 agents have returned results
+# OR the agent timeout is reached (default: 10 minutes per agent).
+# If an agent fails or times out, mark it as FAILED, log the error, and
+# proceed to Step 3 with the results from the agents that did complete.
+# Do NOT block indefinitely waiting for a non-responsive agent.
 
 # Agents to launch:
 # {{agent:quality}}
@@ -73,8 +77,10 @@ Cypilot-managed final review step.
 # - CONFIRMED: Real issue, fix it
 # - FALSE POSITIVE: Doesn't exist or already mitigated - discard
 
-# IMPORTANT: Pre-existing issues (linter errors, failed tests) should also be fixed.
-# Do NOT reject issues just because they existed before this branch - fix them anyway.
+# IMPORTANT: Fix only issues introduced or touched by the current branch.
+# Pre-existing baseline issues (linter errors, failed tests unrelated to this branch)
+# should be logged/reported separately but are NOT required to be fixed in this review.
+# Do NOT expand scope to unrelated pre-existing problems.
 
 ### 3.3 Fix All Confirmed Issues
 # 1. Fix all CONFIRMED issues (all types: bugs, tests, smells, docs, etc.)

@@ -15,7 +15,7 @@ import string
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 
 # ---------------------------------------------------------------------------
@@ -41,7 +41,7 @@ class Manifest:
     version: str
     root: str
     user_modifiable: bool
-    resources: List[ManifestResource] = field(default_factory=list)
+    resources: list[ManifestResource] = field(default_factory=list)
 # @cpt-end:cpt-cypilot-algo-kit-manifest-install:p1:inst-manifest-datamodel
 
 
@@ -49,13 +49,13 @@ class Manifest:
 # Schema validation helper
 # ---------------------------------------------------------------------------
 
-def _validate_against_schema(data: Dict[str, Any]) -> List[str]:
+def _validate_against_schema(data: dict[str, Any]) -> list[str]:
     """Validate *data* against ``kit-manifest.schema.json`` (best-effort).
 
     Uses a lightweight structural check — no third-party jsonschema library.
     Returns a list of error messages (empty if valid).
     """
-    errors: List[str] = []
+    errors: list[str] = []
 
     # --- [manifest] section ---
     manifest = data.get("manifest")
@@ -133,7 +133,7 @@ def _validate_against_schema(data: Dict[str, Any]) -> List[str]:
 # ---------------------------------------------------------------------------
 
 # @cpt-begin:cpt-cypilot-algo-kit-manifest-install:p1:inst-manifest-read
-def load_manifest(kit_source: Path) -> Optional[Manifest]:
+def load_manifest(kit_source: Path) -> Manifest | None:
     """Read and parse ``manifest.toml`` from *kit_source*.
 
     Returns ``None`` if the file does not exist.
@@ -159,7 +159,7 @@ def load_manifest(kit_source: Path) -> Optional[Manifest]:
     meta = data["manifest"]
     raw_resources = data.get("resources", [])
 
-    resources: List[ManifestResource] = []
+    resources: list[ManifestResource] = []
     for r in raw_resources:
         resources.append(ManifestResource(
             id=str(r["id"]).strip(),
@@ -180,7 +180,7 @@ def load_manifest(kit_source: Path) -> Optional[Manifest]:
 
 
 # @cpt-begin:cpt-cypilot-algo-kit-manifest-install:p1:inst-manifest-validate
-def validate_manifest(manifest: Manifest, kit_source: Path) -> List[str]:
+def validate_manifest(manifest: Manifest, kit_source: Path) -> list[str]:
     """Validate a parsed *manifest* against the actual *kit_source* directory.
 
     Checks:
@@ -191,10 +191,10 @@ def validate_manifest(manifest: Manifest, kit_source: Path) -> List[str]:
 
     Returns a list of error messages (empty if valid).
     """
-    errors: List[str] = []
+    errors: list[str] = []
 
     # 1. Unique ids
-    seen_ids: Dict[str, int] = {}
+    seen_ids: dict[str, int] = {}
     for idx, res in enumerate(manifest.resources):
         if res.id in seen_ids:
             errors.append(
@@ -270,7 +270,7 @@ def _resolve_binding_path(cypilot_dir: Path, identifier: str, binding_path: str)
 # @cpt-begin:cpt-cypilot-algo-kit-manifest-resolve:p1:inst-resolve-read-bindings
 def resolve_resource_bindings(
     config_dir: Path, slug: str, cypilot_dir: Path,
-) -> Dict[str, Path]:
+) -> dict[str, Path]:
     """Resolve resource bindings for kit *slug* to absolute paths.
 
     Reads ``[kits.{slug}.resources]`` from ``core.toml`` in *config_dir*,
@@ -299,7 +299,7 @@ def resolve_resource_bindings_with_errors(
     config_dir: Path,
     slug: str,
     cypilot_dir: Path,
-) -> Tuple[Dict[str, Path], List[str]]:
+) -> tuple[dict[str, Path], list[str]]:
     """Resolve resource bindings while preserving valid entries and collecting errors."""
     core_toml = config_dir / "core.toml"
     if not core_toml.is_file():
@@ -325,8 +325,8 @@ def resolve_resource_bindings_with_errors(
     # @cpt-end:cpt-cypilot-algo-kit-manifest-resolve:p1:inst-resolve-read-bindings
 
     # @cpt-begin:cpt-cypilot-algo-kit-manifest-resolve:p1:inst-resolve-to-absolute
-    result: Dict[str, Path] = {}
-    binding_errors: List[str] = []
+    result: dict[str, Path] = {}
+    binding_errors: list[str] = []
     for identifier, binding in resources.items():
         if isinstance(binding, dict):
             binding_path = str(binding.get("path", "")).strip()
@@ -362,7 +362,7 @@ class ResourceInfo:
 # @cpt-algo:cpt-cypilot-algo-kit-manifest-source-mapping:p1
 def build_source_to_resource_mapping(
     kit_source: Path,
-) -> tuple[Dict[str, str], Dict[str, ResourceInfo]]:
+) -> tuple[dict[str, str], dict[str, ResourceInfo]]:
     """Build mapping from source file paths to resource identifiers.
 
     For manifest-driven kit updates, this mapping allows determining which
@@ -388,8 +388,8 @@ def build_source_to_resource_mapping(
         return {}, {}
     # @cpt-end:cpt-cypilot-algo-kit-manifest-source-mapping:p1:inst-load-manifest
 
-    source_to_resource_id: Dict[str, str] = {}
-    resource_info: Dict[str, ResourceInfo] = {}
+    source_to_resource_id: dict[str, str] = {}
+    resource_info: dict[str, ResourceInfo] = {}
 
     # @cpt-begin:cpt-cypilot-algo-kit-manifest-source-mapping:p1:inst-record-resource-info
     # @cpt-begin:cpt-cypilot-algo-kit-manifest-source-mapping:p1:inst-map-file-resources

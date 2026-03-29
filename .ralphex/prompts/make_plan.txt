@@ -98,6 +98,31 @@
 # - Output exactly: <<<RALPHEX:TASK_FAILED>>>
 # - STOP immediately - the user has cancelled plan creation
 
+## Step 3.5: Validate Plan Before Draft
+
+# Before emitting PLAN_DRAFT in Step 3.5, verify the plan against these criteria:
+
+# **Scope & Feasibility:**
+# - [ ] Tasks are reasonably sized (aim for 3-7 items; adjust if needed for coherence)
+# - [ ] Each task focuses on one component or closely related files
+# - [ ] Task dependencies are linear (no circular deps)
+# - [ ] External dependencies are minimized and clearly noted
+
+# **Completeness:**
+# - [ ] All requirements from the original description are addressed
+# - [ ] Each task specifies file paths where known (use patterns for discovery tasks)
+# - [ ] Each task that modifies code includes test items
+# - [ ] Task section checkboxes are automatable by the agent (no manual testing, deployment, or external verification items as `- [ ]` inside Task sections; those go in Post-Completion)
+
+# **Simplicity (YAGNI):**
+# - [ ] No unnecessary abstractions
+# - [ ] No "future-proofing" features not in the original request
+# - [ ] No backwards compatibility or fallbacks unless explicitly requested
+# - [ ] New files only for genuinely new components, not minor additions
+# - [ ] No over-engineered patterns when simpler solutions work
+
+# If validation fails, fix the plan before emitting PLAN_DRAFT.
+
 ## Step 4: Write Plan File (after draft accepted)
 
 # This step executes ONLY after the user accepts your draft (progress file contains "DRAFT REVIEW: accept").
@@ -156,31 +181,6 @@
 # - [ ] move this plan to `docs/plans/completed/`
 # ---
 
-## Step 4.5: Validate Plan Before Draft
-
-# Before emitting PLAN_DRAFT in Step 3.5, verify the plan against these criteria:
-
-# **Scope & Feasibility:**
-# - [ ] Tasks are reasonably sized (aim for 3-7 items; adjust if needed for coherence)
-# - [ ] Each task focuses on one component or closely related files
-# - [ ] Task dependencies are linear (no circular deps)
-# - [ ] External dependencies are minimized and clearly noted
-
-# **Completeness:**
-# - [ ] All requirements from the original description are addressed
-# - [ ] Each task specifies file paths where known (use patterns for discovery tasks)
-# - [ ] Each task that modifies code includes test items
-# - [ ] Task section checkboxes are automatable by the agent (no manual testing, deployment, or external verification items as `- [ ]` inside Task sections; those go in Post-Completion)
-
-# **Simplicity (YAGNI):**
-# - [ ] No unnecessary abstractions
-# - [ ] No "future-proofing" features not in the original request
-# - [ ] No backwards compatibility or fallbacks unless explicitly requested
-# - [ ] New files only for genuinely new components, not minor additions
-# - [ ] No over-engineered patterns when simpler solutions work
-
-# If validation fails, fix the plan before emitting PLAN_DRAFT.
-
 # Only after validation passes:
 # 1. Emit PLAN_DRAFT (Step 3.5) and wait for user review
 # 2. If user accepts, write the plan file (Step 4)
@@ -195,4 +195,4 @@
 # - DO NOT iterate or refine the plan after validation passes
 # - The PLAN_READY signal means "plan is complete, session is done"
 
-# OUTPUT FORMAT: No markdown formatting in your response text (no **bold**, `code`, # headers). Plain text and - lists are fine. The plan FILE should use markdown.
+# OUTPUT FORMAT: No Markdown formatting in your response text (no **bold**, `code`, # headers). Plain text and - lists are fine. The plan FILE should use Markdown.

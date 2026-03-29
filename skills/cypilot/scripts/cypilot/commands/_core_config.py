@@ -12,7 +12,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # @cpt-begin:cpt-cypilot-algo-ralphex-delegation-discover:p1:inst-read-config
-_ADAPTER_DIRS = (".bootstrap", "cypilot")
+_ADAPTER_DIRS = (".bootstrap", "cypilot", ".cypilot", ".cpt")
 
 
 def load_core_config(project_root: Path) -> dict:

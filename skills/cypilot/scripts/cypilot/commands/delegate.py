@@ -187,7 +187,9 @@ def _print_human(result: dict) -> None:
         return
 
     if status == "delegated":
-        ui.step("Delegation started:")
+        lifecycle = result.get("lifecycle_state", "unknown")
+        header = "Delegation completed:" if lifecycle == "completed" else "Delegation started:"
+        ui.step(header)
         command = result.get("command", [])
         if command:
             ui.info(f"  {' '.join(command)}")
