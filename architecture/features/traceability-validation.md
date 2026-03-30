@@ -9,6 +9,7 @@
   - [4. References](#4-references)
 - [2. Actor Flows (CDSL)](#2-actor-flows-cdsl)
   - [Validate Artifacts](#validate-artifacts)
+  - [Check Language](#check-language)
   - [Query Traceability](#query-traceability)
 - [3. Processes / Business Logic (CDSL)](#3-processes--business-logic-cdsl)
   - [Scan Artifact IDs](#scan-artifact-ids)
@@ -24,6 +25,7 @@
   - [Fixing Prompt Enrichment](#fixing-prompt-enrichment)
   - [Headings Contract Validation](#headings-contract-validation)
   - [Load Constraints](#load-constraints)
+  - [Content Language Scan](#content-language-scan)
   - [Language Configuration](#language-configuration)
 - [4. States (CDSL)](#4-states-cdsl)
   - [Validation Report Lifecycle](#validation-report-lifecycle)
@@ -105,6 +107,29 @@ Catches structural and traceability issues that AI agents miss or hallucinate �
 - [x] - `p1` - Imports and module setup for validate command - `inst-validate-imports`
 - [x] - `p1` - Internal helpers: attach issue to artifact report, enrich target artifact paths, find artifact in system, suggest path from autodetect - `inst-validate-helpers`
 - [x] - `p1` - Human-friendly formatter: issue location, issue formatting, validate report display - `inst-validate-format`
+
+### Check Language
+
+- [x] `p1` - **ID**: `cpt-cypilot-flow-traceability-validation-check-language`
+
+**Actor**: `cpt-cypilot-actor-user`
+
+**Success Scenarios**:
+- User runs `cpt check-language` → all .md artifacts scanned for disallowed Unicode characters, PASS if none found
+- User runs `cpt check-language --languages en,ru <path>` → specified path scanned with given language policy
+
+**Error Scenarios**:
+- Unknown language code passed via `--languages` → ERROR exit code 1
+- Specified path does not exist → ERROR exit code 1
+- Violations found → FAIL exit code 2
+
+**Steps**:
+1. [x] - `p1` - Parse arguments, resolve allowed languages, resolve scan roots, invoke scanner, display result - `inst-cmd-check-language`
+
+**Supporting**:
+- [x] - `p1` - Imports, argument parsing setup, and module-level constants - `inst-check-lang-imports`
+- [x] - `p1` - `_read_config_languages`, `_default_roots`, `_count_md_files` helper functions - `inst-helpers`
+- [x] - `p1` - `_human_result`: format violation report for human output - `inst-human-result`
 
 ### Query Traceability
 
@@ -406,6 +431,24 @@ Catches structural and traceability issues that AI agents miss or hallucinate �
 **Supporting**:
 - [x] - `p1` - Examples parser, heading-constraint ID slugifier, and references map parser - `inst-constraints-helpers`
 - [x] - `p1` - Normalize heading IDs and validate prev/next references in parsed constraints - `inst-constraints-normalize`
+
+### Content Language Scan
+
+- [x] `p1` - **ID**: `cpt-cypilot-algo-traceability-validation-lang-scan`
+
+**Input**: List of file/directory paths, list of allowed language codes
+
+1. [x] - `p1` - Define Unicode script ranges for each supported language code (Latin, Cyrillic, Arabic, CJK, etc.) - `inst-script-ranges`
+2. [x] - `p1` - Expose `SUPPORTED_LANGUAGES` constant — sorted list of all recognized language codes - `inst-supported-langs`
+3. [x] - `p1` - Define always-allowed common ranges (emoji, zero-width markers, BOM) - `inst-common-ranges`
+4. [x] - `p1` - Define skip patterns for fenced code blocks, HTML comments, and `@cpt` markers - `inst-skip-patterns`
+5. [x] - `p1` - Build merged sorted list of allowed Unicode ranges for the given language codes (`build_allowed_ranges`, `is_allowed`) - `inst-range-helpers`
+6. [x] - `p1` - Scan single file: skip fences and structural lines, collect lines with characters outside allowed ranges - `inst-scan-file`
+7. [x] - `p1` - Scan paths recursively: filter by extension (default `.md`), aggregate violations from all files - `inst-scan-paths`
+
+**Supporting**:
+- [x] - `p1` - Imports and module-level type aliases - `inst-lang-scan-imports`
+- [x] - `p1` - `LangScanError` and `LangViolation` dataclass with `bad_chars_preview` and `line_preview` helpers - `inst-violation-datamodel`
 
 ### Language Configuration
 

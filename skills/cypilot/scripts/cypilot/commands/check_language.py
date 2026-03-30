@@ -176,7 +176,7 @@ def _default_roots() -> List[Path]:
         ctx = get_context()
         if ctx is not None:
             return [ctx.project_root / "architecture"]
-    except Exception:
+    except (ImportError, AttributeError, RuntimeError):
         pass
     return [Path.cwd() / "architecture"]
 

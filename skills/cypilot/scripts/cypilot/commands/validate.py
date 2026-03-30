@@ -394,7 +394,7 @@ def cmd_validate(argv: List[str]) -> int:
     # Skipped if structure has already failed (all_errors non-empty) so language
     # issues never obscure structural errors.
     if not all_errors:
-        _lang_errs = _run_content_language_check(artifacts_to_validate, ws_ctx, project_root)
+        _lang_errs = _run_content_language_check(artifacts_to_validate, project_root)
         for _le in _lang_errs:
             all_errors.append(_le)
             _attach_issue_to_artifact_report(_le, is_error=True)
@@ -912,7 +912,6 @@ def _suggest_path_from_autodetect(node: object, target_kind: str) -> Optional[st
 
 def _run_content_language_check(
     artifacts_to_validate: list,
-    ws_ctx: object,
     project_root: "Path",
 ) -> list:
     """Return language-violation error dicts for all validated .md artifacts.
@@ -929,7 +928,7 @@ def _run_content_language_check(
         allowed_langs = _ws_cfg.validation.allowed_content_languages
         if not allowed_langs:
             return []
-    except Exception:
+    except (ImportError, ValueError, OSError, AttributeError):
         return []
 
     try:
@@ -940,7 +939,7 @@ def _run_content_language_check(
         )
         from ..utils.constraints import error as _error
         from ..utils import error_codes as _EC
-    except Exception:
+    except ImportError:
         return []
 
     allowed_ranges = build_allowed_ranges(allowed_langs)
