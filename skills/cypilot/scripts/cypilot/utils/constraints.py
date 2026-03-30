@@ -897,11 +897,9 @@ def cross_validate_artifacts(
 ) -> Dict[str, List[Dict[str, object]]]:
     from .document import headings_by_line, scan_cpt_ids
 
+    _ = known_kinds
     errors: List[Dict[str, object]] = []
     warnings: List[Dict[str, object]] = []
-
-    if known_kinds is not None:
-        _kinds_set = {str(k).lower() for k in known_kinds}  # reserved for future kind validation
 
     constraints_by_artifact_kind: Dict[str, ArtifactKindConstraints] = {}
     missing_constraints_kinds: set[str] = set()

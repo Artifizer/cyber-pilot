@@ -401,7 +401,7 @@ def _install_default_kit(
             ui.warn(f"Kit '{kit_slug}' installed with status: {kit_status}")
         else:
             ui.substep(f"Kit '{kit_slug}' installed (v{resolved_version or 'dev'})")
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         ui.warn(f"Kit installation failed: {exc}")
         errors.append({"path": "kit", "error": str(exc)})
     finally:

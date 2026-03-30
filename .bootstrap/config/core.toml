@@ -103,3 +103,6 @@ path = "config/kits/sdlc/AGENTS.md"
 
 [kits.sdlc.resources.workflow_migrate_openspec]
 path = "config/kits/sdlc/workflows/migrate-openspec.md"
+
+[integrations.ralphex]
+executable_path = ""  # Resolved absolute path to ralphex binary

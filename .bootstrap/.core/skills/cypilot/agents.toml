@@ -25,3 +25,33 @@ prompt_file = "agents/cypilot-pr-review.md"
 mode = "readonly"
 isolation = false
 model = "fast"
+
+[agents.cypilot-ralphex]
+description = """\
+Cypilot ralphex delegation agent. Use when delegating a Cypilot plan \
+to ralphex for autonomous execution. Manages discovery, export, \
+delegation, and handoff lifecycle."""
+prompt_file = "agents/cypilot-ralphex.md"
+mode = "readwrite"
+isolation = false
+model = "inherit"
+
+[agents.cypilot-phase-runner]
+description = """\
+Cypilot execution-plan phase runner. Use when executing the next or a \
+specific phase from a generated Cypilot plan inside a dedicated agent \
+context, without delegating to ralphex."""
+prompt_file = "agents/cypilot-phase-runner.md"
+mode = "readwrite"
+isolation = true
+model = "inherit"
+
+[agents.cypilot-phase-compiler]
+description = """\
+Cypilot execution-plan phase compiler. Use when compiling exactly one \
+plan phase from its brief in an isolated agent context, without \
+delegating to ralphex or executing the phase."""
+prompt_file = "agents/cypilot-phase-compiler.md"
+mode = "readwrite"
+isolation = true
+model = "inherit"

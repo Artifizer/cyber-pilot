@@ -195,7 +195,7 @@ Decomposition ({strategy} strategy):
   Overflow phases: 0
   Budget: 2000 lines max per phase
   
-  Proceed with compilation? [y/n]
+  Proceed with manifest + brief generation? [y/n]
 ```
 Wait for user confirmation before proceeding.
 
@@ -203,7 +203,9 @@ Wait for user confirmation before proceeding.
 
 Open and follow `{cypilot_path}/.core/requirements/plan-template.md`.
 
-Compilation is split to minimize context: write the manifest, write briefs, then compile one phase at a time.
+Phase 3 is split to minimize context: write the manifest, write briefs, then stop for an explicit user choice about how phase files should be produced.
+
+The manifest and all `brief-*` files are mandatory outputs of `/cypilot-plan`. After they are on disk, the workflow MUST pause and ask whether to continue with inline phase generation, per-brief phase-generation prompts, or `cypilot-phase-compiler` subagents.
 
 ### 3.1 Write Plan Manifest
 
@@ -245,7 +247,27 @@ checklist_sections = []             # H2 numbers from checklist.md (analyze task
 
 For each phase, generate a compilation brief (`~50-80` lines). ALWAYS open and follow `{cypilot_path}/.core/requirements/brief-template.md`. Estimate kit file sizes with `wc -l`, list examples with `ls`, fill the brief from `plan.toml`, and write `{cypilot_path}/.plans/{task-slug}/brief-{NN}-{slug}.md`. A brief contains the context boundary, phase metadata, load instructions, phase file structure, and context budget — never copied kit content or the phase file itself.
 
-### 3.3 Compile Phase Files (Agent + Context Boundary)
+### 3.2A Stop After Briefs & Ask For Next Step
+
+Once `plan.toml` and every `brief-*` file exist on disk, stop immediately and report:
+```text
+Brief package prepared: {cypilot_path}/.plans/{task-slug}/
+  Manifest: plan.toml
+  Briefs: {N}
+  Compiled phase files: 0/{N}
+
+What would you like to do next?
+
+  [1] Generate phase files here — compile phases in the current chat from the briefs
+  [2] Generate phase-compilation prompts — emit one self-contained prompt per brief for downstream chats
+  [3] Run phase-compiler subagents — invoke `cypilot-phase-compiler` for each brief
+  [4] Stop here — keep the manifest and briefs without compiling phase files yet
+```
+Wait for user choice before entering Phase 3.3. Do not emit `Plan created` at this checkpoint.
+
+### 3.3 Produce Phase Files Or Phase-Generation Prompts
+
+Phase 3.3 runs only after the user chooses one of the post-brief paths.
 
 For each phase, apply:
 ```text
@@ -255,15 +277,16 @@ Read ONLY the files listed in the brief. Follow its instructions exactly.
 ---
 ```
 Then:
-1. Read the brief **FROM DISK** at `{cypilot_path}/.plans/{task-slug}/{brief_file}`. If it is not on disk, go back to 3.2. Compiling without reading the brief from disk is INVALID.
-2. Read kit files per the brief: rules (`MUST` / `MUST NOT` only; skip Prerequisites / Tasks / Next Steps), template sections, and example.
-3. Write the phase file with TOML frontmatter, Preamble, What, Prior Context, User Decisions, Rules, Input, Task, Acceptance Criteria, Output Format.
-4. Apply deterministic-first task design: `EXECUTE:` for deterministic work, LLM reasoning only for creative/synthesis, `Read <file>` for inputs, and review gates as `Present output to user for review. Wait for approval.`
-5. Report `Phase {N} compiled → {filename} ({lines} lines)` and re-apply the context boundary before the next phase.
+1. Read the brief **FROM DISK** at `{cypilot_path}/.plans/{task-slug}/{brief_file}`. If it is not on disk, go back to 3.2. Using a brief that was not read from disk is INVALID.
+2. If the user chose option `[1]`, compile exactly one `phase-*` file in the current chat from that brief, validate it against the brief, report `Phase {N} compiled inline → {filename} ({lines} lines)`, and continue.
+3. If the user chose option `[2]`, emit exactly one self-contained downstream prompt for that brief. The prompt MUST instruct the downstream worker to read the brief from disk, apply the context boundary, and compile exactly one phase file. Report `Phase {N} prompt prepared → {brief_file}` and continue. Do not write `phase-*` files in this mode.
+4. If the user chose option `[3]`, route compilation to `{cypilot_path}/.core/skills/cypilot/agents/cypilot-phase-compiler.md`. Accept the result only if it reports a successful compile summary with phase identity, output file path, and compile-time validation outcome. Report `Phase {N} compiled via subagent → {filename} ({lines} lines)` and continue.
 
-Continue mode = same chat with context boundary. New chat mode = recommended for `4+` phases.
+The planner remains responsible for decomposition, manifest creation, and brief generation. Phase-file production may happen inline, via downstream prompts, or through the dedicated phase compiler subagent depending on the user's post-brief choice.
 
 ### 3.4 Validate Phase Files
+
+Run Phase 3.4 only if option `[1]` or `[3]` generated phase files in this run.
 
 After all phases are compiled:
 1. Every `brief_file` exists on disk.
@@ -276,7 +299,7 @@ After all phases are compiled:
 
 ## Phase 4: Finalize Plan
 
-> **Note**: `plan.toml` was already written in Phase 3.1, lifecycle was selected in Phase 2.1, and phase files were compiled in Phase 3.2-3.3.
+> **Note**: `plan.toml` was already written in Phase 3.1 and briefs were written in Phase 3.2. Enter Phase 4 only if the user selected option `[1]` or `[3]` and all `phase-*` files were produced in Phase 3.3. If the user selected option `[2]` or `[4]`, stop after the brief checkpoint and do not emit `Plan created`.
 
 Status model in `plan.toml`:
 - `phases[].status`: `pending`, `in_progress`, `done`, `failed`
@@ -324,14 +347,36 @@ Plan created: {cypilot_path}/.plans/{task-slug}/
   Lifecycle: {lifecycle}
 ```
 
+You may emit `Plan created` only after Phase 3.4 PASS confirms that `plan.toml`, every `brief-*`, and every compiled `phase-*` file already exist on disk. If the run stopped after brief generation or produced only downstream prompts, omit this section.
+
+Then immediately report:
+```text
+Native execution options available:
+  This plan can be delegated to ralphex using Cypilot's native delegation feature.
+  Command: {cpt_cmd} delegate "{cypilot_path}/.plans/{task-slug}"
+
+Delegation prompt:
+  I have a Cypilot execution plan ready at:
+    {cypilot_path}/.plans/{task-slug}
+
+  Please delegate this plan to ralphex using Cypilot's native delegation flow.
+
+Native phase execution prompt:
+  I have a Cypilot execution plan ready at:
+    {cypilot_path}/.plans/{task-slug}/plan.toml
+
+  Please execute the next phase using Cypilot's native phase runner.
+```
+
  Then present ALL of these next steps and wait for user choice before generating the startup prompt:
 ```text
 What would you like to do next?
 
   [1] Validate plan thoroughly — run /cypilot-analyze on the plan
-  [2] Prepare execution handoff — generate the Phase 1 startup prompt for a downstream execution chat
-  [3] Review plan files — inspect phase files before execution
-  [4] Modify plan — adjust phases, add/remove content
+  [2] Execute Phase 1 natively — use Cypilot's dedicated phase-runner subagent
+  [3] Prepare execution handoff — generate the Phase 1 startup prompt for a downstream execution chat
+  [4] Review plan files — inspect phase files before execution
+  [5] Modify plan — adjust phases, add/remove content
 ```
 
 ### New-Chat Startup Prompt
@@ -352,6 +397,8 @@ No explanatory text may be mixed into that code fence.
 This appendix is the runtime contract for a generated plan after `/cypilot-plan` has finished. It is reference material for downstream execution, not a phase performed during plan creation.
 
 When the user requests phase execution:
+
+- Route native phase execution intent to `{cypilot_path}/.core/skills/cypilot/agents/cypilot-phase-runner.md`.
 
 ### 5.1 Load Phase
 

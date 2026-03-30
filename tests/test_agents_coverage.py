@@ -792,5 +792,224 @@ class TestEnsureCypilotLocalRootDirsAndFiles(unittest.TestCase):
             self.assertTrue((result_path / ".core" / "VERSION").is_file())
 
 
+class TestCypilotRalphexRegistration(unittest.TestCase):
+    """Verify cypilot-ralphex is registered and discoverable by agent generation."""
+
+    def _make_project_with_agents_toml(self, tmpdir):
+        root = (Path(tmpdir) / "proj").resolve()
+        root.mkdir()
+        (root / ".git").mkdir()
+        cpt = root / "cypilot"
+        cpt.mkdir()
+        core_skill = cpt / ".core" / "skills" / "cypilot"
+        core_skill.mkdir(parents=True)
+        # Copy the real agents.toml
+        src_agents_toml = Path(__file__).parent.parent / "skills" / "cypilot" / "agents.toml"
+        import shutil
+        shutil.copy2(src_agents_toml, core_skill / "agents.toml")
+        # Create the prompt file so validation passes
+        agents_dir = core_skill / "agents"
+        agents_dir.mkdir(parents=True)
+        (agents_dir / "cypilot-ralphex.md").write_text(
+            "You are a Cypilot ralphex delegation agent.\n",
+            encoding="utf-8",
+        )
+        (agents_dir / "cypilot-codegen.md").write_text(
+            "You are a Cypilot code generator.\n",
+            encoding="utf-8",
+        )
+        (agents_dir / "cypilot-pr-review.md").write_text(
+            "You are a Cypilot PR reviewer.\n",
+            encoding="utf-8",
+        )
+        return root, cpt
+
+    def _make_full_project(self, tmpdir):
+        """Create project with core structure needed for _process_single_agent."""
+        root, cpt = self._make_project_with_agents_toml(tmpdir)
+        core_skill = cpt / ".core" / "skills" / "cypilot" / "SKILL.md"
+        core_skill.write_text(
+            "---\nname: cypilot\ndescription: Test skill\n---\nContent\n",
+            encoding="utf-8",
+        )
+        (cpt / ".core" / "workflows").mkdir(parents=True, exist_ok=True)
+        return root, cpt
+
+    def test_ralphex_in_agents_toml(self):
+        """agents.toml contains a cypilot-ralphex entry."""
+        agents_toml = Path(__file__).parent.parent / "skills" / "cypilot" / "agents.toml"
+        with open(agents_toml, "rb") as f:
+            import tomllib
+            data = tomllib.load(f)
+        agents = data.get("agents", {})
+        self.assertIn("cypilot-ralphex", agents)
+        entry = agents["cypilot-ralphex"]
+        self.assertEqual(entry["prompt_file"], "agents/cypilot-ralphex.md")
+        self.assertEqual(entry["mode"], "readwrite")
+        self.assertFalse(entry.get("isolation", False))
+
+    def test_ralphex_discovered_by_kit_agents(self):
+        """_discover_kit_agents finds cypilot-ralphex from agents.toml."""
+        from cypilot.commands.agents import _discover_kit_agents
+
+        with TemporaryDirectory() as td:
+            root, cpt = self._make_project_with_agents_toml(td)
+            agents = _discover_kit_agents(cpt, root)
+            names = [a["name"] for a in agents]
+            self.assertIn("cypilot-ralphex", names)
+            ralphex = next(a for a in agents if a["name"] == "cypilot-ralphex")
+            self.assertEqual(ralphex["mode"], "readwrite")
+            self.assertFalse(ralphex["isolation"])
+            self.assertIsNotNone(ralphex["prompt_file_abs"])
+
+    def test_ralphex_generates_claude_subagent_proxy(self):
+        """Agent generation produces a claude subagent proxy for cypilot-ralphex."""
+        from cypilot.commands.agents import _process_single_agent, _default_agents_config
+
+        with TemporaryDirectory() as td:
+            root, cpt = self._make_full_project(td)
+
+            cfg = _default_agents_config()
+            result = _process_single_agent("claude", root, cpt, cfg, None, dry_run=False)
+
+            subagents = result.get("subagents", {})
+            all_files = subagents.get("created", []) + subagents.get("updated", [])
+            ralphex_files = [f for f in all_files if "cypilot-ralphex" in f]
+            self.assertTrue(
+                len(ralphex_files) > 0,
+                f"Expected cypilot-ralphex subagent proxy, got: {all_files}",
+            )
+            # Verify the generated file uses ALWAYS open and follow
+            proxy_path = Path(ralphex_files[0])
+            content = proxy_path.read_text(encoding="utf-8")
+            self.assertIn("ALWAYS open and follow", content)
+            self.assertIn("cypilot-ralphex", content)
+            # Verify readwrite tools (not readonly)
+            self.assertIn("Write", content)
+            self.assertIn("Edit", content)
+
+    def test_ralphex_generates_cursor_subagent_proxy(self):
+        """Agent generation produces a cursor subagent proxy for cypilot-ralphex."""
+        from cypilot.commands.agents import _process_single_agent, _default_agents_config
+
+        with TemporaryDirectory() as td:
+            root, cpt = self._make_full_project(td)
+
+            cfg = _default_agents_config()
+            result = _process_single_agent("cursor", root, cpt, cfg, None, dry_run=False)
+
+            subagents = result.get("subagents", {})
+            all_files = subagents.get("created", []) + subagents.get("updated", [])
+            ralphex_files = [f for f in all_files if "cypilot-ralphex" in f]
+            self.assertTrue(
+                len(ralphex_files) > 0,
+                f"Expected cypilot-ralphex cursor proxy, got: {all_files}",
+            )
+            proxy_path = Path(ralphex_files[0])
+            content = proxy_path.read_text(encoding="utf-8")
+            self.assertIn("ALWAYS open and follow", content)
+            # Cursor readwrite gets edit tool
+            self.assertIn("edit", content)
+
+    def test_ralphex_generates_copilot_subagent_proxy(self):
+        """Agent generation produces a copilot subagent proxy for cypilot-ralphex."""
+        from cypilot.commands.agents import _process_single_agent, _default_agents_config
+
+        with TemporaryDirectory() as td:
+            root, cpt = self._make_full_project(td)
+
+            cfg = _default_agents_config()
+            result = _process_single_agent("copilot", root, cpt, cfg, None, dry_run=False)
+
+            subagents = result.get("subagents", {})
+            all_files = subagents.get("created", []) + subagents.get("updated", [])
+            ralphex_files = [f for f in all_files if "cypilot-ralphex" in f]
+            self.assertTrue(
+                len(ralphex_files) > 0,
+                f"Expected cypilot-ralphex copilot proxy, got: {all_files}",
+            )
+            proxy_path = Path(ralphex_files[0])
+            content = proxy_path.read_text(encoding="utf-8")
+            self.assertIn("ALWAYS open and follow", content)
+            # Copilot readwrite gets wildcard tools
+            self.assertIn('"*"', content)
+
+    def test_ralphex_generates_openai_toml_entry(self):
+        """Agent generation includes cypilot-ralphex in OpenAI TOML output."""
+        from cypilot.commands.agents import _process_single_agent, _default_agents_config
+
+        with TemporaryDirectory() as td:
+            root, cpt = self._make_full_project(td)
+
+            cfg = _default_agents_config()
+            result = _process_single_agent("openai", root, cpt, cfg, None, dry_run=False)
+
+            subagents = result.get("subagents", {})
+            all_files = subagents.get("created", []) + subagents.get("updated", [])
+            toml_files = [f for f in all_files if "cypilot-ralphex.toml" in f]
+            self.assertTrue(
+                len(toml_files) > 0,
+                f"Expected cypilot-ralphex.toml, got: {all_files}",
+            )
+            content = Path(toml_files[0]).read_text(encoding="utf-8")
+            self.assertIn("cypilot-ralphex", content)
+            self.assertIn("ALWAYS open and follow", content)
+
+    def test_ralphex_not_forked_per_tool(self):
+        """All generated proxies point to the same canonical prompt path."""
+        from cypilot.commands.agents import _process_single_agent, _default_agents_config
+
+        with TemporaryDirectory() as td:
+            root, cpt = self._make_full_project(td)
+
+            canonical_fragment = "skills/cypilot/agents/cypilot-ralphex.md"
+            for agent in ("claude", "cursor", "copilot", "openai"):
+                cfg = _default_agents_config()
+                result = _process_single_agent(agent, root, cpt, cfg, None, dry_run=False)
+                subagents = result.get("subagents", {})
+                all_files = subagents.get("created", []) + subagents.get("updated", [])
+                for fpath in all_files:
+                    content = Path(fpath).read_text(encoding="utf-8")
+                    if "cypilot-ralphex" in fpath or "cypilot_ralphex" in content:
+                        self.assertIn(
+                            canonical_fragment,
+                            content,
+                            f"{agent} proxy does not point to canonical path",
+                        )
+
+    def test_windsurf_skill_routes_to_canonical_skill(self):
+        """Windsurf skill output references the canonical SKILL.md (delegation routing)."""
+        from cypilot.commands.agents import _process_single_agent, _default_agents_config
+
+        with TemporaryDirectory() as td:
+            root, cpt = self._make_full_project(td)
+
+            cfg = _default_agents_config()
+            result = _process_single_agent("windsurf", root, cpt, cfg, None, dry_run=False)
+
+            # Windsurf exposes capabilities through SKILL.md routing, not subagent files
+            skills = result.get("skills", {})
+            skill_files = skills.get("created", []) + skills.get("updated", [])
+            self.assertTrue(
+                len(skill_files) > 0,
+                "Expected windsurf skill outputs to be generated",
+            )
+            # Verify at least one skill output references the canonical SKILL.md
+            found_skill_ref = False
+            for fpath in skill_files:
+                content = Path(fpath).read_text(encoding="utf-8")
+                if "ALWAYS open and follow" in content and "SKILL.md" in content:
+                    found_skill_ref = True
+                    break
+            self.assertTrue(found_skill_ref, "Windsurf skill must reference canonical SKILL.md")
+
+            # Windsurf does not have dedicated subagent proxy files
+            subagents = result.get("subagents", {})
+            self.assertTrue(
+                subagents.get("skipped", False),
+                "Windsurf subagents should be skipped (no subagent proxy format)",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

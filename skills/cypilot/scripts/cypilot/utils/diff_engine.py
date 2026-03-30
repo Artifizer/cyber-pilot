@@ -228,7 +228,7 @@ def _open_editor_for_file(
         except FileNotFoundError:
             sys.stderr.write(f"    editor not found: {editor}\n")
             return None
-        except (OSError, subprocess.SubprocessError) as exc:
+        except (OSError, subprocess.SubprocessError, ValueError) as exc:
             sys.stderr.write(f"    editor failed: {exc}\n")
             return None
         finally:
@@ -876,7 +876,7 @@ def file_level_kit_update(
                 try:
                     regenerated = _regenerate_toc(pre_toc_content, toc_fmt)
                     dest.write_bytes(regenerated)
-                except (OSError, ValueError, KeyError) as exc:
+                except Exception as exc:  # pylint: disable=broad-exception-caught
                     dest.write_bytes(user_files.get(rel_path, pre_toc_content))
                     if interactive:
                         if not _prompt_toc_error_continue(rel_path, exc):

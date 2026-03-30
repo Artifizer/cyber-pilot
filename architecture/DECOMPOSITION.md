@@ -20,6 +20,7 @@
   - [2.12 Execution Plans ✅ HIGH](#212-execution-plans--high)
   - [2.13 Multi-Repo Workspace Federation ✅ DONE](#213-multi-repo-workspace-federation--done)
   - [2.14 Subagent Registration ⏳ HIGH](#214-subagent-registration--high)
+  - [2.15 ralphex Delegation ⏳ HIGH](#215-ralphex-delegation--high)
 - [3. Feature Dependencies](#3-feature-dependencies)
 
 <!-- /toc -->
@@ -32,7 +33,7 @@ Cypilot DESIGN is decomposed into features organized around architectural layers
 - Features grouped by architectural layer and functional cohesion (related components together)
 - Dependencies minimize coupling between features — each feature is independently implementable given its dependencies
 - SDLC-specific features (F4, F6, F9) have been **extracted** to the SDLC kit repository (`cyberfabric/cyber-pilot-kit-sdlc`) per `cpt-cypilot-adr-extract-sdlc-kit`
-- Core features (F1–F3, F5, F7–F8, F10–F13) cover all core functional requirements
+- Core features (F1–F3, F5, F7–F8, F10–F15) cover all core functional requirements
 
 
 ## 2. Entries
@@ -548,7 +549,7 @@ Cypilot DESIGN is decomposed into features organized around architectural layers
 
 ### 2.12 [Execution Plans](features/execution-plans.md) ✅ HIGH
 
-- [x] `p1` - **ID**: `cpt-cypilot-feature-execution-plans`
+- [ ] `p1` - **ID**: `cpt-cypilot-feature-execution-plans`
 
 - **Purpose**: Decompose large agent tasks into self-contained phase files that fit within a single LLM context window, eliminating context overflow and non-deterministic results from attention drift.
 
@@ -703,6 +704,67 @@ Cypilot DESIGN is decomposed into features organized around architectural layers
   - `cypilot generate-agents --agent <tool>`
 
 
+### 2.15 [ralphex Delegation](features/ralphex-delegation.md) ⏳ HIGH
+
+- [ ] `p1` - **ID**: `cpt-cypilot-feature-ralphex-delegation`
+
+- **Purpose**: Provide a dedicated delegation skill that integrates Cypilot with ralphex for autonomous plan execution, while preserving Cypilot as the source of truth for SDLC guidance, decomposition, and validation contracts.
+
+- **Depends On**: `cpt-cypilot-feature-execution-plans`, `cpt-cypilot-feature-version-config`
+
+- **Scope**:
+  - ralphex executable discovery on PATH and reuse of persisted absolute path
+  - Diagnostics and availability validation before delegation
+  - Optional project-local `.ralphex/` bootstrap via `ralphex --init`
+  - Bounded plan export from canonical Cypilot plan outputs into `docs/plans/` in ralphex Markdown grammar
+  - Optional derived `.ralphex/` overrides (prompts, agents) generated from Cypilot sources
+  - Delegation modes: execute exported plan, review-only, worktree isolation, dashboard serving
+  - Post-run handoff: status, output refs, validation continuity via Cypilot-supplied deterministic commands
+
+- **Out of scope**:
+  - Vendoring ralphex into the Cypilot Python package
+  - Copying SDLC kit into `.ralphex/` as source of truth
+  - Replacing generate/analyze/plan workflows
+  - Replacing host-tool-native subagents
+
+- **Requirements Covered**:
+
+  - `p1` - `cpt-cypilot-fr-core-workflows`
+  - `p1` - `cpt-cypilot-fr-core-execution-plans`
+  - `p1` - `cpt-cypilot-fr-core-agents`
+
+- **Design Principles Covered**:
+
+  - `p1` - `cpt-cypilot-principle-determinism-first`
+  - `p1` - `cpt-cypilot-principle-skill-documented`
+  - `p1` - `cpt-cypilot-principle-occams-razor`
+
+- **Design Constraints Covered**:
+
+  - `p1` - `cpt-cypilot-constraint-markdown-contract`
+
+- **Domain Model Entities**:
+  - DelegationPlan
+  - DelegationState
+
+- **Design Components**:
+
+  - `p1` - `cpt-cypilot-component-skill-engine` (delegation command routing)
+  - `p1` - `cpt-cypilot-component-config-manager` (ralphex path persistence)
+
+- **API**:
+  `cpt delegate` — CLI command that routes delegation requests to the `cypilot-ralphex` skill handler for discovery, export, and execution
+
+- **Sequences**:
+  - `cpt-cypilot-seq-ralphex-delegation`
+
+- **Data**:
+  - `{plans_dir}/{task-slug}.md` — exported ralphex-compatible plans (path resolved from ralphex config, default `docs/plans/`)
+  - `{plans_dir}/completed/` — completed plan lifecycle artifacts (managed by ralphex)
+  - `.ralphex/` — optional derived overrides (prompts, agents, config)
+  - `core.toml` `[integrations.ralphex]` — persisted executable path
+
+
 ---
 
 ## 3. Feature Dependencies
@@ -715,6 +777,8 @@ cpt-cypilot-feature-core-infra
     ├─→ cpt-cypilot-feature-agent-integration
     │    ↓
     │    └─→ cpt-cypilot-feature-execution-plans
+    │         ↓
+    │         └─→ cpt-cypilot-feature-ralphex-delegation ←── cpt-cypilot-feature-version-config
     │
     ├─→ cpt-cypilot-feature-version-config
     │
@@ -743,4 +807,5 @@ cpt-cypilot-feature-core-infra
 - `cpt-cypilot-feature-developer-experience` requires `cpt-cypilot-feature-traceability-validation`: VS Code plugin and doctor delegate to validator and traceability engine
 - `cpt-cypilot-feature-v2-v3-migration` requires `cpt-cypilot-feature-core-infra` and `cpt-cypilot-feature-traceability-validation`: migration needs v3 infrastructure and validation to verify completeness
 - `cpt-cypilot-feature-workspace` requires `cpt-cypilot-feature-core-infra` and `cpt-cypilot-feature-traceability-validation`: workspace federation builds on core context loading and extends cross-repo ID resolution in the traceability engine
+- `cpt-cypilot-feature-ralphex-delegation` requires `cpt-cypilot-feature-execution-plans` and `cpt-cypilot-feature-version-config`: delegation compiles exported plans from Cypilot's authoritative decomposition model and persists ralphex integration settings via the config manager
 - SDLC-specific features (F4, F6, F9) have been extracted to `cyberfabric/cyber-pilot-kit-sdlc` per `cpt-cypilot-adr-extract-sdlc-kit`

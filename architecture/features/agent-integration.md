@@ -37,6 +37,8 @@
 
 Bridges Cypilot's unified skill system to diverse AI coding assistants by generating agent-native entry points, composing SKILL.md from kit `@cpt:skill` sections, and providing generic generate/analyze workflows. Each agent has its own file format and directory convention — this feature handles all the translation.
 
+**Boundary clarification**: This feature covers **chat-facing agent entry points** — skill shims, workflow proxies, and rules files that AI assistants consume directly in their native IDE/chat context. **External executor delegation** (e.g., handing a compiled plan to ralphex for autonomous execution) is a separate concern owned by `cpt-cypilot-feature-ralphex-delegation`. The two surfaces are complementary: agent entry points enable interactive Cypilot usage within a chat session, while executor delegation enables offline autonomous execution of exported plans (see `cpt-cypilot-adr-ralphex-delegation-skill`).
+
 ### 2. Purpose
 
 Without this feature, users would need to manually create and maintain agent-specific files for each AI assistant. Addresses PRD requirements for multi-agent support (`cpt-cypilot-fr-core-agents`) and generic workflows (`cpt-cypilot-fr-core-workflows`).

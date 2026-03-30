@@ -79,11 +79,13 @@ Each kit is a file package: a collection of artifact definitions (rules, checkli
 
 **Design Response**: A third universal Markdown workflow (`plan.md`) that extends the generate/analyze system with phase-based task decomposition. The plan workflow reads all kit dependencies (template, rules, checklist, constraints) for the target artifact, decomposes the task into phases using type-specific strategies (template sections for generation, checklist categories for analysis, CDSL blocks for implementation), and "compiles" each phase into a self-contained phase file. Phase files are compiled prompts: all rules, constraints, and context are pre-resolved and inlined so the file requires zero external references. Phase files follow a strict template (`requirements/plan-template.md`) with TOML frontmatter, inlined rules, binary acceptance criteria, and a completion report format. Decomposition strategies are defined in `requirements/plan-decomposition.md`. Plans are stored in `{cypilot_path}/.plans/{task-slug}/` (git-ignored) with a `plan.toml` manifest tracking phase lifecycle. No Python code or CLI commands — purely prompt-level, agent-interpreted. Budget enforcement: ≤500 lines target, ≤1000 max per phase file.
 
+Accepted delegated execution extends this model by allowing Cypilot-authored plan outputs to be exported into executor-specific grammars, beginning with ralphex Markdown plans under `docs/plans/`, while Cypilot remains authoritative for decomposition, phase compilation, and deterministic validation commands.
+
 ##### Multi-Agent Integration
 
 - [x] `p1` - `cpt-cypilot-fr-core-agents`
 
-**Design Response**: Agent Generator component produces entry points in each agent's native format: `.windsurf/workflows/`, `.cursor/rules/`, `.claude/commands/`, `.github/prompts/`. All entry points reference the core SKILL.md. The `agents` command fully overwrites entry points on each invocation.
+**Design Response**: Agent Generator component produces entry points in each agent's native format: `.windsurf/workflows/`, `.cursor/rules/`, `.claude/commands/`, `.github/prompts/`. All entry points reference the core SKILL.md. The `agents` command fully overwrites entry points on each invocation. Executor delegation is intentionally separate from this agent-entry-point surface: host-tool shims stay chat-facing integrations, while ralphex is exposed only through a dedicated delegation skill and exported plan artifacts.
 
 ##### Extensible Kit System
 
@@ -178,7 +180,7 @@ user_modifiable = false
 
 - [x] `p1` - ~~cpt-cypilot-fr-core-blueprint~~ (DEPRECATED)
 
-> **DEPRECATED per `cpt-cypilot-adr-remove-blueprint-system`**: The Blueprint Processor and blueprint files have been removed. Kits are now direct file packages — all kit resources (rules, templates, checklists, examples, constraints, workflows, scripts, SKILL.md) are maintained as ready-to-use files in `{cypilot_path}/config/kits/<slug>/`. There is no generation step. Kit updates use file-level diff (see `cpt-cypilot-fr-core-resource-diff`).
+> **DEPRECATED per `cpt-cypilot-adr-remove-blueprint-system`**: The Blueprint Processor and blueprint files have been removed. Kits are now direct file packages — all kit resources (per-artifact rules, templates, checklists, examples; kit-wide constraints, conf, SKILL, AGENTS; optional workflows, scripts, codebase) are maintained as ready-to-use files in `{cypilot_path}/config/kits/<slug>/`. There is no generation step. Kit updates use file-level diff (see `cpt-cypilot-fr-core-resource-diff`).
 
 **Kit file structure**: Each kit is a directory containing per-artifact subdirectories (`artifacts/<KIND>/rules.md`, `artifacts/<KIND>/template.md`, `artifacts/<KIND>/checklist.md`, `artifacts/<KIND>/examples/example.md`), kit-wide files (`constraints.toml`, `conf.toml`, `SKILL.md`), and optional directories (`workflows/`, `scripts/`, `codebase/`). All files are user-editable and preserved across updates via interactive diff.
 
@@ -202,7 +204,7 @@ user_modifiable = false
 
 ##### Remaining SDLC Requirements (EXTRACTED — External Package)
 
-> **EXTRACTED per `cpt-cypilot-adr-extract-sdlc-kit`**: All remaining SDLC-specific requirements (cross-artifact validation, PR status, code generation, brownfield support, feature lifecycle, PR config, quickstart guides) have been moved to the SDLC kit repository (`cyberfabric/cyber-pilot-kit-sdlc`). The core Validator provides generic cross-artifact validation for any installed kit.
+> **EXTRACTED per `cpt-cypilot-adr-extract-sdlc-kit`**: All remaining SDLC-specific requirements (cross-artifact validation, PR status, code generation, brownfield support, feature lifecycle, PR config, quickstart guides) have been moved to the SDLC kit repository (`cyberfabric/cyber-pilot-kit-sdlc`). The core Validator provides generic cross-artifact validation for any installed kit's artifacts.
 
 ##### Utility Commands
 
@@ -274,11 +276,11 @@ The following architecture decision records (ADRs) drive the design:
 
 The architecture is organized into five layers stacked top-to-bottom, where each layer depends only on the layer directly below it.
 
-At the top sits the **AI Agent layer** — external coding assistants (Windsurf, Cursor, Claude Code, GitHub Copilot, OpenAI Codex) that read SKILL.md as their entry point and invoke Cypilot commands. Immediately below is the **Agent Entry Points layer**: generated files in agent-native directories (`.windsurf/`, `.cursor/`, `.claude/`, `.github/`) that contain workflow proxies and skill shims translating agent-specific formats into Cypilot CLI calls.
+At the top sits the **AI Agent layer** — external coding assistants (Windsurf, Cursor, Claude Code, GitHub Copilot, OpenAI Codex) that read SKILL.md as their entry point and invoke Cypilot commands. Immediately below is the **Agent Entry Points layer**: generated files in agent-native directories (`.windsurf/`, `.cursor/`, `.claude/`, `.github/`) that contain workflow proxies and skill shims translating agent-specific formats into Cypilot CLI calls. Optional autonomous executors such as ralphex remain outside this generated entry-point surface and are reached only through explicit delegation contracts compiled by Cypilot.
 
 The **Global CLI Proxy layer** (`cypilot` / `cpt`, installed via pipx) is a thin stateless shell. It resolves the target skill — either from the project's local install directory or from the global cache (`~/.cypilot/cache/`) — and forwards the invocation. The proxy contains zero skill logic.
 
-Below the proxy is the **Core Skill Engine layer** — the heart of the system. It owns the command router, JSON output serialization, SKILL.md, workflows, and the execution protocol. Three core components live here: the **Validator** (deterministic structural and cross-artifact checks), the **Traceability Engine** (ID scanning, resolution, and coverage analysis), and the **Config Manager** (schema-validated TOML config read/write with migration support; system identity sourced from `artifacts.toml`, kit registrations from `core.toml`).
+Below the proxy is the **Core Skill Engine layer** — the heart of the system. It owns the command router, JSON output serialization, SKILL.md, workflows, and the execution protocol. Three core components live here: the **Validator** (deterministic structural and cross-artifact checks), the **Traceability Engine** (ID scanning, resolution, and coverage analysis), and the **Config Manager** (schema-validated TOML config read/write with migration support; system identity sourced from `artifacts.toml`, kit registrations from `core.toml`). When delegation is requested, this layer remains the source of truth for rule resolution, plan compilation, validation contracts, and export metadata; external executors consume only the bounded delegated artifacts rather than the full adapter state.
 
 At the bottom is the **Kit layer**. The **Kit Manager** handles kit installation from GitHub repositories, registration (with source and version tracking), file-level diff updates, kit config relocation, and layout migration. Each kit is an independently installable file package. Cypilot core bundles no kits — during `cpt init`, the user is prompted to install the SDLC kit (`cyberfabric/cyber-pilot-kit-sdlc`) with `[a]ccept / [d]ecline`. A plugin system for custom hooks and CLI subcommands is planned for p2.
 
@@ -466,13 +468,17 @@ Validation rules cannot be bypassed or weakened in STRICT mode. The deterministi
 - Artifact → Identifier[]: each artifact contains zero or more ID definitions and references
 - Identifier → Identifier: cross-references between definitions and references across artifacts
 - Constraint → Identifier: constraints define which ID kinds are allowed/required per artifact kind
+- Workflow → Constraint: workflows are validated against kit constraints
+- Manifest → ResourceBinding[]: a manifest declares resources, which are resolved to resource bindings
+- ResourceBinding → Manifest: each resource binding is derived from a manifest resource declaration
 - WorkspaceConfig → SourceEntry[]: a workspace contains one or more named sources
 - WorkspaceConfig → TraceabilityConfig: workspace has one traceability settings object
 - WorkspaceConfig → ResolveConfig: workspace optionally has git URL resolution config
 - ResolveConfig → NamespaceRule[]: resolve config contains zero or more host-to-template mappings
+- NamespaceRule → ResolveConfig: each namespace rule is part of a resolve config
+- SourceContext → CypilotContext: each reachable source lazily resolves its own adapter context; unreachable sources skip adapter resolution
 - WorkspaceContext → CypilotContext: workspace wraps one primary context (the current repo)
 - WorkspaceContext → SourceContext[]: every SourceEntry produces a SourceContext; unreachable sources have `reachable=false` and `path=None` (never omitted)
-- SourceContext → CypilotContext: each reachable source lazily resolves its own adapter context; unreachable sources skip adapter resolution
 
 ### 3.2 Component Model
 
@@ -560,6 +566,7 @@ Central command dispatcher that provides a uniform interface for all Cypilot fun
 - Manage exit code conventions (0=PASS, 1=error, 2=FAIL)
 - Load and expose SKILL.md as the agent entry point
 - Register kit commands at runtime (p2: kit plugin CLI subcommands)
+- Route `cpt delegate` commands to the delegation handler (see `cpt-cypilot-adr-ralphex-delegation-skill`)
 
 ##### Responsibility boundaries
 
@@ -647,6 +654,7 @@ Ensures config integrity by centralizing all config file operations behind schem
 
 - CRUD operations on `{cypilot_path}/config/core.toml` (system definitions, kit registrations, ignore lists, resource bindings)
 - Resource binding management: read/write `[kits.{slug}.resources]` section in `core.toml` — stores resolved resource identifier → path mappings for manifest-driven kits. Provides a lookup API so other components (Skill Engine, workflows) can resolve `{identifier}` template variables to filesystem paths
+- Persist resolved `ralphex` executable path in `core.toml` so future delegation does not require re-discovery (see `cpt-cypilot-adr-ralphex-delegation-skill`)
 - Schema validation before any write operation (including resource bindings validated against `core-config.schema.json`)
 - Deterministic TOML serialization
 - Config migration between versions (with backup before migration)
@@ -808,15 +816,20 @@ No internal module dependencies beyond the component relationships documented in
 - `cpt doctor` checks `gh` availability and authentication status
 - PR workflows fail gracefully with actionable error message if `gh` is not available
 
-#### Python Runtime
+#### ralphex CLI (optional)
 
 | Dependency | Interface Used | Purpose |
 |------------|---------------|---------|
-| Python 3.11+ | Runtime environment | Execute all Cypilot skill scripts and kit plugins (requires `tomllib` from stdlib) |
+| `ralphex` CLI | CLI subprocess invocation plus project-local `docs/plans/` and `.ralphex/` files | Execute delegated Cypilot plans in fresh Claude Code sessions with task-by-task validation, review orchestration, and optional worktree/dashboard modes |
 
 **Dependency Rules**:
-- Core uses stdlib only — no pip dependencies
-- `cpt doctor` checks Python version compatibility
+- `ralphex` is optional — only required when the user explicitly chooses delegated execution
+- Cypilot discovers `ralphex` on `PATH` first, then may reuse a previously configured absolute executable path
+- Project-local initialization via `ralphex --init` materializes `.ralphex/config`, `.ralphex/prompts/`, and `.ralphex/agents/`; these files are derived executor overrides, not canonical Cypilot SDLC sources
+- ralphex config precedence is: CLI flags > local `.ralphex/` config > global `~/.config/ralphex/` config > embedded defaults
+- Cypilot MUST NOT vendor `ralphex` into the Python package or make it a required runtime dependency
+- Exported `docs/plans/` files, optional `docs/plans/completed/` lifecycle outputs, and optional `.ralphex/` prompts or agents are derived artifacts compiled from canonical Cypilot sources; they are not a second SDLC source of truth
+- Missing or incompatible `ralphex` installations fail with diagnostics and setup guidance instead of changing baseline generate/analyze/plan behavior
 
 #### pipx (recommended)
 
@@ -827,6 +840,16 @@ No internal module dependencies beyond the component relationships documented in
 **Dependency Rules**:
 - pipx is recommended but not required — manual installation is possible
 - `cpt doctor` checks pipx availability
+
+#### Python Runtime
+
+| Dependency | Interface Used | Purpose |
+|------------|---------------|---------|
+| Python 3.11+ | Runtime environment | Execute all Cypilot skill scripts and kit plugins (requires `tomllib` from stdlib) |
+
+**Dependency Rules**:
+- Core uses stdlib only — no pip dependencies
+- `cpt doctor` checks Python version compatibility
 
 ### 3.6 Interactions & Sequences
 
@@ -996,6 +1019,37 @@ sequenceDiagram
 ```
 
 **Description**: PR review is driven by the AI agent using `gh` CLI for data fetching. The tool provides configurable prompts and checklists; the agent performs the analysis and writes a structured report.
+
+#### Delegated Plan Execution (ralphex)
+
+**ID**: `cpt-cypilot-seq-ralphex-delegation`
+
+**Use cases**: `cpt-cypilot-usecase-create-artifact`, `cpt-cypilot-usecase-update`
+
+**Actors**: `cpt-cypilot-actor-user`, `cpt-cypilot-actor-ai-agent`
+
+```mermaid
+sequenceDiagram
+    User->>AI Agent: "delegate this task/plan to ralphex"
+    AI Agent->>Skill Engine: info
+    Skill Engine-->>AI Agent: cypilot_path, plan vars, resolved kit bindings
+    AI Agent->>AI Agent: load plan workflow and accepted delegation rules
+    AI Agent->>AI Agent: compile bounded delegated plan from canonical Cypilot sources
+    AI Agent->>AI Agent: write docs/plans/<task>.md and optional derived .ralphex/ overrides
+    AI Agent->>AI Agent: validate ralphex availability and local config
+    alt ralphex unavailable or invalid
+        AI Agent-->>User: diagnostics + installation/bootstrap guidance
+    else ralphex ready
+        AI Agent->>ralphex CLI: ralphex docs/plans/<task>.md [mode flags]
+        ralphex CLI->>ralphex CLI: execute tasks in fresh Claude sessions
+        ralphex CLI->>ralphex CLI: run Validation Commands from exported plan
+        ralphex CLI->>ralphex CLI: move completed plans to docs/plans/completed/ on success
+        ralphex CLI-->>AI Agent: status, output refs, review results
+        AI Agent-->>User: delegation summary, validation outcome, next-step options
+    end
+```
+
+**Description**: Delegated execution keeps Cypilot responsible for intent routing, SDLC slice selection, plan compilation, and deterministic validation contracts. ralphex becomes an optional external executor that consumes the exported plan and any derived `.ralphex/` overrides, performs autonomous execution, and returns run status without becoming the source of truth for rules or workflow semantics. Review-only mode is the main special case: `ralphex --review` can operate without a plan file and compare the current branch to the default branch, while an optional plan file serves only as extra review context. Worktree-enabled task execution uses `.ralphex/worktrees/<branch>` as the executor-owned isolation path.
 
 #### Version Update
 
@@ -1283,14 +1337,14 @@ Test data strategy: all test fixtures are self-contained in `tests/` — no depe
 
 ### Non-Applicable Design Domains
 
-The following design domains are not applicable to Cypilot and are explicitly excluded:
+The following design domains do not require dedicated architecture sections. Each bullet explains why the domain is either not applicable or is sufficiently addressed by existing sections:
 
 - **Security Architecture** (SEC): Cypilot is a local CLI tool with no authentication, authorization, or data protection requirements. It does not handle user credentials, PII, or network security. The only security consideration (no secrets in config, no untrusted code execution) is addressed in the NFR allocation.
 - **Performance Architecture** (PERF): Cypilot processes single repositories locally with single-pass in-memory scanning. There is no caching strategy, database access optimization, or scalability architecture needed. The ≤ 3s validation target is met by design (single-pass, stdlib-only, no external calls).
 - **Reliability Architecture** (REL): Cypilot runs as a local CLI tool, not a service. There are no fault tolerance, redundancy, or disaster recovery requirements. Config migration with backup addresses the only recoverability concern.
 - **Data Architecture** (DATA): No database. All state is in the filesystem (Markdown + TOML). No data partitioning, replication, sharding, or archival needed.
-- **Integration Architecture** (INT): The only external integration is `gh` CLI for PR review, which is a simple subprocess call with graceful failure handling. No integration middleware, event architecture, or API gateway needed.
-- **Operations Architecture** (OPS): Installed locally via pipx. No deployment topology, container orchestration, observability infrastructure, or monitoring needed.
+- **Integration Architecture** (INT): External integrations are `gh` CLI for PR review and `ralphex` CLI for delegated plan execution (`cpt-cypilot-seq-ralphex-delegation`). Both are optional subprocess calls with graceful failure handling and environment diagnostics via `cpt doctor`. The delegation contract is bounded to exported plan files and derived `.ralphex/` overrides — no integration middleware, event architecture, or API gateway is needed, but the contract boundary, discovery logic, and export grammar are architecturally significant (see §3.5 ralphex CLI dependency rules and §3.6 Delegated Plan Execution sequence).
+- **Operations Architecture** (OPS): Installed locally via pipx. The optional `ralphex` integration adds environment handling responsibilities: executable discovery on `PATH`, persisted executable-path recording in config, project-local `.ralphex/` bootstrap via `ralphex --init`, and diagnostic guidance when `ralphex` is missing or incompatible (see §3.5 ralphex CLI dependency rules). No deployment topology, container orchestration, observability infrastructure, or monitoring is needed.
 - **Compliance Architecture** (COMPL): No regulated data, no compliance certifications, no privacy architecture needed.
 - **Usability Architecture** (UX): CLI tool with no frontend. No state management, responsive design, or progressive enhancement needed.
 
@@ -1311,7 +1365,8 @@ The following design domains are not applicable to Cypilot and are explicitly ex
   - `cpt-cypilot-adr-structured-id-format` — structured cpt-* ID format with @cpt-* code tags
   - `cpt-cypilot-adr-git-style-conflict-markers` — git-style conflict markers for interactive merge
   - `cpt-cypilot-adr-prefer-cpt-cli-for-agents` — prefer `cpt` CLI over direct script invocation in agent prompts; graceful fallback to raw Python path
-- **Features**: [features/](./features/) — `core-infra.md`, `kit-management.md`, `traceability-validation.md`, `agent-integration.md`, `version-config.md`, `developer-experience.md`, `spec-coverage.md`, `v2-v3-migration.md`, `workspace.md`
+  - `cpt-cypilot-adr-ralphex-delegation-skill` — dedicated `cypilot-ralphex` skill with bounded delegation contract for autonomous plan execution via ralphex
+- **Features**: [features/](./features/) — `core-infra.md`, `kit-management.md`, `traceability-validation.md`, `agent-integration.md`, `version-config.md`, `developer-experience.md`, `spec-coverage.md`, `v2-v3-migration.md`, `workspace.md`, `ralphex-delegation.md`, `subagent-registration.md`
 
 ### Specifications
 

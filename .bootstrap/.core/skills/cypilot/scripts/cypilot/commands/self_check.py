@@ -9,13 +9,11 @@ pass the same heading contract and constraint checks used for user artifacts.
 @cpt-dod:cpt-cypilot-dod-developer-experience-self-check:p1
 """
 
-import argparse
-import json
 import re
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from ..utils.artifacts_meta import ArtifactsMeta, load_artifacts_meta
+from ..utils.artifacts_meta import ArtifactsMeta
 from ..utils.constraints import (
     error as constraints_error,
     heading_constraint_ids_by_line,
@@ -24,8 +22,6 @@ from ..utils.constraints import (
 )
 from ..utils import error_codes as EC
 from ..utils.document import read_text_safe
-from ..utils.files import find_cypilot_directory, find_project_root
-from ..utils.ui import ui
 
 
 # @cpt-begin:cpt-cypilot-flow-developer-experience-self-check:p1:inst-user-self-check
@@ -72,7 +68,7 @@ def run_self_check_from_meta(
         constraints_path = None
         try:
             constraints_path = (kit_base / "constraints.toml").resolve()
-        except Exception:
+        except OSError:
             constraints_path = None
 
         # 1) Heading contract must hold for templates too.
@@ -443,7 +439,7 @@ def run_self_check_from_meta(
                     if not candidate.is_file():
                         candidate = (project_root / rel).resolve()
                     template_path = candidate
-                except Exception:
+                except (OSError, ValueError, KeyError):
                     template_path = None
                 try:
                     rel = kit_obj.get_examples_path(kind)
@@ -451,7 +447,7 @@ def run_self_check_from_meta(
                     if not candidate.exists():
                         candidate = (project_root / rel).resolve()
                     examples_dir = candidate
-                except Exception:
+                except (OSError, ValueError, KeyError):
                     examples_dir = None
 
             # Fallback to legacy layout if explicit paths are unavailable.
@@ -471,7 +467,7 @@ def run_self_check_from_meta(
                         md_files = list(Path(examples_dir).glob("*.md"))
                         if md_files:
                             example_path = md_files[0]
-            except Exception:
+            except OSError:
                 example_path = None
 
             item: Dict[str, object] = {
@@ -511,7 +507,7 @@ def run_self_check_from_meta(
                     # with loaded-kit semantics, use the shared authoritative
                     # constraints-path resolver here.
                     constraints_path = (kit_base / "constraints.toml").resolve()
-                except Exception:
+                except OSError:
                     constraints_path = None
                 rep = validate_artifact_file(
                     artifact_path=example_path,

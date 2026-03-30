@@ -57,6 +57,12 @@ path = "architecture/features/execution-plans.md"
 kind = "FEATURE"
 traceability = "DOCS-ONLY"
 
+[[systems.artifacts]]
+name = "Ralphex Delegation"
+path = "architecture/features/ralphex-delegation.md"
+kind = "FEATURE"
+traceability = "DOCS-ONLY"
+
 [[systems.autodetect.codebase]]
 name = "Cypilot Proxy"
 path = "src/cypilot_proxy"

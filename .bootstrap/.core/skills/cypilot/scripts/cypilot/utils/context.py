@@ -576,19 +576,19 @@ def resolve_adapter_context(sc: "SourceContext") -> Optional["CypilotContext"]:
         return None
     # @cpt-end:cpt-cypilot-algo-workspace-resolve-adapter-context:p1:inst-adapter-if-unreachable
     # @cpt-begin:cpt-cypilot-algo-workspace-resolve-adapter-context:p1:inst-adapter-cache
-    if sc._adapter_resolved:
+    if sc._adapter_resolved:  # pylint: disable=protected-access  # module-level helper is part of SourceContext implementation
         return sc.adapter_context
     # @cpt-end:cpt-cypilot-algo-workspace-resolve-adapter-context:p1:inst-adapter-cache
     # @cpt-begin:cpt-cypilot-algo-workspace-resolve-adapter-context:p1:inst-adapter-if-no-dir
     if sc.adapter_dir is None:
-        sc._adapter_resolved = True
+        sc._adapter_resolved = True  # pylint: disable=protected-access  # same impl scope as SourceContext
         return None
     # @cpt-end:cpt-cypilot-algo-workspace-resolve-adapter-context:p1:inst-adapter-if-no-dir
     # @cpt-begin:cpt-cypilot-algo-workspace-resolve-adapter-context:p1:inst-adapter-compute-path
     # @cpt-begin:cpt-cypilot-algo-workspace-resolve-adapter-context:p1:inst-adapter-if-missing
     if not sc.adapter_dir.is_dir():
         print(f"Warning: adapter directory not found for source '{sc.name}': {sc.adapter_dir}", file=sys.stderr)
-        sc._adapter_resolved = True
+        sc._adapter_resolved = True  # pylint: disable=protected-access  # same impl scope as SourceContext
         return None
     # @cpt-end:cpt-cypilot-algo-workspace-resolve-adapter-context:p1:inst-adapter-if-missing
     # @cpt-end:cpt-cypilot-algo-workspace-resolve-adapter-context:p1:inst-adapter-compute-path
@@ -598,17 +598,17 @@ def resolve_adapter_context(sc: "SourceContext") -> Optional["CypilotContext"]:
         loaded = CypilotContext.load_from_dir(sc.adapter_dir)
     except (OSError, ValueError) as e:
         print(f"Warning: failed to load adapter context for source '{sc.name}': {e}", file=sys.stderr)
-        sc._adapter_resolved = True
+        sc._adapter_resolved = True  # pylint: disable=protected-access  # same impl scope as SourceContext
         return None
     if loaded is None:
         print(f"Warning: adapter context could not be loaded for source '{sc.name}'", file=sys.stderr)
-        sc._adapter_resolved = True
+        sc._adapter_resolved = True  # pylint: disable=protected-access  # same impl scope as SourceContext
         return None
     # @cpt-end:cpt-cypilot-algo-workspace-resolve-adapter-context:p1:inst-adapter-if-load-fail
     # @cpt-end:cpt-cypilot-algo-workspace-resolve-adapter-context:p1:inst-adapter-load-context
     # @cpt-begin:cpt-cypilot-algo-workspace-resolve-adapter-context:p1:inst-adapter-return
     sc.adapter_context = loaded
-    sc._adapter_resolved = True
+    sc._adapter_resolved = True  # pylint: disable=protected-access  # same impl scope as SourceContext
     return loaded
     # @cpt-end:cpt-cypilot-algo-workspace-resolve-adapter-context:p1:inst-adapter-return
 
@@ -628,7 +628,7 @@ def get_expanded_meta(sc: "SourceContext") -> Optional[ArtifactsMeta]:
     """
     if sc.adapter_context is not None:
         return sc.adapter_context.meta
-    if not sc._adapter_resolved and sc.adapter_dir is not None:
+    if not sc._adapter_resolved and sc.adapter_dir is not None:  # pylint: disable=protected-access  # module-level helper is part of SourceContext implementation
         ctx = resolve_adapter_context(sc)
         if ctx is not None:
             return ctx.meta
@@ -695,7 +695,7 @@ def _scan_definition_ids(artifact_path: Path, ids: Set[str]) -> None:
         for h in scan_cpt_ids(artifact_path):
             if h.get("type") == "definition" and h.get("id"):
                 ids.add(str(h["id"]))
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         print(f"Warning: failed to scan IDs from {artifact_path}: {exc}", file=sys.stderr)
 
 
@@ -833,7 +833,7 @@ def get_context() -> Optional[Union[CypilotContext, WorkspaceContext]]:
     operations for git URL sources) is deferred until a command actually
     needs the context.
     """
-    global _global_context, _workspace_upgrade_attempted
+    global _global_context, _workspace_upgrade_attempted  # pylint: disable=global-statement  # module-level singleton pattern for CLI context
     if not _workspace_upgrade_attempted and isinstance(_global_context, CypilotContext):
         _workspace_upgrade_attempted = True
         ws_ctx = WorkspaceContext.load(_global_context)
@@ -844,7 +844,7 @@ def get_context() -> Optional[Union[CypilotContext, WorkspaceContext]]:
 
 def set_context(ctx: Optional[Union[CypilotContext, WorkspaceContext]]) -> None:
     """Set the global Cypilot context."""
-    global _global_context, _workspace_upgrade_attempted
+    global _global_context, _workspace_upgrade_attempted  # pylint: disable=global-statement  # module-level singleton pattern for CLI context
     _global_context = ctx
     # If caller already provides a WorkspaceContext, skip lazy upgrade
     _workspace_upgrade_attempted = isinstance(ctx, WorkspaceContext) or ctx is None
@@ -852,7 +852,7 @@ def set_context(ctx: Optional[Union[CypilotContext, WorkspaceContext]]) -> None:
 
 def ensure_context(start_path: Optional[Path] = None) -> Optional[Union[CypilotContext, WorkspaceContext]]:
     """Ensure context is loaded, loading if necessary."""
-    global _global_context, _workspace_upgrade_attempted
+    global _global_context, _workspace_upgrade_attempted  # pylint: disable=global-statement  # module-level singleton pattern for CLI context
     if _global_context is None:
         base_ctx = CypilotContext.load(start_path)
         if base_ctx is not None:

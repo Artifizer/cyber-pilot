@@ -187,13 +187,14 @@ Reduces friction in daily Cypilot usage. `doctor` catches environment issues bef
 
 ### Run Doctor Checks
 
-- [ ] `p2` - **ID**: `cpt-cypilot-algo-developer-experience-doctor`
+- [x] `p2` - **ID**: `cpt-cypilot-algo-developer-experience-doctor`
 
 1. - `p2` - Check `python3 --version` ≥ 3.11 - `inst-check-python-version`
 2. - `p2` - Check `git --version` available - `inst-check-git-version`
 3. - `p2` - Check `gh --version` and `gh auth status` - `inst-check-gh-status`
 4. - `p2` - Check Cypilot installation: `.core/`, `.gen/`, `config/` exist - `inst-check-installation`
 5. - `p2` - Attempt to parse `core.toml` and `artifacts.toml` - `inst-check-parseable`
+6. - `p2` - Check `ralphex` availability: discover on `PATH` or via persisted `core.toml` `[integrations.ralphex].executable_path`; if found, run `ralphex --version` to verify compatibility; if missing, WARN with installation guidance (Homebrew, `go install`, binary releases) — ralphex is optional, so missing is WARN not FAIL (see `cpt-cypilot-adr-ralphex-delegation-skill`) - `inst-check-ralphex`
 
 ### Run Self-Check
 
@@ -227,9 +228,9 @@ No feature-specific state machines. Self-check is stateless (run → report).
 
 - [ ] `p2` - **ID**: `cpt-cypilot-dod-developer-experience-doctor`
 
-- [ ] - `p2` - `cpt doctor` checks Python, git, gh CLI, config integrity
-- [ ] - `p2` - Each check reports pass/fail with actionable remediation
-- [ ] - `p2` - Exit code 0 if all checks pass, 2 if any fail
+- [ ] - `p2` - `cpt doctor` checks Python, git, gh CLI, config integrity, and optional `ralphex` availability
+- [ ] - `p2` - Each check reports pass/fail/warn with actionable remediation
+- [ ] - `p2` - Exit code 0 if all checks pass, 2 if any fail (WARN-only does not fail)
 
 ### Self-Check Command
 
@@ -280,6 +281,6 @@ No feature-specific state machines. Self-check is stateless (run → report).
 - [x] `cpt self-check` validates kit integrity and reports per-kind results
 - [x] `cpt resolve-vars` resolves all template variables to absolute paths
 - [x] `cpt info` includes `variables` in output for agent variable resolution
-- [ ] `cpt doctor` reports environment health with pass/fail per check
+- [ ] `cpt doctor` reports environment health with pass/fail/warn per check (including optional `ralphex` availability)
 - [ ] Pre-commit hooks enforce validation on staged artifacts
 - [ ] Shell completions work for all documented commands

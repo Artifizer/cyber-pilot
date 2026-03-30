@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-03-26
+status: accepted
+date: 2026-03-28
 decision-makers: project maintainer
 ---
 
@@ -59,7 +59,7 @@ The architectural question is: how should Cypilot integrate with the real ralphe
 
 ## Decision Outcome
 
-Chosen option: **Option 1 — Dedicated `cypilot-ralphex` skill with a bounded delegation contract**, because it adds the requested ralphex execution path while keeping Cypilot's planning and SDLC model authoritative, minimizing coupling to one external executor, and allowing projects to opt in only when they actually use ralphex.
+Accepted option: **Option 1 — Dedicated `cypilot-ralphex` skill with a bounded delegation contract**, because it adds the requested ralphex execution path while keeping Cypilot's planning and SDLC model authoritative, minimizing coupling to one external executor, and allowing projects to opt in only when they actually use ralphex.
 
 The dedicated integration skill becomes the only ralphex-aware entry point inside Cypilot. Cypilot remains responsible for:
 
@@ -103,16 +103,16 @@ The delegation contract is **artifact-driven and CLI-native**, not a generic opa
 
 ### Confirmation
 
-Confirmed when:
+This design decision is accepted. The following implementation exit criteria must be satisfied before the integration is considered complete:
 
-- a dedicated ralphex-facing skill exists as a canonical Cypilot integration surface rather than embedding ralphex logic into general workflows
-- the skill can discover an existing `ralphex` executable or guide installation via Homebrew, Go install, binary releases, or Docker-oriented instructions and persist the resolved executable path for reuse
-- the skill can validate ralphex availability with a read-only diagnostics path before delegation
-- the skill can bootstrap project-local `.ralphex/` configuration when needed, for example through `ralphex --init` or generated local overrides
-- the skill can export a bounded delegated plan from canonical Cypilot sources into `docs/plans/` (or the configured `plans_dir`) without copying the entire SDLC kit into a second source tree
-- a task planned through `cypilot-plan` can be delegated phase-by-phase or plan-by-plan to ralphex using a valid ralphex Markdown plan as the execution source of truth
-- delegated runs can be validated afterward with the exact deterministic commands supplied by Cypilot for that task
-- the integration remains optional: projects without ralphex continue to use normal Cypilot workflows with zero behavioral change
+* a dedicated ralphex-facing skill exists as a canonical Cypilot integration surface rather than embedding ralphex logic into general workflows
+* the skill can discover an existing `ralphex` executable or guide installation via Homebrew, Go install, binary releases, or Docker-oriented instructions and persist the resolved executable path for reuse
+* the skill can validate ralphex availability with a read-only diagnostics path before delegation
+* the skill can bootstrap project-local `.ralphex/` configuration when needed, for example through `ralphex --init` or generated local overrides
+* the skill can export a bounded delegated plan from canonical Cypilot sources into `docs/plans/` (or the configured `plans_dir`) without copying the entire SDLC kit into a second source tree
+* a task planned through `cypilot-plan` can be delegated phase-by-phase or plan-by-plan to ralphex using a valid ralphex Markdown plan as the execution source of truth
+* delegated runs can be validated afterward with the exact deterministic commands supplied by Cypilot for that task
+* the integration remains optional: projects without ralphex continue to use normal Cypilot workflows with zero behavioral change
 
 ## Pros and Cons of the Options
 
@@ -170,10 +170,11 @@ The integration follows these ownership rules:
 
 The integration should target ralphex's documented external surfaces rather than private implementation details:
 
-* primary CLI execution: `ralphex <plan.md>`
+* primary CLI execution: `ralphex <plan.md>` from the repository root
+* review-only invocation: `ralphex --review` can operate without a plan file, while an optional plan file adds extra review context
 * execution modes such as `--tasks-only`, `--review`, `--external-only`, `--worktree`, and `--serve`
-* plan creation and local bootstrap commands such as `--plan` and `--init`
-* documented file conventions: `docs/plans/`, `.ralphex/config`, `.ralphex/prompts/`, `.ralphex/agents/`
+* plan creation, bootstrap, and defaults-management commands such as `--plan`, `--init`, `--dump-defaults`, `--reset`, and `--config-dir`
+* documented file conventions: `docs/plans/`, `docs/plans/completed/`, `.ralphex/config`, `.ralphex/prompts/`, `.ralphex/agents/`, `.ralphex/worktrees/`, and global `~/.config/ralphex/config`
 * optional Claude Code slash commands (`/ralphex`, `/ralphex-plan`, `/ralphex-update`) as convenience shims, not the primary contract
 
 This keeps the integration aligned with ralphex's supported interfaces and avoids binding Cypilot to undocumented internals.
@@ -185,7 +186,8 @@ The dedicated skill owns ralphex environment handling. The preferred order is:
 1. reuse an existing `ralphex` executable already available on `PATH`
 2. reuse a previously configured absolute executable path recorded by Cypilot
 3. offer guided installation using the documented distribution paths — Homebrew on macOS, `go install`, binary releases, or Docker guidance when appropriate
-4. record the resolved executable path so future delegation does not require re-discovery
+4. when local customization is needed, bootstrap project-local `.ralphex/` config via `ralphex --init` and treat the generated files as derived overrides rather than canonical SDLC sources
+5. record the resolved executable path so future delegation does not require re-discovery
 
 Cypilot MUST NOT vendor ralphex into its own runtime or add ralphex as a mandatory dependency of the Cypilot Python package. ralphex remains an external optional tool.
 
@@ -199,6 +201,8 @@ The mapping rule is:
 * one Cypilot phase normally maps to one `### Task N:` block or a small contiguous task group inside that exported plan
 * Cypilot phase instructions, task steps, and acceptance criteria are flattened into ralphex-compatible checkboxes and validation commands
 * `{cypilot_path}/.plans/{task}/out/` remains the stable interchange point for intermediate outputs that later export passes can consume
+
+Review-only delegation is the main exception: when the user wants ralphex to review an existing branch rather than execute a compiled plan, `ralphex --review` can run without an exported plan file, though Cypilot may still provide one as bounded supplemental context.
 
 Cypilot therefore stays responsible for deciding **what the work decomposition is** and **what rules apply**, while ralphex is responsible for **executing the exported plan with fresh Claude sessions until done or stopped**.
 
@@ -225,7 +229,7 @@ That means:
 * **INT**: Applicable — this ADR defines how Cypilot integrates with an external autonomous CLI and where the contract boundary lives
 * **OPS**: Applicable — installation, environment diagnostics, and `.ralphex/` bootstrap behavior must be operationally clear and recoverable
 * **MAINT**: Applicable — ownership is intentionally split so that Cypilot's SDLC model does not fork and the ralphex mapping layer stays localized
-* **TEST**: Applicable — the exported plan contract, executable discovery, and Cypilot-plan-to-ralphex mapping must have automated regression coverage before acceptance
+* **TEST**: Applicable — the exported plan contract, executable discovery, and Cypilot-plan-to-ralphex mapping must have automated regression coverage before the integration is considered implementation-complete
 
 ### Related Decisions
 
@@ -239,7 +243,7 @@ That means:
 
 - **PRD**: [PRD.md](../PRD.md)
 - **DESIGN**: [DESIGN.md](../DESIGN.md)
-- **Feature Specs**: [features/agent-integration.md](../features/agent-integration.md), [features/subagent-registration.md](../features/subagent-registration.md), [features/execution-plans.md](../features/execution-plans.md)
+- **Feature Specs**: [features/ralphex-delegation.md](../features/ralphex-delegation.md), [features/agent-integration.md](../features/agent-integration.md), [features/subagent-registration.md](../features/subagent-registration.md), [features/execution-plans.md](../features/execution-plans.md)
 
 This decision directly addresses the following requirements and design elements:
 

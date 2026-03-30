@@ -34,7 +34,6 @@ to v3 (blueprint-based, artifacts.toml, three-directory layout).
 import argparse
 import json
 import logging
-import os
 import re
 import shutil
 import subprocess
@@ -44,7 +43,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..utils import toml_utils
-from ..utils.files import find_project_root
 from ..utils.ui import ui
 
 logger = logging.getLogger(__name__)
@@ -822,7 +820,7 @@ def convert_agents_md(
 
 def generate_core_toml(
     project_root: Path,
-    v2_systems: List[Dict[str, Any]],
+    _v2_systems: List[Dict[str, Any]],  # reserved for future per-system core.toml generation
     kit_slug_map: Dict[str, str],
     target_dir: Path,
 ) -> Dict[str, Any]:
@@ -901,7 +899,7 @@ def migrate_kits(
     errors: List[str] = []
 
     config_dir = cypilot_dir / "config"
-    gen_dir = cypilot_dir / GEN_SUBDIR
+    _gen_dir = cypilot_dir / GEN_SUBDIR  # reserved for future gen aggregation
     adapter_dir = project_root / adapter_path
 
     # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-migrate-kits:p1:inst-iterate-kits-migrate
@@ -1016,7 +1014,7 @@ def _caf_target_refs_adapter_dir(
     try:
         raw_target = Path(target)
         resolved_target = (fpath.parent / raw_target).resolve() if not raw_target.is_absolute() else raw_target.resolve()
-    except Exception:
+    except (OSError, ValueError, RuntimeError):
         return False
     return resolved_target == adapter_root or adapter_root in resolved_target.parents
 
@@ -1075,7 +1073,7 @@ def _caf_is_adapter_workflow_proxy(path: Path, project_root: Path, core_path: st
         return False
     try:
         txt = path.read_text(encoding="utf-8")
-    except Exception:
+    except OSError:
         return False
     if "ALWAYS open and follow" not in txt:
         return False
@@ -1084,7 +1082,7 @@ def _caf_is_adapter_workflow_proxy(path: Path, project_root: Path, core_path: st
         return False
     try:
         target_path = (path.parent / match.group(1).strip()).resolve()
-    except Exception:
+    except (OSError, ValueError, RuntimeError):
         return False
     expected_targets = {
         str((project_root / core_path / "workflows" / "adapter.md").resolve()),
@@ -1306,7 +1304,7 @@ def validate_migration(
     else:
         try:
             toml_utils.load(core_toml)
-        except Exception as e:
+        except (OSError, ValueError) as e:
             issues.append({
                 "severity": "CRITICAL",
                 "file": str(core_toml),
@@ -1338,7 +1336,7 @@ def validate_migration(
                     ),
                 })
             # @cpt-end:cpt-cypilot-algo-v2-v3-migration-validate-migration:p1:inst-verify-systems-migrated
-        except Exception as e:
+        except (OSError, ValueError) as e:
             issues.append({
                 "severity": "CRITICAL",
                 "file": str(artifacts_toml),
@@ -1689,7 +1687,7 @@ def _finalize_migration_outputs(
     cypilot_dir: Path,
     config_dir: Path,
     gen_dir: Path,
-    all_warnings: List[str],
+    _all_warnings: List[str],
 ) -> None:
     """Regenerate aggregates, inject root AGENTS.md, and generate agent integrations."""
     _regenerate_gen_from_config(config_dir, gen_dir, cypilot_dir=cypilot_dir)
@@ -1912,7 +1910,7 @@ def run_migrate(
             project_root, v2, adapter_path, core_path, core_install_type,
             install_dir, cypilot_dir, config_dir, all_warnings, migration_state,
         )
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught  # rollback safety net — must trigger on any failure
         # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-rollback-on-fail
         # Rollback on any failure during conversion
         # @cpt-begin:cpt-cypilot-state-v2-v3-migration-status:p1:inst-transition-convert-rollback
@@ -2029,7 +2027,7 @@ def run_migrate(
     # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-return-success
 
 # @cpt-algo:cpt-cypilot-algo-v2-v3-migration-regenerate-gen:p1
-def _regenerate_gen_from_config(config_dir: Path, gen_dir: Path, cypilot_dir: Optional[Path] = None) -> None:
+def _regenerate_gen_from_config(config_dir: Path, _gen_dir: Path, cypilot_dir: Optional[Path] = None) -> None:
     """Ensure config/kits/{slug}/ is populated after v2→v3 migration.
 
     In the new direct-file-package model, kit files are ready to use —
@@ -2205,7 +2203,7 @@ def run_migrate_config(project_root: Path) -> Dict[str, Any]:
                     kit_val = first_sys.get("kit")
                     if isinstance(kit_val, str) and kit_val.strip():
                         primary_slug = kit_val.strip()
-        except Exception:
+        except (OSError, ValueError, KeyError):
             pass
 # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-config:p1:inst-config-setup
 

@@ -8,24 +8,25 @@ description: "Invoke when user asks to do something with Cypilot, or wants to an
 
 <!-- toc -->
 
-- [Goal](#goal)
-- [Preconditions](#preconditions)
-- [⚠️ MUST Instruction Semantics ⚠️](#must-instruction-semantics)
-- [Agent Acknowledgment](#agent-acknowledgment)
-- [Execution Logging](#execution-logging)
-- [Variables](#variables)
-  - [Template Variable Resolution](#template-variable-resolution)
-- [CLI Resolution](#cli-resolution)
-- [Protocol Guard](#protocol-guard)
-- [Cypilot Mode](#cypilot-mode)
-- [Agent-Safe Invocation](#agent-safe-invocation)
-- [Quick Commands](#quick-commands)
-  - [Direct CLI Commands (No Workflow Routing)](#direct-cli-commands-no-workflow-routing)
-  - [Workflow Shortcuts](#workflow-shortcuts)
-- [Workflow Routing](#workflow-routing)
-- [Command Reference](#command-reference)
-- [Auto-Configuration](#auto-configuration)
-- [Project Configuration](#project-configuration)
+- [Cypilot Unified Tool](#cypilot-unified-tool)
+  - [Goal](#goal)
+  - [Preconditions](#preconditions)
+  - [⚠️ MUST Instruction Semantics ⚠️](#️-must-instruction-semantics-️)
+  - [Agent Acknowledgment](#agent-acknowledgment)
+  - [Execution Logging](#execution-logging)
+  - [Variables](#variables)
+    - [Template Variable Resolution](#template-variable-resolution)
+  - [CLI Resolution](#cli-resolution)
+  - [Protocol Guard](#protocol-guard)
+  - [Cypilot Mode](#cypilot-mode)
+  - [Agent-Safe Invocation](#agent-safe-invocation)
+  - [Quick Commands](#quick-commands)
+    - [Direct CLI Commands (No Workflow Routing)](#direct-cli-commands-no-workflow-routing)
+    - [Workflow Shortcuts](#workflow-shortcuts)
+  - [Workflow Routing](#workflow-routing)
+  - [Command Reference](#command-reference)
+  - [Auto-Configuration](#auto-configuration)
+  - [Project Configuration](#project-configuration)
 
 <!-- /toc -->
 
@@ -134,8 +135,11 @@ Cypilot: {FOUND at path | NOT_FOUND}
 
 ## Agent-Safe Invocation
 
-- ALWAYS use `{cpt_cmd} --json <subcommand> [options]`
-- ALWAYS pass `--json` immediately after `{cpt_cmd}` and before the subcommand for agent-driven CLI calls
+- ALWAYS use `{cpt_cmd} --json <subcommand> [options]` for agent-driven CLI calls unless a command-specific exception below says otherwise
+- ALWAYS pass `--json` immediately after `{cpt_cmd}` and before the subcommand when using machine-output mode
+- EXCEPTION: NEVER run `{cpt_cmd} init` with `--json`; always invoke `{cpt_cmd} init ...` without `--json`
+- EXCEPTION: NEVER run `{cpt_cmd} delegate` with `--json`; always invoke `{cpt_cmd} delegate <plan_dir> ...` without `--json`
+- EXCEPTION: NEVER run `{cpt_cmd} update` with `--json`; always invoke `{cpt_cmd} update ...` without `--json`
 - ALWAYS use `=` form for pattern args starting with `-` (example: `--pattern=-req-`)
 - MUST obtain explicit user confirmation before executing any write-capable command, including direct CLI commands that do not route through a workflow
 - MUST NOT add auto-approval flags such as `--yes`, `-y`, or `--force` to write-capable commands unless the user explicitly requested that non-interactive behavior
@@ -148,7 +152,8 @@ No workflow routing skips workflow selection only. It does not waive confirmatio
 
 | User invocation | Direct action |
 |---|---|
-| `cypilot init` | After explicit user confirmation, run `{cpt_cmd} --json init` |
+| `cypilot init` | After explicit user confirmation, run `{cpt_cmd} init` without `--json` |
+| `cypilot update` | After explicit user confirmation, run `{cpt_cmd} update` without `--json` |
 | `cypilot agents <name>` | Run `{cpt_cmd} --json agents --agent <name>` |
 | `cypilot generate-agents <name>` | After explicit user confirmation, run `{cpt_cmd} --json generate-agents --agent <name>` |
 | `cypilot workspace init` | After explicit user confirmation, run `{cpt_cmd} --json workspace-init [--root <dir>] [--output <path>] [--inline] [--force] [--max-depth <N>] [--dry-run]` |
@@ -164,15 +169,22 @@ No workflow routing skips workflow selection only. It does not waive confirmatio
 
 ## Workflow Routing
 
-Cypilot has exactly three core workflows plus specialized sub-workflows. Routing priority is `plan` > `generate`/`analyze`.
+Cypilot has exactly three core workflows plus specialized sub-workflows and dedicated capability agents. Routing priority is `delegate` > `compile-phase` > `execute-phase` > `plan` > `generate`/`analyze`. Delegation intent MUST route to the `cypilot-ralphex` capability agent rather than falling through to generic planning or generation. Generated-plan phase compilation intent MUST route to the dedicated `cypilot-phase-compiler` capability agent, and generated-plan phase execution intent MUST route to the dedicated `cypilot-phase-runner` capability agent rather than back into generic planning.
 
 Completion invariants for workflow outputs:
+- A `/cypilot-plan` run is not complete until it reaches one of two valid stopping points defined by `workflows/plan.md`: either `(a)` the brief checkpoint where `plan.toml` and every required `brief-*` file exist on disk and the response presents the explicit next-step choice set, or `(b)` the fully compiled plan state where every corresponding `phase-*` file also exists on disk after the user chose inline generation or `cypilot-phase-compiler` execution.
 - A `/cypilot-generate` run that wrote or updated any files is not complete until the final response includes both `Plan Review Prompt` and `Direct Review Prompt` blocks. This applies on both the validated success path and the RELAXED explicitly unvalidated recovery path.
 - A `/cypilot-analyze` run with any actionable issue is not complete until the final response includes both `Fix Prompt` and `Plan Prompt` blocks.
+- A `/cypilot delegate` run is not complete until the final response includes delegation status, handoff result or error details, and next-step options.
+- A native plan-phase compilation run is not complete until the final response includes compiled phase identity, output file path, and compile-time validation outcome.
+- A native plan-phase execution run is not complete until the final response includes executed phase status, manifest update outcome, and the next-phase handoff or recovery action.
 - MUST NOT end a workflow response immediately after the summary, analysis report, or next-step options when one of the required prompt pairs is still missing.
 
 | Intent | Match | Action |
 |---|---|---|
+| Delegate | `delegate`, `delegate to ralphex`, `ralphex execute`, `ralphex review`, `hand off to ralphex`, `run with ralphex`, `ralphex delegation` | Open and follow `{cypilot_path}/.core/skills/cypilot/agents/cypilot-ralphex.md` |
+| Compile phase | `compile phase`, `compile next phase`, `compile plan phase`, `generate phase file`, `compile from brief`, `build phase from brief` | Open and follow `{cypilot_path}/.core/skills/cypilot/agents/cypilot-phase-compiler.md` |
+| Execute phase | `execute phase`, `run next phase`, `continue plan`, `resume plan`, `execute plan phase`, `run plan phase`, `execute the next phase` | Open and follow `{cypilot_path}/.core/skills/cypilot/agents/cypilot-phase-runner.md` |
 | Plan | `plan`, `create a plan`, `execution plan`, `break down`, `decompose`, or `plan to ...` | Open and follow `{cypilot_path}/.core/workflows/plan.md` first |
 | Generate | `create`, `edit`, `fix`, `update`, `implement`, `refactor`, `delete`, `add`, `setup`, `configure`, `build`, `code` and user did not say `plan` | Open and follow `{cypilot_path}/.core/workflows/generate.md` |
 | Analyze | `analyze`, `validate`, `review`, `check`, `inspect`, `audit`, `compare`, `list`, `show`, `find` and user did not say `plan` | Open and follow `{cypilot_path}/.core/workflows/analyze.md` |
@@ -184,7 +196,7 @@ Completion invariants for workflow outputs:
 ## Command Reference
 
 Entrypoint: `{cpt_cmd} <command> [options]`
-Machine output: add `--json` immediately after `{cpt_cmd}` and before the subcommand. Exit codes: `0 = PASS`, `1 = filesystem/config error`, `2 = FAIL`.
+Machine output: add `--json` immediately after `{cpt_cmd}` and before the subcommand, except for `init`, `delegate`, and `update`, which MUST be run without `--json`. Exit codes: `0 = PASS`, `1 = filesystem/config error`, `2 = FAIL`.
 Legacy aliases: `validate-code` = `validate`; `validate-rules` = `validate-kits`.
 
 | Category | Commands |
@@ -192,7 +204,8 @@ Legacy aliases: `validate-code` = `validate`; `validate-rules` = `validate-kits`
 | Validation | `{cpt_cmd} --json validate` (artifacts + code), `{cpt_cmd} --json validate-kits` (kit config), `{cpt_cmd} --json validate-toc` (TOC integrity), `{cpt_cmd} --json self-check` (template/example sync), `{cpt_cmd} --json spec-coverage` (marker coverage) |
 | Search | `{cpt_cmd} --json list-ids` (enumerate IDs), `{cpt_cmd} --json list-id-kinds` (kind counts), `{cpt_cmd} --json get-content` (fetch by ID), `{cpt_cmd} --json where-defined` (definition), `{cpt_cmd} --json where-used` (references) |
 | Kit management | `{cpt_cmd} --json kit install` (install kit), `{cpt_cmd} --json kit update` (file-level kit update) |
-| Utilities | `{cpt_cmd} --json toc` (generate TOC), `{cpt_cmd} --json info` (discover config), `{cpt_cmd} --json resolve-vars` (expand template vars), `{cpt_cmd} --json init` (bootstrap project), `{cpt_cmd} --json update` (refresh adapter), `{cpt_cmd} --json agents` (show generated integrations), `{cpt_cmd} --json generate-agents` (generate/update integrations) |
+| Delegation | `{cpt_cmd} delegate <plan_dir>` (compile and delegate plan to ralphex; MUST run without `--json`) |
+| Utilities | `{cpt_cmd} --json toc` (generate TOC), `{cpt_cmd} --json info` (discover config), `{cpt_cmd} --json resolve-vars` (expand template vars), `{cpt_cmd} init` (bootstrap project; MUST run without `--json`), `{cpt_cmd} update` (refresh adapter; MUST run without `--json`), `{cpt_cmd} --json agents` (show generated integrations), `{cpt_cmd} --json generate-agents` (generate/update integrations) |
 | Migration | `{cpt_cmd} --json migrate` (v2→v3 project), `{cpt_cmd} --json migrate-config` (JSON→TOML config) |
 | Workspace | `{cpt_cmd} --json workspace-init` (create workspace), `{cpt_cmd} --json workspace-add` (add source), `{cpt_cmd} --json workspace-info` (status), `{cpt_cmd} --json workspace-sync` (update Git sources) |
 
