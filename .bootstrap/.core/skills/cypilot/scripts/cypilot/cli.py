@@ -154,6 +154,10 @@ def _cmd_doctor(argv: List[str]) -> int:
 def _cmd_delegate(argv: List[str]) -> int:
     from .commands.delegate import cmd_delegate
     return cmd_delegate(argv)
+
+def _cmd_check_language(argv: List[str]) -> int:
+    from .commands.check_language import cmd_check_language
+    return cmd_check_language(argv)
 # @cpt-end:cpt-cypilot-algo-core-infra-route-command:p1:inst-route-helpers
 
 # =============================================================================
@@ -180,7 +184,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     # Context may be None if Cypilot not initialized - that's OK for some commands like init
 
     # Define all available commands
-    analysis_commands = ["validate", "validate-kits", "validate-toc", "spec-coverage"]
+    analysis_commands = ["validate", "validate-kits", "validate-toc", "spec-coverage", "check-language"]
     legacy_aliases = ["validate-code", "validate-rules"]
     kit_commands = ["kit"]
     utility_commands = ["toc", "chunk-input"]
@@ -359,6 +363,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _cmd_delegate(rest)
     elif cmd == "doctor":
         return _cmd_doctor(rest)
+    elif cmd == "check-language":
+        return _cmd_check_language(rest)
     else:
         # @cpt-begin:cpt-cypilot-algo-core-infra-route-command:p1:inst-if-no-handler
         # @cpt-begin:cpt-cypilot-algo-core-infra-route-command:p1:inst-return-unknown

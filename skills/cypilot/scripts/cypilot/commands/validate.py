@@ -919,16 +919,41 @@ def _run_content_language_check(
     Uses project_root to discover the workspace config so the check works in
     both workspace mode and single-repo mode.  Returns an empty list when
     allowed_content_languages is not configured.
+
+    Config failures (malformed .cypilot-workspace.toml) are surfaced as
+    FILE_LOAD_ERROR entries rather than silently disabling validation.
     """
+    try:
+        from ..utils.constraints import error as _error
+        from ..utils import error_codes as _EC
+    except ImportError:
+        return []
+
     try:
         from ..utils.workspace import find_workspace_config as _find_ws
         _ws_cfg, _ws_err = _find_ws(project_root)
-        if _ws_cfg is None or _ws_cfg.validation is None:
-            return []
-        allowed_langs = _ws_cfg.validation.allowed_content_languages
-        if not allowed_langs:
-            return []
-    except (ImportError, ValueError, OSError, AttributeError):
+    except (ImportError, OSError, AttributeError) as exc:
+        return [_error(
+            "language",
+            f"Cannot load workspace config for language check: {exc}",
+            path=project_root,
+            line=1,
+            code=_EC.FILE_LOAD_ERROR,
+        )]
+
+    if _ws_err:
+        return [_error(
+            "language",
+            f"Workspace config error, language validation skipped: {_ws_err}",
+            path=project_root,
+            line=1,
+            code=_EC.FILE_LOAD_ERROR,
+        )]
+
+    if _ws_cfg is None or _ws_cfg.validation is None:
+        return []
+    allowed_langs = _ws_cfg.validation.allowed_content_languages
+    if not allowed_langs:
         return []
 
     try:
@@ -937,8 +962,6 @@ def _run_content_language_check(
             build_allowed_ranges,
             scan_file as _scan_file,
         )
-        from ..utils.constraints import error as _error
-        from ..utils import error_codes as _EC
     except ImportError:
         return []
 

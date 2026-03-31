@@ -390,6 +390,15 @@ def cmd_validate(argv: List[str]) -> int:
                 rep["warnings"].append(issue)
     # @cpt-end:cpt-cypilot-flow-traceability-validation-validate:p1:inst-validate-helpers
 
+    # Content language check — runs after per-artifact structure validation.
+    # Skipped if structure has already failed (all_errors non-empty) so language
+    # issues never obscure structural errors.
+    if not all_errors:
+        _lang_errs = _run_content_language_check(artifacts_to_validate, ws_ctx, project_root)
+        for _le in _lang_errs:
+            all_errors.append(_le)
+            _attach_issue_to_artifact_report(_le, is_error=True)
+
     # @cpt-begin:cpt-cypilot-flow-traceability-validation-validate:p1:inst-if-structure-fail
     # Stop early: cross-artifact reference checks and code traceability checks are run only
     # after per-artifact structure/content checks pass.
@@ -896,6 +905,60 @@ def _suggest_path_from_autodetect(node: object, target_kind: str) -> Optional[st
 
     return None
 # @cpt-end:cpt-cypilot-flow-traceability-validation-validate:p1:inst-validate-helpers
+
+# ---------------------------------------------------------------------------
+# Content language check helper
+# ---------------------------------------------------------------------------
+
+def _run_content_language_check(
+    artifacts_to_validate: list,
+    ws_ctx: object,
+    project_root: "Path",
+) -> list:
+    """Return language-violation error dicts for all validated .md artifacts.
+
+    Returns an empty list when:
+    - ``ws_ctx`` is None (no workspace config available), or
+    - ``[validation] allowed_content_languages`` is not configured, or
+    - no .md artifacts are in the validated set.
+    """
+    if ws_ctx is None:
+        return []
+
+    try:
+        from ..utils.workspace import find_workspace_config as _find_ws
+        _ws_cfg, _ = _find_ws(ws_ctx.project_root)
+        if _ws_cfg is None or _ws_cfg.validation is None:
+            return []
+        allowed_langs = _ws_cfg.validation.allowed_content_languages
+        if not allowed_langs:
+            return []
+    except Exception:
+        return []
+
+    try:
+        from ..utils.content_language import build_allowed_ranges, scan_file as _scan_file
+        from ..utils.constraints import error as _error
+        from ..utils import error_codes as _EC
+    except Exception:
+        return []
+
+    allowed_ranges = build_allowed_ranges(allowed_langs)
+    results = []
+    for artifact_path, _template_path, _artifact_type, _traceability, _kit_id in artifacts_to_validate:
+        if artifact_path.suffix.lower() != ".md":
+            continue
+        for v in _scan_file(artifact_path, allowed_ranges):
+            results.append(_error(
+                "language",
+                f"Non-allowed characters [{v.bad_chars_preview()}] — {v.line_preview()}",
+                path=artifact_path,
+                line=v.lineno,
+                code=_EC.CONTENT_LANGUAGE_VIOLATION,
+                allowed_languages=allowed_langs,
+            ))
+    return results
+
 
 # ---------------------------------------------------------------------------
 # Human-friendly formatter

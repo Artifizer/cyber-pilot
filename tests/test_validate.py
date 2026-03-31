@@ -12,6 +12,7 @@ from pathlib import Path
 import io
 import contextlib
 import unittest
+from unittest.mock import MagicMock
 from tempfile import TemporaryDirectory
 
 
@@ -434,6 +435,47 @@ class TestEnrichTargetArtifactPaths(unittest.TestCase):
             _enrich_target_artifact_paths(issues, meta=meta, project_root=root)
             self.assertIn("target_artifact_suggested_path", issues[0])
             self.assertEqual(issues[0]["target_artifact_suggested_path"], "architecture/DESIGN.md")
+
+
+class TestRunContentLanguageCheck(unittest.TestCase):
+    """Regression tests for _run_content_language_check error handling."""
+
+    def _call(self, ws_return, artifacts=None):
+        from unittest.mock import patch
+        from cypilot.commands.validate import _run_content_language_check
+
+        if artifacts is None:
+            artifacts = []
+
+        with patch("cypilot.utils.workspace.find_workspace_config", return_value=ws_return):
+            return _run_content_language_check(artifacts, Path("/fake/root"))
+
+    def test_broken_config_returns_error_not_empty_list(self):
+        """find_workspace_config() -> (None, 'bad config') must produce a validation error."""
+        results = self._call((None, "bad config"))
+        self.assertEqual(len(results), 1)
+        self.assertIn("file-load-error", str(results[0].get("code", "")))
+
+    def test_broken_config_error_message_contains_reason(self):
+        results = self._call((None, "TOML parse error"))
+        self.assertIn("TOML parse error", str(results[0].get("message", "")))
+
+    def test_no_config_file_returns_empty(self):
+        """(None, None) means no workspace config — silent skip, not an error."""
+        results = self._call((None, None))
+        self.assertEqual(results, [])
+
+    def test_config_without_validation_section_returns_empty(self):
+        mock_cfg = MagicMock()
+        mock_cfg.validation = None
+        results = self._call((mock_cfg, None))
+        self.assertEqual(results, [])
+
+    def test_config_with_empty_languages_returns_empty(self):
+        mock_cfg = MagicMock()
+        mock_cfg.validation.allowed_content_languages = []
+        results = self._call((mock_cfg, None))
+        self.assertEqual(results, [])
 
 
 if __name__ == "__main__":
