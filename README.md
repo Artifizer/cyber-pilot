@@ -97,6 +97,15 @@ pipx upgrade cypilot
 
 This installs `cypilot` and `cpt` commands globally. The CLI is a thin proxy shell — on first run it downloads the skill bundle into `~/.cypilot/cache/` and delegates all commands to the cached or project-local skill engine.
 
+#### MacOS installation Note (pipx PATH setup)
+
+On macOS, `pipx` may install binaries into a directory that is **not automatically added to your PATH**, which means commands like `cypilot` or `cpt` won’t be found.
+
+```bash
+pipx ensurepath
+source ~/.zshrc
+```
+
 ---
 
 ## Project Setup
