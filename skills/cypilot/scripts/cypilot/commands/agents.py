@@ -2137,6 +2137,7 @@ def _run_v2_pipeline(
         legacy_result = _process_single_agent(agent, project_root, cypilot_root, cfg, cfg_path, dry_run=args.dry_run)
         if agent in results:
             results[agent]["workflows"] = legacy_result.get("workflows", {})
+            results[agent]["subagents"] = legacy_result.get("subagents", {})
             legacy_skills = legacy_result.get("skills", {})
             v2_skill_ids = {e.get("path", "") for e in results[agent].get("skills", {}).get("outputs", [])}
             if not any(agent in str(sk_path) for sk_path in v2_skill_ids):
@@ -2244,7 +2245,17 @@ def cmd_generate_agents(argv: List[str]) -> int:
             dry_results: Dict[str, Any] = {}
             for target in agents_to_process:
                 lp = legacy_preview[target]
-                dry_results[target] = {"status": "PASS", "agent": target, "manifest_v2": True, "translated_agents": len(merged.agents), "skills": preview_skills[target], "v2_agents": preview_agents[target], "workflows": lp.get("workflows", {"created": [], "updated": [], "unchanged": [], "renamed": [], "deleted": [], "counts": {}})}
+                dry_results[target] = {
+                    "status": "PASS",
+                    "agent": target,
+                    "manifest_v2": True,
+                    "translated_agents": len(merged.agents),
+                    "skills": preview_skills[target],
+                    "v2_agents": preview_agents[target],
+                    "workflows": lp.get("workflows", {"created": [], "updated": [], "unchanged": [], "renamed": [], "deleted": [], "counts": {}}),
+                    "subagents": lp.get("subagents", {}),
+                    "legacy_skills": lp.get("skills", {}),
+                }
             dr = _build_result(dry_results, agents_to_process, project_root, cypilot_root, cfg_path, copy_report, dry_run=True)
             dr["manifest_v2"] = True
             ui.result(dr, human_fn=lambda d: _human_generate_agents_ok(d, agents_to_process, dry_results, dry_run=True))
