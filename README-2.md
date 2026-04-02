@@ -254,6 +254,8 @@ Part of that tradeoff is visible in the implementation shape itself: Cyber Pilot
 
 For smaller projects, that can look like real overhead. The point is not that the overhead is imaginary; the point is that it is the price paid for the benefits above.
 
+One practical mitigation is **workspace federation**: keep a dedicated orchestration repository with the full Cyber Pilot setup, then attach multiple smaller repos through **[Multi-repo workspaces](#multi-repo-workspaces)** so the orchestration weight is centralized instead of duplicated everywhere.
+
 ---
 
 ## A critical clarification about IDs and code generation
