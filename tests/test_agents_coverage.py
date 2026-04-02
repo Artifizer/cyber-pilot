@@ -1578,7 +1578,12 @@ class TestLegacyManifestSkillCleanup(unittest.TestCase):
             src = root / "skills" / "my-rule.md"
             src.parent.mkdir(parents=True)
             src.write_text("# My Rule\n", encoding="utf-8")
-            legacy.write_text("# My Rule\n", encoding="utf-8")
+            # Legacy file must match the content the generator now produces
+            # (frontmatter + body) so matches_generated_body triggers deletion.
+            legacy.write_text(
+                '---\nname: my-rule\ndescription: "A rule"\n---\n# My Rule\n',
+                encoding="utf-8",
+            )
             skills = {"my-rule": SkillEntry(id="my-rule", description="A rule", prompt_file="", source=str(src), agents=["cursor"])}
             r = generate_manifest_skills(skills, "cursor", root, dry_run=False)
             self.assertFalse(legacy.exists(), "Legacy generated manifest skill should be deleted")

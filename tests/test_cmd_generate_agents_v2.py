@@ -362,7 +362,7 @@ class TestGenerateManifestAgentsEdgeCases(unittest.TestCase):
             original_read_text = Path.read_text
 
             def patched_read_text(self, *args, **kwargs):
-                if self == src:
+                if self == src or self == src.resolve():
                     raise OSError("permission denied")
                 return original_read_text(self, *args, **kwargs)
 

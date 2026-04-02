@@ -2875,7 +2875,6 @@ def _apply_variables(content: str, variables: Optional[Dict[str, str]]) -> str:
 def _build_skill_content(
     skill_id: str,
     skill: Any,
-    target: str,
     source_content: str,
     variables: Optional[Dict[str, str]],
 ) -> str:
@@ -2962,7 +2961,7 @@ def generate_manifest_skills(
             continue
 
         # Step 1.2: Apply agent-specific frontmatter, appends, and variables
-        content = _build_skill_content(skill_id, skill, target, source_content, variables)
+        content = _build_skill_content(skill_id, skill, source_content, variables)
         generated_skill_contents[skill_id] = content
 
         # Step 1.3: Determine output path using agent-native conventions
@@ -3007,7 +3006,25 @@ def generate_manifest_skills(
                 except OSError:
                     continue
             result["deleted"].append(rel)
-            result["outputs"].append({"path": rel, "action": "deleted"})
+            deleted_record = {"path": rel, "action": "deleted"}
+            result["outputs"].append(deleted_record)
+            skill_obj = skills.get(skill_id)
+            if skill_obj is not None:
+                if isinstance(skill_obj, dict):
+                    skill_deleted = skill_obj.get("deleted")
+                    if not isinstance(skill_deleted, list):
+                        skill_deleted = []
+                        skill_obj["deleted"] = skill_deleted
+                else:
+                    skill_deleted = getattr(skill_obj, "deleted", None)
+                    if not isinstance(skill_deleted, list):
+                        skill_deleted = []
+                        try:
+                            object.__setattr__(skill_obj, "deleted", skill_deleted)
+                        except (AttributeError, TypeError):
+                            skill_deleted = None
+                if isinstance(skill_deleted, list):
+                    skill_deleted.append({"path": rel, "action": "deleted"})
 
     # Step 3: Return result dict
     result["unchanged"] = [
