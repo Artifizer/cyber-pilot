@@ -14,13 +14,13 @@
 
 ## Cyber Pilot — Deterministic orchestration for AI agents
 
-Cypilot is **not another coding model or AI agent**.
+Cyber Pilot (*Cypilot*) is **not another coding model or AI agent**.
 
-Cypilot is a **deterministic orchestration and validation layer** that sits on top of AI agents and helps them transform one kind of document into another, or into code, while preserving strict format, structural consistency, and cross-artifact alignment through identifiers.
+Cyber Pilot is a **deterministic orchestration and validation layer** that sits on top of AI agents and helps them transform one kind of document into another, or into code, while preserving strict format, structural consistency, and cross-artifact alignment through identifiers.
 
 A delivery chain such as **requirements -> design -> decomposition -> implementation -> validation** is one important example of that broader idea.
 
-In practice, this means Cypilot helps you:
+In practice, this means Cyber Pilot helps you:
 
 - **Transform artifacts** from one stage into the next, such as `PRD -> DESIGN -> DECOMPOSITION -> FEATURE -> CODE`.
 - **Enforce structure** with templates, constraints, workflows, and deterministic checks.
@@ -92,7 +92,7 @@ In practice, this means Cypilot helps you:
 
 ## Why Cyber Pilot exists
 
-The main problem Cypilot solves is **not** “how to get more raw code out of an LLM.”
+The main problem Cyber Pilot solves is **not** “how to get more raw code out of an LLM.”
 
 The main problem it solves is this:
 
@@ -401,6 +401,8 @@ The SDLC kit provides an artifact-first pipeline with templates, rules, checklis
 
 This is one concrete kit that makes structured document-to-document and document-to-code flows practical.
 
+Repository: **[cyberfabric/cyber-pilot-kit-sdlc](https://github.com/cyberfabric/cyber-pilot-kit-sdlc)**
+
 ---
 
 ## How to use Cypilot correctly
@@ -484,6 +486,16 @@ If `pipx` installed the binary into a path that is not yet on your shell `PATH`,
 pipx ensurepath
 source ~/.zshrc
 ```
+
+**Windows note**
+
+If `pipx` installed the binary into a path that is not yet on your shell `PATH`, run:
+
+```bash
+pipx ensurepath
+```
+
+Then open a new terminal so the updated `PATH` is picked up.
 
 ### 2. Initialize a project
 
@@ -570,6 +582,8 @@ All user-editable configuration lives under `config/` inside your Cypilot direct
 
 To inspect resolved kit resource paths:
 
+🖥️ **Terminal**:
+
 ```bash
 cpt resolve-vars --flat
 ```
@@ -581,6 +595,8 @@ For full configuration details, see **[Configuration guide](guides/CONFIGURATION
 ## Workflow model
 
 Cypilot has three core workflows:
+
+💬 **AI agent chat**:
 
 - **`/cypilot-plan`**
   
@@ -596,8 +612,8 @@ Cypilot has three core workflows:
 
 Operationally, routing priority is usually:
 
-- **delegate**
 - **plan**
+- **delegate**
 - **generate**
 - **analyze**
 
@@ -607,7 +623,11 @@ That means a large request should usually become a plan first instead of forcing
 
 ## Example prompts
 
+All examples below are **💬 AI agent chat prompts**.
+
 ### Setup and project understanding
+
+💬 **AI agent chat**:
 
 - **Enable Cypilot mode**
   
@@ -622,6 +642,8 @@ That means a large request should usually become a plan first instead of forcing
   `cypilot generate-agents --agent claude`
 
 ### Artifact generation and transformation
+
+💬 **AI agent chat**:
 
 - **Create a PRD**
   
@@ -641,6 +663,8 @@ That means a large request should usually become a plan first instead of forcing
 
 ### Planning and phased execution
 
+💬 **AI agent chat**:
+
 - **Create a plan for a large task**
   
   `cypilot plan generate PRD for task manager`
@@ -654,6 +678,8 @@ That means a large request should usually become a plan first instead of forcing
   `cypilot execute next phase`
 
 ### Validation and review
+
+💬 **AI agent chat**:
 
 - **Validate one artifact**
   
@@ -705,25 +731,6 @@ Windsurf does not support subagents, but still receives the workflow and skill i
 
 ---
 
-## Directory model at a glance
-
-After `cpt init`, a normal project gets a Cypilot directory with three main areas:
-
-```text
-cypilot/
-├── .core/     # read-only core files copied from source/cache
-├── .gen/      # generated aggregate files for agent consumption
-└── config/    # user-editable project configuration and kit outputs
-```
-
-At a high level:
-
-- **`.core/`** contains the read-only core workflows, skills, schemas, and requirements.
-- **`.gen/`** contains generated aggregate outputs for agents.
-- **`config/`** contains the editable project configuration and installed kit material.
-
----
-
 ## Multi-repo workspaces
 
 Cypilot supports **multi-repo workspaces** so artifacts, code, and kits do not all have to live in one repository.
@@ -736,6 +743,8 @@ This is useful when:
 
 Quick setup examples:
 
+🖥️ **Terminal**:
+
 ```bash
 cpt workspace-init
 cpt workspace-add --name docs --path ../docs-repo --role artifacts
@@ -745,6 +754,8 @@ cpt workspace-add --name shared-kits --path ../shared-kits --role kits
 When a workspace is active, the current repo remains primary, while other sources contribute artifacts, code, and kits for cross-reference resolution.
 
 Useful commands:
+
+🖥️ **Terminal**:
 
 ```bash
 cpt workspace-info
@@ -762,6 +773,23 @@ RalphEx support is optional.
 
 When available, Cyber Pilot can delegate entire execution plans through the dedicated `cypilot-ralphex` path.
 
+Operationally, RalphEx can run an autonomous execution loop such as:
+
+- **generate**
+- **validate**
+- **fix**
+- **validate**
+- **fix**
+- **validate**
+
+This loop is typically driven through **Claude Code**, with **Codex** available as an optional additional execution path depending on the setup.
+
+That can be powerful, but it also means you should monitor what is happening.
+
+If validation produces a **false positive**, an autonomous fix loop can start optimizing for the wrong signal and lead to unpredictable results.
+
+The main mitigation is that RalphEx commits changes **granularly** as it goes. If a validation step goes wrong, you can roll back to a known-good commit and continue from that point instead of losing the whole execution trail.
+
 Typical flow:
 
 1. Create a plan with `/cypilot-plan`
@@ -769,10 +797,14 @@ Typical flow:
 
 Examples:
 
+💬 **AI agent chat**:
+
 - 💬 `cypilot delegate to ralphex`
 - 💬 `cypilot delegate this plan to ralphex`
 
 Environment check:
+
+🖥️ **Terminal**:
 
 ```bash
 cpt doctor
@@ -861,3 +893,15 @@ It is weakest when you expect it to replace:
 Used correctly, it does not replace your stack.
 
 It makes your stack work together more reliably.
+
+---
+
+## Contributing
+
+If you want to contribute, start with **[CONTRIBUTING.md](CONTRIBUTING.md)**.
+
+---
+
+## License
+
+Cyber Pilot is licensed under the **Apache License 2.0**. See **[LICENSE](LICENSE)** for details.
