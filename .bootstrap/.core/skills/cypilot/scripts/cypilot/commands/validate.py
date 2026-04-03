@@ -917,30 +917,34 @@ def _run_content_language_check(
 ) -> list:
     """Return language-violation error dicts for all validated .md artifacts.
 
-    Returns an empty list when:
-    - ``ws_ctx`` is None (no workspace config available), or
-    - ``[validation] allowed_content_languages`` is not configured, or
-    - no .md artifacts are in the validated set.
+    Uses ``ws_ctx.project_root`` when available, otherwise falls back to
+    ``project_root``, so the check works in both workspace mode and
+    single-repo mode.  Returns an empty list when
+    ``allowed_content_languages`` is not configured.  Returns a validation
+    error entry when the workspace config file exists but fails to load.
     """
-    if ws_ctx is None:
-        return []
+    from ..utils.workspace import find_workspace_config as _find_ws
+    from ..utils.content_language import (
+        LangScanError as _LangScanError,
+        build_allowed_ranges,
+        scan_file as _scan_file,
+    )
+    from ..utils.constraints import error as _error
+    from ..utils import error_codes as _EC
 
-    try:
-        from ..utils.workspace import find_workspace_config as _find_ws
-        _ws_cfg, _ = _find_ws(ws_ctx.project_root)
-        if _ws_cfg is None or _ws_cfg.validation is None:
-            return []
-        allowed_langs = _ws_cfg.validation.allowed_content_languages
-        if not allowed_langs:
-            return []
-    except Exception:
+    root = getattr(ws_ctx, "project_root", None) or project_root
+    _ws_cfg, _ws_err = _find_ws(root)
+    if _ws_err is not None:
+        return [_error(
+            "workspace",
+            f"Failed to load workspace config for language check: {_ws_err}",
+            path=root,
+            code=_EC.FILE_LOAD_ERROR,
+        )]
+    if _ws_cfg is None or _ws_cfg.validation is None:
         return []
-
-    try:
-        from ..utils.content_language import build_allowed_ranges, scan_file as _scan_file
-        from ..utils.constraints import error as _error
-        from ..utils import error_codes as _EC
-    except Exception:
+    allowed_langs = _ws_cfg.validation.allowed_content_languages
+    if not allowed_langs:
         return []
 
     allowed_ranges = build_allowed_ranges(allowed_langs)
@@ -948,7 +952,17 @@ def _run_content_language_check(
     for artifact_path, _template_path, _artifact_type, _traceability, _kit_id in artifacts_to_validate:
         if artifact_path.suffix.lower() != ".md":
             continue
-        for v in _scan_file(artifact_path, allowed_ranges):
+        try:
+            violations = _scan_file(artifact_path, allowed_ranges)
+        except _LangScanError as exc:
+            results.append(_error(
+                "language",
+                f"Cannot read file for language scan: {exc}",
+                path=artifact_path,
+                code=_EC.FILE_READ_ERROR,
+            ))
+            continue
+        for v in violations:
             results.append(_error(
                 "language",
                 f"Non-allowed characters [{v.bad_chars_preview()}] — {v.line_preview()}",

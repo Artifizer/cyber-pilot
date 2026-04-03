@@ -99,7 +99,15 @@ def cmd_check_language(argv: List[str]) -> int:
 
     # ── Scan ─────────────────────────────────────────────────────────────────
     allowed_ranges = build_allowed_ranges(allowed_langs)
-    violations = scan_paths(roots, allowed_ranges, ignore_globs=ignore_globs or None)
+    from ..utils.content_language import LangScanError
+    try:
+        violations = scan_paths(roots, allowed_ranges, ignore_globs=ignore_globs or None)
+    except LangScanError as exc:
+        ui.result({
+            "status": "ERROR",
+            "message": str(exc),
+        })
+        return 1
 
     files_scanned = _count_md_files(roots)
 

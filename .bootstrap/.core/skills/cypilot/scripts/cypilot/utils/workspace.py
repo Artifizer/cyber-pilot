@@ -171,11 +171,19 @@ class ValidationConfig:
 
     @classmethod
     def from_dict(cls, data: dict) -> "ValidationConfig":
+        from .content_language import SUPPORTED_LANGUAGES  # local import avoids top-level cycle risk
         raw = (data or {}).get("allowed_content_languages", [])
         if isinstance(raw, list):
             langs = [str(x).strip().lower() for x in raw if str(x).strip()]
         else:
             langs = []
+        unknown = [lang for lang in langs if lang not in SUPPORTED_LANGUAGES]
+        if unknown:
+            raise ValueError(
+                f"Unknown language code(s) in allowed_content_languages: "
+                f"{', '.join(unknown)}. "
+                f"Supported: {', '.join(sorted(SUPPORTED_LANGUAGES))}"
+            )
         return cls(allowed_content_languages=langs)
 
     def to_dict(self) -> dict:
