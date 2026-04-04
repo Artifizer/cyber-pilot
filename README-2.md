@@ -67,18 +67,9 @@ A typical path is: approve the requirement and design, split the change into bou
 
 > **Convention**: 💬 = paste into AI agent chat. 🖥️ = run in terminal.
 
-## Jump to
-
-- [Quick start](#quick-start)
-- [What success looks like after 5 minutes](#5-what-success-looks-like-after-5-minutes)
-- [Host support at a glance](#host-support-at-a-glance)
-- [Workflow model](#workflow-model)
-- [Configuration at a glance](#configuration-at-a-glance)
-- [Further reading](#further-reading)
-
 ---
 
-### Start here if you're evaluating Cypilot
+### Start here if you're evaluating Cyber Pilot
 
 - **Use it when**
   - you have multi-step work across requirements, design, implementation, validation, and review
@@ -88,50 +79,38 @@ A typical path is: approve the requirement and design, split the change into bou
   - the task is a tiny edit, throwaway spike, or open-ended exploration
   - speed matters more than structure and the shape of the work is still unclear
 
-- **Who gets value first**
-  - engineers: safer large changes, better validation, less drift
-  - architects and leads: clearer design flow, review discipline, and traceability
-  - PMs and product-minded readers: cleaner handoffs between requirements, design, and delivery
-  - technical writers: more consistent source material and cleaner inputs for writing product and application guides
-  - testers and QA: clearer acceptance flow, more structured review, and better visibility into gaps and regression risk
+- **Who usually benefits most early**
+  - engineers: safer large changes, stronger validation, and less drift
+  - tech leads and architects: clearer design flow, review discipline, and traceability
+  - PMs and delivery readers: better visibility into how requirements, design, and implementation stay aligned
 
 - **Start small first**
-  - run 🖥️ `cpt init`
-  - run 🖥️ `cpt generate-agents`
-  - try 💬 `cypilot analyze: ...` on one existing document or 💬 `cypilot plan: ...` on one large task
-  - adopt the SDLC kit, workspaces, and delegation only if you need them
-
-- **Before / after**
-  - before: one long chat, drifting documents, fuzzy review, hard-to-track changes
-  - after: plan the work, generate in bounded steps, validate deterministically, and review with clearer traceability
+  - after setup, try 💬 `cypilot analyze: ...` on one existing document or 💬 `cypilot plan: ...` on one larger task
+  - leave kits, workspaces, and delegation for later unless you already need them
 
 ### What to expect after setup
 
-After a basic setup, Cypilot gives you a small but concrete operating surface:
+After setup, you can already use Cyber Pilot from your AI coding tool or the CLI without learning its deeper configuration model:
 
-- **A project Cypilot directory** with `.core/`, `.gen/`, and `config/`
-- **Generated host entry points** for the AI tool you use
-- **A portable chat interface** based on 💬 `cypilot <workflow>: ...`
-- **A deterministic CLI surface** based on 🖥️ `cpt <command>`
+- **A project Cyber Pilot directory** that stores core files, generated entry points, and project configuration
+- **Generated entry points in your AI coding tool** so you can invoke Cyber Pilot workflows from where you already work
+- **Workflow prompts you can invoke in your AI coding tool**, such as 💬 `cypilot analyze: ...` and 💬 `cypilot plan: ...`
+- **A CLI for repeatable setup, validation, and workflow support** through 🖥️ `cpt <command>`
 
 You do **not** need to understand kits, workspaces, delegation, or deeper configuration on day one.
 
-### Where Cypilot helps first
+### Where Cyber Pilot helps first
 
-These are the cases where new users usually see value first.
+Most teams see the first value in a few repeatable cases:
 
-- **Requirements or design into implementation** — move from approved artifacts into code with less drift
+- **Turning an approved requirement or design into implementation** — without losing decisions along the way
 - **Large or risky changes** — split work into bounded, inspectable phases
 - **Review and validation** — run deterministic checks and structured analysis instead of trusting one generation pass
-- **Prompt, workflow, and agent review** — inspect instruction stacks, prompts, and behavioral gaps
 - **Brownfield understanding** — understand an existing system before modifying it
-- **Multi-repo coordination** — keep artifacts, code, and shared assets aligned across repositories
-- **CI-backed quality gates** — use deterministic 🖥️ `cpt` checks in local and pre-merge flows
-- **Delegated execution with supervision** — hand off bounded work while keeping validation and human review in the loop
 
 ### Prerequisites
 
-For a first trial, the practical minimum is: Python, Git, one supported AI host, and `pipx`.
+For the standard first-trial path, you need Python, Git, one supported AI coding tool, and a way to install the CLI (`pipx` recommended).
 
 - **Python 3.11+**
   
@@ -141,9 +120,9 @@ For a first trial, the practical minimum is: Python, Git, one supported AI host,
   
   Used for project detection, workspace handling, and normal repository workflows.
 
-- **An AI agent**
+- **One supported AI coding tool**
   
-  Cypilot is designed to work through tools such as Windsurf, Cursor, Claude Code, Copilot, and OpenAI-compatible environments.
+  Cyber Pilot works with tools such as Windsurf, Cursor, Claude Code, GitHub Copilot, and OpenAI-compatible environments.
 
 - **`pipx`**
   
@@ -153,9 +132,7 @@ For a first trial, the practical minimum is: Python, Git, one supported AI host,
   
   Useful for PR review and PR status workflows.
 
-- **`RalphEx`** *(optional)*
-  
-  Needed only if you want to use the delegation path through the `cypilot-ralphex` integration or 🖥️ `cpt delegate`.
+**Prefer to skim?** Jump to [Quick start](#quick-start), [What success looks like after 5 minutes](#5-what-success-looks-like-after-5-minutes), [Host support at a glance](#host-support-at-a-glance), [Workflow model](#workflow-model), [Configuration at a glance](#configuration-at-a-glance), or [Further reading](#further-reading).
 
 ---
 
