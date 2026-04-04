@@ -1,497 +1,514 @@
 # <p align="center"><img src="images/cypilot-kit.png" alt="Cypilot Banner" width="100%" /></p>
-
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-3.5-green.svg)]()
-[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)]()
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=cyberfabric_cyber-pilot&metric=coverage)](https://sonarcloud.io/summary/new_code?id=cyberfabric_cyber-pilot)
+ 
+ [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+  ![Version](https://img.shields.io/badge/version-3.6.0--beta-green.svg)
+  ![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
+  [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=cyberfabric_cyber-pilot&metric=coverage)](https://sonarcloud.io/summary/new_code?id=cyberfabric_cyber-pilot)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=cyberfabric_cyber-pilot&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=cyberfabric_cyber-pilot)
 [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=cyberfabric_cyber-pilot&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=cyberfabric_cyber-pilot)
 [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=cyberfabric_cyber-pilot&metric=bugs)](https://sonarcloud.io/summary/new_code?id=cyberfabric_cyber-pilot)
+ 
+**Version**: 3.6.0-beta
 
-**Version**: 3.5 | **Status**: Active | **Language**: English
+**Status**: Active
 
-**Audience**: Developers using AI coding assistants, technical leads, engineering teams, DevOps engineers
+**Audience**: Developers using AI coding tools, technical leads, engineering teams
 
-## Cyber Pilot — Deterministic Agent Tool for Structured Workflows
+## Cyber Pilot — tooling for traceable, reviewable AI-assisted software changes
 
-Cypilot is a **deterministic agent tool** that embeds into AI coding assistants and CI pipelines to provide structured workflows, artifact validation, and design-to-code traceability.
+It adds bounded phases, stable identifiers, and verifiable checks to AI-assisted work that has outgrown a single chat. It is **not** another coding model, IDE, or AI coding tool.
 
-Everything that can be validated, checked, or enforced without an LLM is handled by **deterministic scripts**; the LLM is reserved only for tasks that require reasoning, creativity, or natural language understanding.
+It works alongside tools such as Claude Code, Cursor, GitHub Copilot, OpenAI Codex, and Windsurf to keep larger changes reviewable and traceable to approved requirements and design.
 
-> **Convention**: 💬 = paste into AI agent chat. 🖥️ = run in terminal.
+Use it when a change spans multiple AI-assisted steps and you need evidence that the final code still lines up with approved requirements, design, tasks, and constraints.
 
-## Problem
+It adds three controls that plain prompting does not preserve well at larger scope:
 
-- **AI Agent Non-Determinism** — AI agents produce inconsistent results without structured guardrails; deterministic validation catches structural and traceability issues that LLMs miss or hallucinate
-- **Design-Code Disconnect** — code diverges from design when there is no single source of truth and no automated traceability enforcement
-- **Fragmented Tool Setup** — each AI agent (Windsurf, Cursor, Claude, Copilot) requires different file formats for skills, workflows, and rules; maintaining these manually is error-prone
-- **Inconsistent PR Reviews** — code reviews vary in depth and focus without structured checklists and prompts
-- **Manual Configuration Overhead** — project-specific conventions, artifact locations, and validation rules require manual setup and synchronization
+- **reuse the same stable identifiers from requirements and design through tasks, code, and checks so drift and missing links become visible**
+- **break large or risky work into bounded, reviewable phases**
+- **run deterministic checks on structure, references, consistency, and traceability**
 
-## What Cypilot Provides
+The model itself is still **non-deterministic**. Cyber Pilot does not try to change that. Instead, it adds structure and checks around the parts of the workflow that *can* be made explicit and verifiable.
 
-Two layers of functionality:
+### Who this is for
 
-- **Core** — deterministic skill engine, universal workflows (generate/analyze/plan), multi-agent integrations (Windsurf, Cursor, Claude, Copilot, OpenAI), global CLI (`cypilot`/`cpt`), config directory management, extensible kit system, ID/traceability infrastructure, execution plans for context-safe phased execution, [RalphEx](https://ralphex.com/) delegation through the dedicated `cypilot-ralphex` capability skill/subagent, environment diagnostics (`cpt doctor`), and Cypilot DSL (CDSL) for behavioral specifications
-- **[SDLC Kit](https://github.com/cyberfabric/cyber-pilot-kit-sdlc)** — artifact-first development pipeline (PRD → DESIGN → ADR → DECOMPOSITION → FEATURE → CODE) with templates, checklists, examples, deterministic validation, cross-artifact consistency checks, and GitHub PR review/status workflows
+Use Cyber Pilot if you already work with an AI coding tool and need more control over larger or riskier work.
 
-Works with any language, stack, or repository.
+- **Engineers** — to keep larger changes bounded, reviewable, and easier to continue safely
+- **Tech leads and architects** — to reduce drift between approved requirements, design, and implementation
+- **Product and delivery leads** — to see how approved scope maps to implementation and what review evidence supports it
 
----
+Cyber Pilot is usually **not** the right starting point for tiny edits, throwaway spikes, or open-ended exploration where speed matters more than structure.
 
-## Table of Contents
+### What changes in practice
 
-- [](#)
-  - [Cyber Pilot — Deterministic Agent Tool for Structured Workflows](#cyber-pilot--deterministic-agent-tool-for-structured-workflows)
-  - [Problem](#problem)
-  - [What Cypilot Provides](#what-cypilot-provides)
-  - [Table of Contents](#table-of-contents)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-    - [Global CLI (recommended)](#global-cli-recommended)
-  - [Project Setup](#project-setup)
-    - [Update](#update)
-  - [Configuration](#configuration)
-  - [Using Cypilot](#using-cypilot)
-    - [Example Prompts](#example-prompts)
-    - [Agent Skill](#agent-skill)
-    - [Subagents](#subagents)
-    - [Workflow Commands](#workflow-commands)
-    - [Checklists and Quality Gates](#checklists-and-quality-gates)
-  - [Architecture](#architecture)
-    - [Directory Structure](#directory-structure)
-    - [Kit System](#kit-system)
-  - [Multi-Repo Workspaces](#multi-repo-workspaces)
-    - [Quick Setup](#quick-setup)
-    - [How It Works](#how-it-works)
-    - [Cross-Repo Commands](#cross-repo-commands)
-  - [RalphEx Integration](#ralphex-integration)
-  - [Extensibility](#extensibility)
-    - [Kit: **Cypilot SDLC**](#kit-cypilot-sdlc)
-  - [Contributing](#contributing)
+Without Cyber Pilot, larger AI-assisted tasks often collapse into one long mixed-purpose thread, making scope drift easier to miss and review harder to trust.
+
+With Cyber Pilot, you split the work into explicit planning, generation, review, and traceability checks instead of one long mixed-purpose thread:
+
+- **`plan`** — break large or risky work into bounded phases
+- **`generate`** — implement or produce something within approved scope
+- **`analyze`** — review, validate, compare, or look for gaps
+- **traceability checks** — verify that requirements, design decisions, tasks, and code changes still line up through the same stable identifiers
+
+In practice, this usually means:
+
+- **fewer long mixed-purpose chats**
+- **clearer implementation boundaries**
+- **better alignment between approved docs and code**
+- **earlier detection of drift and missing links**
+- **more reliable review before merge**
+
+### One practical path from idea or PoC to production
+
+Cyber Pilot is strongest when an early idea or PoC needs to become a production-ready change without losing scope or design intent.
+
+A typical path is: approve the requirement and design, split the change into bounded phases, implement one phase at a time, review each phase against the same identifiers, then verify before merge that the shipped code still traces back to the approved requirement, design, and tasks.
+
+> **Convention**: 💬 = paste into AI coding tool chat. 🖥️ = run in terminal.
 
 ---
 
-## Prerequisites
+### Start here if you're evaluating Cyber Pilot
 
-- **Python 3.11+** — required for the CLI tool and skill engine (uses `tomllib` from stdlib)
-- **Git** — for project detection and version control
-- **AI Agent** — Windsurf, Cursor, Claude Code, GitHub Copilot, or OpenAI Codex
-- **`gh` CLI** (optional) — required only for PR review/status workflows
-- **`pipx`** (recommended) — for global CLI installation
+- **Use it when**
+  - you have a larger change that needs planning, implementation, validation, or review across more than one step
+  - you want the work to stay aligned from requirement or design through implementation and review
+
+- **Do not start with it when**
+  - the task is a tiny edit, throwaway spike, or open-ended exploration
+  - speed matters more than structure and the shape of the work is still unclear
+
+- **Who usually benefits most early**
+  - engineers: safer larger changes, clearer review checkpoints, and better confidence before merging
+  - tech leads and architects: clearer design-to-implementation flow, better review discipline, and visible traceability across stages
+  - PMs and delivery readers: clearer visibility into whether the implemented work still matches the approved requirement and design
+
+### What to expect after setup
+
+After setup, you can start with one practical Cyber Pilot workflow from your AI coding tool, with the CLI supporting setup, validation, and repeatable workflows.
+
+- **A structured analysis of an existing requirement or design doc** with 💬 `cypilot analyze: ...`
+- **A bounded phase plan for a larger change** with 💬 `cypilot plan: ...`
+- **A repeatable CLI path for setup and validation** through 🖥️ `cpt`
+
+You do **not** need advanced features on day one; most first trials start with `analyze`, `plan`, and validation only.
+
+### Where Cyber Pilot helps first
+
+First value usually shows up in a few repeatable situations:
+
+- **Turning an approved requirement or design into implementation** — while keeping implementation and review aligned with it
+- **A bounded plan for a larger or riskier change** before coding starts
+- **A validation pass before review or merge** instead of trusting one generation pass
+- **A clearer picture of an unfamiliar area** before changing code in a brownfield system
+
+### Prerequisites
+
+For a first trial, you need Python 3.11+, Git, and one supported AI coding tool such as Claude Code, Cursor, Windsurf, GitHub Copilot, or OpenAI Codex.
+
+`pipx` is recommended for installing the CLI globally. `gh` is optional for PR review and PR status workflows.
+
+**Prefer to skim?** Jump to [Quick start](#quick-start), [What success looks like after 5 minutes](#5-what-success-looks-like-after-5-minutes), or [AI coding tool support at a glance](#ai-coding-tool-support-at-a-glance).
 
 ---
 
-## Installation
+### Quick start
 
-### Global CLI (recommended)
+Goal: get Cyber Pilot working in your repository and produce one concrete result within a few minutes.
 
+Cyber Pilot is the product.
+Use 🖥️ `cpt` in your terminal for repo setup.
+Use 💬 `cypilot ...` in your AI coding tool chat for workflows in that same repository.
+Do **not** run 💬 `cypilot ...` in the terminal.
+The generated setup folder is `cypilot/` by default, but you can choose a different name such as `.cpt/` during init.
+
+#### 1. Install the CLI
+
+🖥️ **Terminal**:
 ```bash
 pipx install git+https://github.com/cyberfabric/cyber-pilot.git
 ```
 
-To update to the latest version:
+Verify the CLI install with:
 
+🖥️ **Terminal**:
 ```bash
-pipx upgrade cypilot
+cpt --version
 ```
 
-This installs `cypilot` and `cpt` commands globally. The CLI is a thin proxy shell — on first run it downloads the skill bundle into `~/.cypilot/cache/` and delegates all commands to the cached or project-local skill engine.
+If it prints a version, the CLI install worked.
+If this works, skip the macOS and Windows notes below.
+If `cpt` is not found, open a new terminal and try again.
 
-#### MacOS installation Note (pipx PATH setup)
+**Only if needed on macOS**
 
-On macOS, `pipx` may install binaries into a directory that is **not automatically added to your PATH**, which means commands like `cypilot` or `cpt` won’t be found.
+Install `pipx` with **Homebrew**:
 
+🖥️ **Terminal**:
 ```bash
+brew install pipx
 pipx ensurepath
+```
+
+Then open a new terminal, or reload the shell config that `pipx ensurepath` updated.
+For example, with the default macOS `zsh` setup:
+
+🖥️ **Terminal**:
+```bash
 source ~/.zshrc
 ```
 
----
+**Only if needed on Windows**
 
-## Project Setup
+Install `pipx` with **Scoop**:
+
+🖥️ **Terminal**:
+```bash
+scoop install pipx
+pipx ensurepath
+```
+
+Then open a new terminal so the updated `PATH` is picked up.
+
+#### 2. Initialize a project
+
+From your repository root, run:
 
 🖥️ **Terminal**:
 
 ```bash
 cpt init
-cpt generate-agents --agent claude
 cpt generate-agents
 ```
 
-`cpt init` creates the Cypilot directory (default: `cypilot/`) with three subdirectories:
+🖥️ `cpt init` is interactive. For a first trial, you can usually accept the default project root, keep the default setup directory unless you want a custom one, and accept the default SDLC kit if prompted.
 
-| Directory | Purpose | Editable? |
-|-----------|---------|-----------|
-| `.core/` | Read-only core files (skills, workflows, schemas, architecture, requirements) copied from cache | No |
-| `.gen/` | Auto-generated aggregate files (SKILL.md, AGENTS.md, README.md) | No |
-| `config/` | User-editable config (`core.toml`, `artifacts.toml`, AGENTS.md) and kit outputs | Yes |
+🖥️ `cpt init` sets up Cyber Pilot in your repository.
+🖥️ `cpt generate-agents` adds the AI coding tool integration files for this repository.
 
-The command also:
-- Defines a root system (name/slug derived from the project directory)
-- Creates `config/core.toml` and `config/artifacts.toml`
-- Installs all available kits (copies kit files to `config/kits/{slug}/`)
-- Injects a managed `<!-- @cpt:root-agents -->` block into the root `AGENTS.md`
+🖥️ `cpt generate-agents` may preview the files it will create and ask you to confirm before writing them.
 
-Supported agents: `windsurf`, `cursor`, `claude`, `copilot`, `openai`.
+After this step, your repository should contain a new Cyber Pilot setup folder such as `cypilot/` or `.cpt/`, plus generated AI coding tool integration files. You may also see host-specific folders such as `.windsurf/`, `.cursor/`, `.claude/`, `.github/`, `.codex/`, or `.agents/`, but you do not need to open or edit them for this trial.
 
-The `generate-agents` command generates:
-- **Workflow commands** — slash commands that load structured prompts for each workflow
-- **Skill outputs** — agent skill definitions following the [Agent Skills specification](https://agentskills.io/specification)
-- **Subagents** — isolated agent definitions with scoped tools, model selection, and dedicated prompts (all tools except Windsurf)
+If your AI coding tool is already open, reload the repository before continuing to step 3.
 
-Five subagents are generated for tools that support them:
+#### 3. Turn on Cyber Pilot in your AI coding tool
 
-| Subagent | Purpose | Write Access |
-|----------|---------|-------------|
-| `cypilot-codegen` | Code generation when requirements are fully specified — no back-and-forth, just implementation | Yes (worktree isolation on Claude Code) |
-| `cypilot-pr-review` | Structured PR review in isolated context — keeps detailed analysis separate from main conversation | No (read-only) |
-| `cypilot-ralphex` | The required delegation interface for [RalphEx](https://ralphex.com/) — handles discovery, export, delegation, and handoff reporting | Yes |
-| `cypilot-phase-compiler` | Compiles one plan phase from its brief in an isolated agent context | Yes (isolated) |
-| `cypilot-phase-runner` | Executes the next phase from a generated plan inside a dedicated agent context | Yes (isolated) |
+In the AI coding tool chat attached to the same repository or workspace you just initialized, run:
 
-### Update
+In some hosts, you may also see a generated `cypilot` command or `/cypilot-...` entrypoint in the chat UI. The portable default in this README remains 💬 `cypilot ...`.
 
-```bash
-cpt update
+💬 **AI coding tool chat**:
+
+```text
+cypilot on
 ```
 
-Updates `.core/` from cache, regenerates `.gen/` aggregates, and updates kit files in `config/kits/` with interactive diff prompts for modified files.
+If setup worked, the chat should end with a clear activation confirmation such as `Cypilot Mode Enabled`. If the chat replies like a normal assistant and does not confirm Cyber Pilot mode, activation did not happen; reopen the repository in the AI coding tool and try again. Some hosts may also show the resolved Cypilot path or loaded context.
+
+#### 4. For your first 5-minute trial, start with `analyze` or `plan`
+
+- start with `analyze` if you already have a requirement, design doc, or implementation plan
+- start with `plan` if you have a larger change request but no plan yet
+- leave `generate` for later, once the change is approved and tightly scoped
+
+For this trial, use one small real input only: paste 5-15 lines of a requirement or change request, attach one short note or spec section, or point to one specific requirement, design, or change-request file in the same chat message. Do **not** ask for a repo-wide review or a broad plan with no concrete input attached.
+
+**Analyze**
+
+💬 **AI coding tool chat**:
+
+```text
+cypilot analyze: review the pasted requirement, the attached note, or docs/requirements.md. List the top 5 unclear, missing, or conflicting points, then end with the 3 questions that must be answered before implementation
+```
+
+**Plan**
+
+💬 **AI coding tool chat**:
+
+```text
+cypilot plan: using the pasted change request, the attached note, or docs/change-request.md, break this work into 3-7 small reviewable phases. For each phase, give the goal, likely files affected, and the main risk
+```
+
+Skip 💬 `cypilot generate: ...` for your first 5-minute trial. Use it later, after the change is approved and tightly scoped.
+
+#### 5. What success looks like after 5 minutes
+
+After 5 minutes, success means you have both:
+
+- a clear activation confirmation from `cypilot on`, such as `Cypilot Mode Enabled`
+- one useful result you could act on immediately: either a numbered list of real gaps or blocking questions, or a phased implementation plan
+
+The new setup folder and generated integration files are only a secondary sanity check. The goal is a useful result, not setup artifacts.
+
+You can defer generated files, host-specific integration details, and advanced setup until later.
+
+### AI coding tool support at a glance
+
+Cypilot works across multiple AI coding tools, but some hosts support its structured workflows more fully than others.
+
+| Host | Best first use | Notes |
+|---|---|---|
+| Claude Code | Best starting point for full workflow support | Strongest support for isolated task flow, subagents, and separate generation/review passes |
+| Cursor | Good editor-first starting point | Strong everyday IDE choice, with a smoother general workflow than the more orchestration-heavy hosts |
+| GitHub Copilot | Good for familiar editor and GitHub-centered workflows | Supports structured Cypilot use, but with less control over task orchestration than Claude Code |
+| OpenAI Codex | Best for narrow, well-scoped tasks | Works best when task boundaries are tight and validation steps are clearly specified |
+| Windsurf | Usable with manual workflow discipline | Works without subagents, but you should separate generation and review into different chats |
+
+If you are unsure where to start, **Claude Code** currently gives the clearest first experience for the full Cypilot workflow.
+
+For host-specific setup guidance, deeper tradeoffs, and the full support matrix, use **[guides/AGENT-TOOLS.md](guides/AGENT-TOOLS.md)**.
 
 ---
 
-## Configuration
+## Operating model
 
-All user-editable config lives in `config/` inside your Cypilot directory:
+### Command surfaces at a glance
+
+For most users, the main thing to remember is simple: in chat, Cyber Pilot is primarily used through the **`cypilot` skill** inside your AI coding tool.
+
+| Surface | Form | Role |
+|---|---|---|
+| Primary AI surface | 💬 `cypilot <workflow>: <request>` | Main chat entry point for `plan`, `generate`, and `analyze` requests |
+| Terminal surface | 🖥️ `cpt <command>` | Normal CLI surface for deterministic commands such as `init`, `validate`, `update`, and `toc` |
+| Legacy chat aliases | 💬 `/cypilot-plan`, 💬 `/cypilot-generate`, 💬 `/cypilot-analyze` | Older host-specific slash aliases for the same workflows |
+
+If you are unsure what to use in chat, start with the `cypilot` skill and write 💬 `cypilot <workflow>: ...`. Treat slash commands as legacy aliases for the same workflows.
+
+### How to think about Cypilot
+
+Cypilot is best understood as the **workflow, context, and validation layer around your AI coding tool**.
+
+Your AI coding tool gives you the chat interface and model access. The agent does the reasoning and writing. Cypilot adds structured workflows, task-matched context, and deterministic checks around that work.
+
+- **Use the agent for**
+  - reasoning
+  - writing
+  - transformation
+  - implementation judgment
+
+- **Use Cypilot for**
+  - workflow selection
+  - task-matched context loading
+  - templates, rules, and checklists
+  - deterministic validation
+  - keeping requirements, design, and code linked through the same identifiers
+  - planning large tasks into bounded steps
+
+- **What is deterministic?**
+  - config and resource resolution
+  - routing into workflows and specialized commands
+  - validation of structure, IDs, cross-references, TOC, and traceability rules
+  - file-backed plans and repeatable CLI checks
+
+- **What is not deterministic?**
+  - the agent's reasoning, writing quality, and implementation judgment
+  - human review decisions
+
+- **What tradeoff does Cypilot make?**
+  - more process and context in exchange for more control, auditability, and repeatability
+
+For the full fit / non-fit guidance, practical anti-patterns, planning heuristics, and workflow-choice rules, use **[guides/USAGE-GUIDE.md](guides/USAGE-GUIDE.md)**.
+
+### What Cypilot provides
+
+Cypilot has two main parts:
+
+- **Core platform** - the chat-facing skill, deterministic CLI, and reusable guidance that make work more structured and repeatable
+- **Kits** - optional add-ons that bring domain-specific templates, rules, workflows, and validation material
+
+Most new users should start with the core platform and add a kit later only if they want a ready-made delivery model for a specific domain or way of working.
+
+#### 1. Core platform
+
+At a high level, the core platform gives you one main chat interface, one deterministic CLI, and reusable guidance that makes work more repeatable.
+
+- **The `cypilot` skill** - the main chat entry point for using the right workflow and loading the right guidance for the task
+- **The `cpt` CLI tool** - the terminal surface for deterministic commands such as `init`, `validate`, `update`, and `toc`
+- **Workflows and supporting guidance** - reusable procedures, rules, templates, and validation checks that make work more repeatable
+
+Use the core platform when you want Cypilot's control layer without committing to any one domain methodology.
+
+#### 2. Kits
+
+Kits are optional. Core Cypilot works without them.
+
+Use a kit when you want a ready-made structured delivery model for a specific domain or workflow.
+
+Kits sit on top of the core platform and add domain-specific templates, rules, examples, workflows, scripts, and validation constraints.
+
+The official SDLC kit is one example. It adds a structured delivery model for requirements, design, decomposition, implementation, and review, along with reusable templates and validation guidance.
+
+Repository: **[cyberfabric/cyber-pilot-kit-sdlc](https://github.com/cyberfabric/cyber-pilot-kit-sdlc)**
+
+---
+
+### Configuration at a glance
+
+All user-editable configuration lives under `config/` inside your Cypilot directory.
+
+You do not need to understand all of this on day one. Most new users can start with 🖥️ `cpt init`, use the three Cypilot workflows, and come back here later.
 
 | File | What it controls |
-|------|-----------------|
-| `core.toml` | Project settings, installed kits, kit resource paths (single source of truth) |
-| `artifacts.toml` | Registered systems, artifact types, codebase paths, traceability modes |
-| `AGENTS.md` | Agent navigation WHEN-rules (which files the agent opens per task) |
-| `SKILL.md` | Custom skill instructions loaded into agent context |
-| `rules/*.md` | Project rules — conventions, architecture, testing, patterns, etc. |
+|---|---|
+| `core.toml` | Project settings, installed kits, and workspace-level configuration |
+| `artifacts.toml` | How artifacts, systems, codebases, and traceability are mapped in the project |
+| `AGENTS.md` | Task navigation rules that tell the agent which files to load for each job |
+| `SKILL.md` | Always-on project instructions that apply across requests |
+| `rules/*.md` | Optional topic-specific rules the agent loads for relevant tasks |
 
-Kit resources (templates, rules, checklists, constraints, workflows) are registered in `core.toml` under `[kits.<slug>.resources]`. To see all resolved paths:
-
-```bash
-cpt resolve-vars --flat
-```
-
-For the full configuration guide — including how to customize agent behavior, `@cpt-*` identifiers and traceability, artifact templates, checklists, constraints, code rules, workflows, and more — with copy-pastable prompts for every use case — see **[guides/CONFIGURATION.md](guides/CONFIGURATION.md)**.
+For full configuration details, see **[Configuration guide](guides/CONFIGURATION.md)**.
 
 ---
 
-## Using Cypilot
+### Workflow model
 
-Start requests with `cypilot` in your AI agent chat. This switches the agent into Cypilot mode: it loads config and rules, routes the request to the right workflow (plan vs generate vs analyze), and gates file writes behind explicit confirmation.
+Cypilot has three core workflows. Each has a portable chat form and, in some hosts, a matching slash-command alias.
 
-- 💬 `cypilot on` — enable Cypilot mode
-- 💬 `cypilot off` — disable Cypilot mode
-- 💬 `cypilot auto-config` — scan the project and generate convention rules
+| Workflow | Portable chat form | Matching alias in some hosts | Use it when |
+|---|---|---|---|
+| Plan | 💬 `cypilot plan: ...` | 💬 `/cypilot-plan` | the task is too large, risky, or context-heavy for one conversation |
+| Generate | 💬 `cypilot generate: ...` | 💬 `/cypilot-generate` | you want to create, update, implement, or configure something |
+| Analyze | 💬 `cypilot analyze: ...` | 💬 `/cypilot-analyze` | you want to validate, review, inspect, compare, or audit |
 
-A full walkthrough is available in [`guides/STORY.md`](guides/STORY.md).
+The portable 💬 `cypilot <workflow>: ...` form is the best default. Slash commands are host-specific aliases, not separate capabilities.
 
-### Example Prompts
-
-#### Setup & Configuration
-
-- 💬 `cypilot init` — initialize Cypilot, create config, and inject the managed root `AGENTS.md` block
-- 💬 `cypilot auto-config` — scan project structure and generate per-system convention rules
-- 💬 `cypilot show config` — display config structure, registered artifacts, and codebase mappings
-- 💬 `cypilot generate-agents --agent claude` — regenerate agent entry points for a specific agent
-
-#### Artifact Generation
-
-- 💬 `cypilot make PRD for user authentication system` — generate a PRD with actors, requirements, and flows
-- 💬 `cypilot make DESIGN from PRD.md` — transform a PRD into an architecture design with traceability
-- 💬 `cypilot decompose auth feature into tasks` — create a DECOMPOSITION with ordered, dependency-mapped units
-- 💬 `cypilot make FEATURE for login flow` — produce a FEATURE with acceptance criteria, CDSL flows, and edge cases
-
-#### Execution Plans
-
-- 💬 `cypilot plan generate PRD for task manager` — decompose PRD generation into self-contained phase files
-- 💬 `cypilot plan analyze DESIGN` — create a phased analysis plan with focused checklist groups
-- 💬 `cypilot execute next phase` — read the next phase file, follow compiled instructions, and report progress
-- 💬 `cypilot plan status` — report completed, pending, and failed phases plus the next actionable phase
-
-#### Validation & Quality
-
-- 💬 `cypilot validate PRD.md` — run deterministic template validation and semantic quality scoring
-- 💬 `cypilot validate all` — validate the artifact hierarchy, cross-references, and issue states
-- 💬 `cypilot validate code for auth module` — scan code for `@cpt-*` markers and verify coverage
-- 💬 `cypilot review DESIGN.md with consistency-checklist` — run multi-phase consistency analysis
-
-#### Traceability & Search
-
-- 💬 `cypilot find requirements related to authentication` — search artifacts for matching IDs, definitions, and references
-- 💬 `cypilot trace cpt-myapp-fr-auth` — trace a requirement through DESIGN, FEATURE, and code
-- 💬 `cypilot list unimplemented features` — cross-reference feature docs with code markers
-
-#### Code Review & Pull Requests
-
-- 💬 `cypilot review PR #123` — fetch the PR diff and produce a structured checklist-based review
-- 💬 `cypilot PR status #123` — assess unreplied comments by severity, audit resolved comments, and report CI status
-
-### Agent Skill
-
-Cypilot provides a unified **Agent Skill** (`cypilot`) defined in `skills/cypilot/SKILL.md`. The skill is loaded into the agent's context when Cypilot mode is enabled and provides:
-
-- Deterministic validation and traceability commands
-- Protocol Guard for consistent context loading
-- Workflow routing (plan vs generate vs analyze)
-- ID lookup and cross-reference resolution
-- Auto-configuration for brownfield projects
-
-### Subagents
-
-Subagents are defined once in `agents.toml` using semantic properties (`mode`, `isolation`, `model`) and automatically adapted to each tool's native format. One definition produces correct output for all supported tools — Claude Code is the canonical format (full fidelity), and other tools receive the best adaptation their format supports.
-
-Five subagents are included:
-
-- **`cypilot-codegen`** — Takes fully-specified requirements and implements them without back-and-forth. Runs in an isolated worktree (on Claude Code) with full write access.
-- **`cypilot-pr-review`** — Performs structured, checklist-based PR reviews in a read-only isolated context, keeping detailed analysis separate from the main conversation.
-- **`cypilot-ralphex`** — The canonical way to use RalphEx from Cypilot. It manages the full delegation lifecycle: discovery → plan export → delegation → handoff reporting.
-- **`cypilot-phase-compiler`** — Compiles exactly one plan phase from its brief in an isolated agent context, without delegating to RalphEx or executing the phase.
-- **`cypilot-phase-runner`** — Executes the next phase from a generated plan inside a dedicated agent context, without RalphEx delegation.
-
-Generated automatically by `cypilot generate-agents --agent <name>`. Windsurf does not support subagents and is gracefully skipped.
-
-**Tool support:**
-
-| Capability | Claude Code | Cursor | GitHub Copilot | OpenAI Codex |
-|---|:---:|:---:|:---:|:---:|
-| Subagent definitions | Yes | Yes | Yes | Yes |
-| Read-only enforcement | `disallowedTools` | `readonly: true` | Tool filter | In prompt |
-| Model selection | Yes | Yes | — | — |
-| Worktree isolation | Yes | — | — | — |
-| Subagent-scoped hooks | Yes | — | — | — |
-
-See [ADR-0016](architecture/ADR/0016-cpt-cypilot-adr-ai-cli-extensibility-subagents-v1.md) for the full adaptation model and format details.
-
-### Workflow Commands
-
-Cypilot has **three** universal workflows plus delegation and diagnostics:
-
-- 💬 `/cypilot-plan` — `plan.md`: decompose large tasks into self-contained phase files for phased execution
-- 💬 `/cypilot-generate` — `generate.md`: create, edit, fix, update, implement, refactor, or configure
-- 💬 `/cypilot-analyze` — `analyze.md`: validate, review, check, inspect, audit, or compare
-- � `cypilot delegate to ralphex` — route delegation to the dedicated `cypilot-ralphex` skill/subagent
-- 🖥️ `cpt doctor` — run environment health checks such as RalphEx availability
-
-> **Delegation rule**: use the `cypilot-ralphex` skill/subagent path for RalphEx delegation. Do not present `cpt delegate` as the primary user-facing workflow entry.
-
-> **Routing priority**: delegate > plan > generate > analyze. Delegation intent routes to the `cypilot-ralphex` subagent. "Plan to generate PRD" routes to `plan.md`, not `generate.md`.
-
-> **Plan Escalation**: `generate.md` and `analyze.md` include a mandatory escalation gate — if the estimated context exceeds the safe budget (>2500 lines for generate, >2000 for analyze), the agent MUST offer to switch to `/cypilot-plan` for phased execution.
-
-Kit-specific workflows (e.g., PR review, PR status) are provided by kits and exposed as agent entry points automatically.
-
-### Checklists and Quality Gates
-
-**Artifact checklists** (from SDLC kit):
-- **PRD** — 300+ criteria for requirements completeness
-- **DESIGN** — 380+ criteria for architecture validation
-- **DECOMPOSITION** — 130+ criteria for feature breakdown quality
-- **FEATURE** — 380+ criteria for implementation readiness
-- **ADR** — 270+ criteria for decision rationale
-
-**Generic checklists** in `requirements/`:
-- [**Code checklist**](requirements/code-checklist.md) — 200+ criteria for code quality
-- [**Consistency checklist**](requirements/consistency-checklist.md) — 45+ criteria for cross-artifact consistency
-- [**Reverse engineering**](requirements/reverse-engineering.md) — 270+ criteria for legacy code analysis
-- [**Prompt engineering**](requirements/prompt-engineering.md) — 220+ criteria for AI prompt design
-
-## Architecture
-
-### Directory Structure
-
-After `cpt init`, a project has:
-
-```
-project/
-├── cypilot/                    # Cypilot install directory
-│   ├── .core/                  # Read-only core (from cache)
-│   │   ├── skills/             # Skill engine + scripts
-│   │   ├── workflows/          # Core workflows (generate.md, analyze.md, plan.md)
-│   │   ├── schemas/            # JSON schemas
-│   │   ├── architecture/       # Core architecture docs (PRD, DESIGN, specs)
-│   │   └── requirements/       # Core requirements + checklists
-│   ├── .gen/                   # Auto-generated aggregates
-│   │   ├── AGENTS.md           # Aggregated WHEN rules from kits
-│   │   ├── SKILL.md            # Composed skill with kit extensions
-│   │   └── README.md           # Aggregated kit documentation
-│   └── config/                 # User-editable
-│       ├── core.toml           # System definitions, kit registrations
-│       ├── artifacts.toml      # Artifact registry, autodetect rules
-│       ├── AGENTS.md           # User WHEN rules
-│       ├── SKILL.md            # User skill extensions
-│       └── kits/sdlc/          # Kit files (artifacts, workflows, constraints)
-│           ├── artifacts/      # Templates, rules, checklists, examples
-│           ├── workflows/      # Kit-specific workflows
-│           ├── constraints.toml
-│           ├── SKILL.md
-│           └── AGENTS.md
-├── AGENTS.md                   # Root entry (managed block → cypilot/.gen/)
-├── .windsurf/                  # Agent entry points (generated)
-├── .cursor/
-├── .claude/
-└── .github/prompts/
-```
-
-### Kit System
-
-Each kit is a **direct file package** containing ready-to-use resources:
-
-| Kit Content | Purpose |
-|-------------|----------|
-| `artifacts/{KIND}/template.md` | Writing instructions for artifact kind |
-| `artifacts/{KIND}/rules.md` | Validation rules |
-| `artifacts/{KIND}/checklist.md` | Quality criteria |
-| `artifacts/{KIND}/examples/` | Example artifacts |
-| `constraints.toml` | Heading/ID constraints for validation |
-| `workflows/` | Kit-specific workflows (e.g., PR review) |
-| `SKILL.md` | Kit skill extensions |
-| `AGENTS.md` | Agent system prompt content |
-
-Kits are installed to `config/kits/{slug}/`. Running `cpt update` updates kit files with interactive diff prompts for any user modifications.
+For default routing priorities and detailed workflow-choice advice, use **[guides/USAGE-GUIDE.md](guides/USAGE-GUIDE.md)**.
 
 ---
 
-## Multi-Repo Workspaces
+### Optional capabilities
 
-Cypilot supports **multi-repo workspaces** — a federation layer that lets you work across multiple repositories while maintaining cross-repo traceability. Each repo keeps its own independent adapter; the workspace provides a map of named sources.
+You do not need these on day one. Add them when your use case justifies the extra surface area.
 
-**Use cases:**
-- PRDs in a docs repo, design in another repo, code in yet another
-- Shared kit packages in a separate repo
-- Working from one repo while referencing artifacts in others
+#### Multi-repo workspaces
 
-### Quick Setup
+Cypilot supports **multi-repo workspaces** so related docs, code, and shared kit assets can live in separate repositories and still stay aligned.
 
-```bash
-# Option A: Auto-discover nested repos and generate workspace
-cpt workspace-init
+Use this when docs, code, or shared kit assets live in separate repos and still need to stay aligned.
 
-# Option B: Add sources individually
-cpt workspace-add --name docs --path ../docs-repo --role artifacts
-cpt workspace-add --name shared-kits --path ../shared-kits --role kits
+For practical guidance, see **[guides/USAGE-GUIDE.md](guides/USAGE-GUIDE.md)**. For the full model and configuration rules, see **[requirements/workspace.md](requirements/workspace.md)**.
 
-# Option C: Define workspace inline in your repo's config
-cpt workspace-add --inline --name docs --path ../docs-repo
-```
+#### RalphEx delegation
 
-### How It Works
+RalphEx support is optional.
 
-The **current working directory** always determines the primary repo. Other repos contribute artifacts, code, and kits for cross-referencing. No adapter merging — each repo owns its configuration.
+When available, Cyber Pilot can hand off selected execution work to RalphEx under human supervision.
 
-**Workspace config** is discovered in priority order (project root only — no parent directory traversal):
-1. **`workspace` key in `config/core.toml`** — either an inline `[workspace]` table or a `workspace = "<path>"` string pointing to an external `.toml` file
-2. **Standalone `.cypilot-workspace.toml`** at the project root — auto-discovered as fallback when no `workspace` key exists in `core.toml` (no explicit reference needed)
+Use this when you want supervised execution handoff for bounded tasks instead of keeping all work interactive inside the current AI coding tool.
 
-> **Note:** Discovery starts from the current project's `config/core.toml` and does not search parent directories. Each repo must configure its own workspace entry point.
+For when to delegate and how human review fits, see **[guides/USAGE-GUIDE.md](guides/USAGE-GUIDE.md)**.
 
-### Cross-Repo Commands
+#### Project extensibility
 
-```bash
-# Validate with cross-repo ID resolution (default when workspace active)
-cpt validate
+Cypilot supports **project-level extensibility**, not just installable kits.
 
-# Validate local repo only (skip cross-repo)
-cpt validate --local-only
+Cyber Pilot can also load project-defined skills, subagents, workflows, and rules, so teams can extend behavior without packaging everything as a kit.
 
-# Search for ID definitions across all repos
-cpt where-defined --id cpt-myapp-req-001
-
-# List IDs from a specific source
-cpt list-ids --source docs-repo
-
-# Check workspace status
-cpt workspace-info
-```
-
-Missing source repos are handled gracefully — a warning is emitted and operations continue with available sources. Artifacts pointing to unreachable sources are skipped rather than silently falling back to local paths.
-
-Cross-repo ID resolution is controlled by two traceability settings in the workspace config: `cross_repo` (enables workspace-aware path resolution) and `resolve_remote_ids` (expands remote IDs into the union set). Both default to `true`. Use `validate --local-only` to skip cross-repo resolution entirely.
-
-For the full specification, see [`requirements/workspace.md`](requirements/workspace.md).
+For the full model and examples, see **[guides/PROJECT-EXTENSIBILITY.md](guides/PROJECT-EXTENSIBILITY.md)**.
 
 ---
 
-## RalphEx Integration
+### FAQ
 
-Cypilot integrates with [RalphEx](https://ralphex.com/) — an autonomous code execution platform. When RalphEx is available, Cypilot can delegate entire execution plans for autonomous processing.
+- **Is Cypilot a replacement for Claude Code, Cursor, Copilot, or another AI coding tool?**
 
-**Recommended flow:**
+  No. Cypilot sits on top of those AI coding tools and adds workflow routing, context loading, validation, and traceability.
 
-1. Create a plan with `/cypilot-plan` — produces `plan.toml` manifest + phase files
-2. Ask Cypilot to delegate through the dedicated capability skill/subagent
+- **When is Cypilot a good fit, and when is it overkill?**
 
-- 💬 `cypilot delegate to ralphex`
-- 💬 `cypilot delegate this plan to ralphex`
-- 💬 `cypilot use cypilot-ralphex for this plan`
+  It is a good fit for large, risky, multi-step work, structured transformations, repeatable review, brownfield understanding, and multi-repo coordination. It is overkill for tiny edits, loose ideation, throwaway spikes, or any task where speed matters more than control.
 
-The `cypilot-ralphex` skill/subagent is the canonical delegation interface. It owns plan export, delegation, and handoff reporting.
+- **Do I need a kit to use Cypilot?**
 
-**CLI note for advanced/manual use:**
+  No. Core Cypilot works without kits. Start with core. Add a kit only when you want domain templates, rules, and review material.
 
-`cpt delegate` is the underlying CLI mechanism used by the delegation flow. Document it as an implementation detail or advanced/manual path, not as the primary end-user entrypoint.
+- **What part is deterministic?**
 
-```bash
-cpt delegate .bootstrap/.plans/my-task --dry-run
-cpt delegate .bootstrap/.plans/my-task --mode execute
-cpt delegate .bootstrap/.plans/my-task --mode tasks-only
-cpt delegate .bootstrap/.plans/my-task --mode review
-```
+  Config resolution, workflow routing, validation, TOC checks, ID and traceability checks, and file-backed plans are deterministic. The agent's reasoning and generation quality are not.
 
-**Environment check:**
+- **Which host is the best first experience?**
 
-```bash
-cpt doctor    # checks ralphex availability, reports PASS/WARN/FAIL
-```
+  Claude Code currently provides the highest-fidelity Cypilot experience, especially for subagents and isolation. Other supported hosts still work and may fit different team preferences.
 
-RalphEx is optional — all Cypilot workflows work without it. When RalphEx is not installed, `cpt doctor` reports a WARN with installation guidance, and the delegation flow via `cypilot-ralphex` reports a clear setup failure/handoff outcome.
+- **What is the safest way to start if I am unsure?**
 
-See [ADR-0018](architecture/ADR/0018-cpt-cypilot-adr-ralphx-delegation-skill-v1.md) for the architecture decision and design rationale.
+  Run 🖥️ `cpt init`, run 🖥️ `cpt generate-agents`, then try one focused 💬 `cypilot analyze: ...` request. Start with one workflow and one use case, not the whole system at once.
+
+- **Can I use Cypilot on a brownfield project?**
+
+  Yes. Start with 💬 `cypilot analyze: ...` to understand the area, use 💬 `cypilot plan: ...` for risky changes, and use 💬 `cypilot auto-config` when you need project-specific rules.
+
+- **Do I need to use `plan`, `generate`, and `analyze` every time?**
+
+  No. Use only the workflow that matches the job. Start with `plan` when the task spans multiple files, steps, constraints, or review cycles.
+
+- **Can this replace testing, code review, or security tooling?**
+
+  No. It strengthens the workflow around those activities; it does not replace specialized tools or human judgment.
 
 ---
 
-## Extensibility
+## Further reading
 
-Cypilot is extensible through **Kits** — self-contained packages that bundle templates, rules, checklists, examples, and workflows for a specific domain. The kit plugin system supports extension at three levels:
+- **Start here next**
+  - **[Usage guide](guides/USAGE-GUIDE.md)**
+  - **[Agent tools guide](guides/AGENT-TOOLS.md)**
+  - **[Configuration guide](guides/CONFIGURATION.md)**
+  - **[Story-driven walkthrough](guides/STORY.md)**
 
-1. **Kit-level** — new kits for entirely new domains (e.g., API design, infrastructure-as-code)
-2. **Artifact-level** — new artifact kinds within an existing kit
-3. **Resource-level** — override templates, extend checklists, modify rules within an artifact kind
+- **Deeper reference**
+  - **[Workspace specification](requirements/workspace.md)**
+  - **[Requirements and checklists](requirements/)**
+  - **[Architecture and ADRs](architecture/)**
 
-### Kit: **Cypilot SDLC**
+---
 
-The built-in SDLC Kit provides an artifact-first development pipeline with end-to-end traceability:
+## Feedback and issues
 
-**PRD → ADR + DESIGN → DECOMPOSITION → FEATURE → CODE**
+If you think a workflow is unclear, instructions behave incorrectly, a script behaves incorrectly, or important corner cases are missing, please open a GitHub issue.
 
-Each artifact kind has templates, rules, checklists (300+ criteria), and examples. The kit also provides PR review and PR status workflows for GitHub.
+- **Issues list:** [github.com/cyberfabric/cyber-pilot/issues](https://github.com/cyberfabric/cyber-pilot/issues)
+- **Create a new issue:** [github.com/cyberfabric/cyber-pilot/issues/new/choose](https://github.com/cyberfabric/cyber-pilot/issues/new/choose)
 
-See the [SDLC Kit repository](https://github.com/cyberfabric/cyber-pilot-kit-sdlc) for the full pipeline overview, artifact kinds, and guides.
+The most useful issue reports usually include:
+
+- **A short summary**
+- **Affected file, workflow, script, or exact command**
+- **Minimal reproduction steps**
+- **Expected vs actual behavior**
+- **Evidence** such as exact command output, logs, validator output, screenshots, or a minimal prompt or plan slice
+- **Environment details** such as OS, AI coding tool, model, and Cypilot version if known
+
+---
+
+## Bottom line
+
+Cyber Pilot is best understood as a **deterministic structure, transformation, and validation layer for work done through AI coding tools**.
+
+It is strongest when you need:
+
+- **document-to-document and document-to-code transformation**
+- **deterministic validation**
+- **structured review**
+- **keeping requirements, design, and code aligned**
+- **planning for large tasks**
+
+It is a poor fit when you want the lightest possible chat-to-edit loop, or when the underlying documents, review habits, and engineering judgment are not there yet.
+
+Used correctly, it does not replace your stack.
+
+It makes your stack work together more reliably.
 
 ---
 
 ## Contributing
 
-We welcome contributions! See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the full guide covering:
+If you want to contribute, start with **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
-- **Development setup** and self-hosted bootstrap architecture
-- **Versioning** — where versions live and how to bump them
-- **DCO requirement** — all commits must be signed off (`git commit -s`)
-- **CI pipeline** — Makefile targets and GitHub Actions checks
-- **Pull request process** — what must pass before merge
+---
 
-Quick start:
-```bash
-git clone https://github.com/cyberfabric/cyber-pilot.git
-cd cyber-pilot
-make install-proxy   # install cpt CLI from local source
-make update          # sync .bootstrap/ from source
-make test            # run tests
-make validate        # validate artifacts
-```
+## License
+
+Cyber Pilot is licensed under the **Apache License 2.0**. See **[LICENSE](LICENSE)** for details.
