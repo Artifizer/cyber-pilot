@@ -30,114 +30,124 @@ For teams already using an AI coding tool, Cyber Pilot provides the operating co
  
  ## Product shape
  
-  ### Authoritative delivery artifacts
+ ### Authoritative delivery artifacts
  
-  - **Requirements and design artifacts** become the approved, file-backed source of scope, intent, and constraints for downstream work.
-  - **Plans** turn that approved intent into bounded execution shape before implementation sprawls across one long chat.
-  - **Checklists** make review and validation expectations visible instead of leaving them implicit in chat or memory.
-  - **Implementation changes** are reviewed against those approved artifacts rather than as isolated code diffs.
+ - **Requirements and design artifacts** become the approved, file-backed source of scope, intent, and constraints for downstream work.
+ - **Plans** turn that approved intent into bounded execution shape before implementation sprawls across one long chat.
+ - **Checklists** make review and validation expectations visible instead of leaving them implicit in chat or memory.
+ - **Implementation changes** are reviewed against those approved artifacts rather than as isolated code diffs.
  
-  ### What Cyber Pilot adds to a repo
+ ### What Cyber Pilot adds to a repo
  
-  After `cpt init` and `cpt generate-agents`, Cyber Pilot typically adds a setup directory such as `cypilot/` or `.cpt/`, generated AI coding tool integration files, and user-editable configuration under `config/` inside the chosen setup directory.
+ After `cpt init` and `cpt generate-agents`, Cyber Pilot typically adds a setup directory such as `cypilot/` or `.cpt/`, generated AI coding tool integration files, and user-editable configuration under `config/` inside the chosen setup directory.
  
-  This repo-installed control surface is how Cyber Pilot becomes operationally real inside a repository rather than staying a chat convention. It is also the first concrete proof surface most teams can inspect directly: what is generated, what remains user-editable, what is optional, and what deterministic validation can see.
+ This repo-installed control surface is how Cyber Pilot becomes operationally real inside a repository rather than staying a chat convention. It is also the first concrete proof surface most teams can inspect directly: what is generated, what remains user-editable, what is optional, and what deterministic validation can see.
  
-  - **Generated** — AI coding tool integration files and repository wiring
-  - **User-editable** — project configuration, rules, and any installed kit content meant for local use
-  - **Optional** — installed kit content extends the base platform only when you want a more opinionated delivery model
-  - **Validator-visible** — artifacts, plans, and configuration participate in deterministic `cpt` checks when those configured surfaces are in use
+ - **Generated** — AI coding tool integration files and repository wiring
+ - **User-editable** — project configuration, rules, and any installed kit content meant for local use
+ - **Optional** — installed kit content extends the base platform only when you want a more opinionated delivery model
+ - **Validator-visible** — artifacts, plans, and configuration participate in deterministic `cpt` checks when those configured surfaces are in use
  
-  ### Core platform and optional kits
+ ### Core platform and optional kits
  
-  Cyber Pilot has two main parts:
+ Cyber Pilot has two main parts:
  
-  - **Core platform** — the repository wiring, workflow routing, configuration surfaces, deterministic validation, and chat-facing skill that make the delivery model operational and repeatable
-  - **Kits** — optional add-ons that specialize that same delivery model with domain-specific templates, rules, workflows, and validation material
+ - **Core platform** — the repository wiring, workflow routing, configuration surfaces, deterministic validation, and chat-facing skill that make the delivery model operational and repeatable
+ - **Kits** — optional add-ons that specialize that same delivery model with domain-specific templates, rules, workflows, and validation material
  
-  Most teams should start with the core platform and add a kit later only if they want a ready-made delivery model for a specific domain or way of working. Kits extend the same underlying system rather than introducing a separate product shape.
+ Most teams should start with the core platform and add a kit later only if they want a ready-made delivery model for a specific domain or way of working. Kits extend the same underlying system rather than introducing a separate product shape.
  
-  ### How teams encounter Cyber Pilot
+ ### How teams encounter Cyber Pilot
  
-  In practice, teams usually encounter and touch Cyber Pilot through four main surfaces in the repository and toolchain:
+ In practice, teams usually encounter and touch Cyber Pilot through four main surfaces in the repository and toolchain:
  
-  | Surface | Form | Role |
-  |---|---|---|
-  | Primary AI surface | `cypilot <workflow>: <request>` | Main chat entry point for `plan`, `generate`, and `analyze` requests |
-  | Deterministic CLI | `cpt <command>` | Setup, validation, updates, and repeatable local or CI checks |
-  | Generated AI coding tool integration files | generated files in the repository | Connect the repository or workspace to supported tools without manual setup in each host |
+ | Surface | Form | Role |
+ |---|---|---|
+ | Primary AI surface | `cypilot <workflow>: <request>` | Main chat entry point for `plan`, `generate`, and `analyze` requests |
+ | Deterministic CLI | `cpt <command>` | Setup, validation, updates, and repeatable local or CI checks |
+ | Generated AI coding tool integration files | generated files in the repository | Connect the repository or workspace to supported tools without manual setup in each host |
  | Optional kit content | installed kit content | Add domain-specific templates, rules, workflows, and validation material |
-
+ 
  ## Fit and non-fit
 
  Use Cyber Pilot if you already work with an AI coding tool and the cost of ambiguity, rework, or review failure is high enough to justify more structure and control.
 
  ### Helps most when you are responsible for
 
-  - **Implementation work** that needs to stay bounded, inspectable, and safer to continue across more than one step
-  - **Alignment across handoffs or review checkpoints** so requirements, design, plans, and implementation do not drift apart
-  - **Review or delivery accountability** when approved scope needs reviewable evidence, clearer status surfaces, or deterministic checks before merge
+ - **Implementation work** that needs to stay bounded, inspectable, and safer to continue across more than one step
+ - **Alignment across handoffs or review checkpoints** so requirements, design, plans, and implementation do not drift apart
+ - **Review or delivery accountability** when approved scope needs reviewable evidence, clearer status surfaces, or deterministic checks before merge
 
  ### Good fit when
 
-  - you have a multi-step, higher-risk, or review-sensitive change where the cost of ambiguity or rework is higher than the cost of added structure
-  - the work needs bounded execution and reviewable alignment across approved inputs, implementation, and review, not just a quick diff
-  - you are working in a brownfield or unfamiliar area and need understanding before editing, not just speed while editing
-  - coordination, handoffs, or deterministic validation materially reduce risk before review or merge
+ - you have a multi-step, higher-risk, or review-sensitive change where the cost of ambiguity or rework is higher than the cost of added structure
+ - the work needs bounded execution and reviewable alignment across approved inputs, implementation, and review, not just a quick diff
+ - you are working in a brownfield or unfamiliar area and need understanding before editing, not just speed while editing
+ - coordination, handoffs, or deterministic validation materially reduce risk before review or merge
 
  ### Not the best fit when
 
-  - the task is a tiny edit, throwaway spike, or open-ended exploration
-  - the change is already well understood, low risk, and fast to make locally without added coordination or review structure
-  - speed matters more than structure and the shape of the work is still unclear
-  - you do not want artifact-backed process, staged review, or deterministic validation overhead even when the task is non-trivial
-  - your team rejects workflow discipline or does not want to maintain the delivery surfaces that make review and validation easier
+ - the task is a tiny edit, throwaway spike, or open-ended exploration
+ - the change is already well understood, low risk, and fast to make locally without added coordination or review structure
+ - speed matters more than structure and the shape of the work is still unclear
+ - you do not want artifact-backed process, staged review, or deterministic validation overhead even when the task is non-trivial
+ - your team rejects workflow discipline or does not want to maintain the delivery surfaces that make review and validation easier
 
  ### Where value appears first
 
-  - a first bounded plan that makes a risky or unfamiliar change easier to execute in stages
-  - a first inspectable understanding surface for an unfamiliar area before you start changing code
-  - a first deterministic validation result or drift signal before review or merge instead of trusting one generation pass
-  - a first reviewable linkage between approved inputs and the implementation under review
+ - a first bounded plan that makes a risky or unfamiliar change easier to execute in stages
+ - a first inspectable understanding surface for an unfamiliar area before you start changing code
+ - a first deterministic validation result or drift signal before review or merge instead of trusting one generation pass
+ - a first reviewable linkage between approved inputs and the implementation under review
 
  ## Operating model
-
+ 
  ### System boundary and control model
+ 
+ Cyber Pilot is best understood as the **workflow, context, and validation layer around your AI coding tool**.
+ 
+ Four actors shape the operating model: the **AI coding tool** provides the environment, chat interface, and model access, the **agent** performs the reasoning and writing inside that environment, **Cyber Pilot** governs the repo-attached workflow, configuration, and validation surface around the work, and the **human** decides approval, adequacy, risk acceptance, and whether the result is acceptable to merge or ship.
+ 
+ Cyber Pilot makes that repo-attached surface more explicit by controlling what context and rules are loaded, what structured artifacts or checkpoints the task is expected to use, and what deterministic checks can later be run with `cpt`. It does not supply the underlying intelligence of the model, and it does not decide whether the final implementation is correct, well-designed, or acceptable to merge.
 
-Cyber Pilot is best understood as the **workflow, context, and validation layer around your AI coding tool**.
+ - **Use the agent for**
+   - reasoning
+   - writing
+   - transformation
+   - implementation judgment
 
-Your AI coding tool gives you the chat interface and model access. The agent does the reasoning and writing. Cyber Pilot adds structured workflows, task-matched context, and deterministic checks around that work.
-
-- **Use the agent for**
-  - reasoning
-  - writing
-  - transformation
-  - implementation judgment
-
-- **Use Cyber Pilot for**
-  - workflow selection
-  - task-matched context loading
-  - templates, rules, and checklists
-  - keeping requirements, design, and code linked through the same identifiers
-  - planning large tasks into bounded steps
+ - **Use Cyber Pilot for**
+   - workflow selection and task framing
+   - task-matched context and rule loading
+   - templates, rules, and checklists
+   - governing the repo-attached workflow, configuration, and validation surface around the work
+   - bounding larger tasks into more controllable execution steps
 
  ### Deterministic vs non-deterministic boundary
+ 
+ For the same configured project surface and the same command or request shape, Cyber Pilot should make the same routing, context-loading, and check-execution decisions.
 
-- **Deterministic**
-  - config and resource resolution
-  - routing into workflows and specialized commands
-  - repeatable command behavior for the same configured project surface
+ - **Deterministic**
+   - config and resource resolution
+   - routing into workflows and specialized commands
+   - loading the same configured context and rules for the same task shape
+   - invoking the same checks against the same configured project surface
 
-- **Non-deterministic**
-  - the agent's reasoning, writing quality, and implementation judgment
-  - human review decisions
+ - **Non-deterministic**
+   - the agent's reasoning, writing quality, design quality, and implementation judgment
+   - adequacy of the final solution
+   - human approval, review, and merge decisions
 
-- **What tradeoff does Cyber Pilot make?**
-  - more process and context in exchange for more control, auditability, and repeatability
+ This does not imply the same reasoning trace, implementation approach, code, or solution quality from run to run.
 
-For the full fit / non-fit guidance, practical anti-patterns, planning heuristics, and workflow-choice rules, use **[guides/USAGE-GUIDE.md](guides/USAGE-GUIDE.md)**.
+ Cyber Pilot can constrain process, route work, and surface evidence repeatably, but it cannot guarantee implementation quality or replace human review.
 
-## Traceability and validation model
+ - **What tradeoff does Cyber Pilot make?**
+   - more maintained artifacts, explicit checkpoints, and review surface in exchange for more control, auditability, and repeatability
+
+ For the full fit / non-fit guidance, practical anti-patterns, planning heuristics, and workflow-choice rules, use **[guides/USAGE-GUIDE.md](guides/USAGE-GUIDE.md)**.
+
+ ## Traceability and validation model
 
 Cyber Pilot is strongest when the delivery surface is explicit and checkable.
 
