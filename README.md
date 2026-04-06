@@ -23,10 +23,10 @@ Stable identifiers and references connect requirements, design, plans, and imple
 For teams already using an AI coding tool, Cyber Pilot provides the operating controls needed to keep requirements, design, plans, and code traceable, reviewable, and enforceable as artifacts and implementation change:
 
   - **stable identifiers and cross-link validation** to prove alignment across requirements, design, plans, and code
-  - **deterministic `cpt` validation** to check structure, references, consistency, and traceability locally and in CI
+  - **deterministic `cpt` validation** to check structure, references, consistency, and traceability locally and in CI 
   - **templates, checklists, and staged workflows** to gate generation, review, and validation through explicit stages with defined inputs, outputs, and checks
  
- **Jump to:** [Product shape](#product-shape) | [Fit and non-fit](#fit-and-non-fit) | [Operating model](#operating-model) | [Traceability and validation model](#traceability-and-validation-model) | [Workflow model](#workflow-model) | [Typical delivery sequence](#typical-delivery-sequence) | [Supported hosts](#supported-hosts) | [Evaluate Cyber Pilot](#evaluate-cyber-pilot)
+ **Jump to:** [Product shape](#product-shape) | [Fit and non-fit](#fit-and-non-fit) | [Operating model](#operating-model) | [Traceability and validation model](#traceability-and-validation-model) | [Workflow model](#workflow-model) | [Typical delivery sequence](#typical-delivery-sequence) | [Supported hosts](#supported-hosts) | [Evaluate Cyber Pilot](#evaluate-cyber-pilot) | [Installation and setup reference](#installation-and-setup-reference)
  
  ## Product shape
  
