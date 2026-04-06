@@ -30,41 +30,42 @@ For teams already using an AI coding tool, Cyber Pilot provides the operating co
  
  ## Product shape
  
- ### Authoritative delivery artifacts
-
- - **Requirements and design artifacts** define approved scope, intent, and constraints before implementation moves forward.
- - **Plans and checklists** turn work into explicit execution and review stages before implementation and review sprawl together.
- - **Implementation changes** are reviewed against those approved artifacts rather than as isolated code diffs.
-
- ### What Cyber Pilot adds to a repo
-
- After 🖥️ `cpt init` and 🖥️ `cpt generate-agents`, Cyber Pilot typically adds a setup directory such as `cypilot/` or `.cpt/`, generated AI coding tool integration files, and user-editable configuration under `config/` inside the chosen setup directory.
-
- This is the first concrete proof surface most teams can inspect directly in a real repository: what is generated, what remains user-editable, what is optional, and what deterministic validation can see.
-
- - **Generated** — AI coding tool integration files and repository wiring
- - **User-editable** — project configuration, rules, and any installed kit content meant for local use
- - **Optional** — installed kit content extends the base platform only when you want a more opinionated delivery model
- - **Validator-visible** — artifacts, plans, and configuration participate in deterministic `cpt` checks when those configured surfaces are in use
-
- ### Core platform and optional kits
-
- Cyber Pilot has two main parts:
-
- - **Core platform** — the chat-facing skill, deterministic CLI, and reusable guidance that make work more structured and repeatable
- - **Kits** — optional add-ons that bring domain-specific templates, rules, workflows, and validation material
-
- Most teams should start with the core platform and add a kit later only if they want a ready-made delivery model for a specific domain or way of working.
-
- ### Primary entry points
-
- In practice, teams usually encounter Cyber Pilot through four primary entry points in the repository and toolchain:
-
- | Entry point | Form | Role |
- |---|---|---|
- | Primary AI surface | 💬 `cypilot <workflow>: <request>` | Main chat entry point for `plan`, `generate`, and `analyze` requests |
- | Deterministic CLI | 🖥️ `cpt <command>` | Setup, validation, updates, and repeatable local or CI checks |
- | Generated AI coding tool integration files | generated files in the repository | Connect the repository or workspace to supported tools without manual setup in each host |
+  ### Authoritative delivery artifacts
+ 
+  - **Requirements and design artifacts** become the approved, file-backed source of scope, intent, and constraints for downstream work.
+  - **Plans** turn that approved intent into bounded execution shape before implementation sprawls across one long chat.
+  - **Checklists** make review and validation expectations visible instead of leaving them implicit in chat or memory.
+  - **Implementation changes** are reviewed against those approved artifacts rather than as isolated code diffs.
+ 
+  ### What Cyber Pilot adds to a repo
+ 
+  After `cpt init` and `cpt generate-agents`, Cyber Pilot typically adds a setup directory such as `cypilot/` or `.cpt/`, generated AI coding tool integration files, and user-editable configuration under `config/` inside the chosen setup directory.
+ 
+  This repo-installed control surface is how Cyber Pilot becomes operationally real inside a repository rather than staying a chat convention. It is also the first concrete proof surface most teams can inspect directly: what is generated, what remains user-editable, what is optional, and what deterministic validation can see.
+ 
+  - **Generated** — AI coding tool integration files and repository wiring
+  - **User-editable** — project configuration, rules, and any installed kit content meant for local use
+  - **Optional** — installed kit content extends the base platform only when you want a more opinionated delivery model
+  - **Validator-visible** — artifacts, plans, and configuration participate in deterministic `cpt` checks when those configured surfaces are in use
+ 
+  ### Core platform and optional kits
+ 
+  Cyber Pilot has two main parts:
+ 
+  - **Core platform** — the repository wiring, workflow routing, configuration surfaces, deterministic validation, and chat-facing skill that make the delivery model operational and repeatable
+  - **Kits** — optional add-ons that specialize that same delivery model with domain-specific templates, rules, workflows, and validation material
+ 
+  Most teams should start with the core platform and add a kit later only if they want a ready-made delivery model for a specific domain or way of working. Kits extend the same underlying system rather than introducing a separate product shape.
+ 
+  ### How teams encounter Cyber Pilot
+ 
+  In practice, teams usually encounter and touch Cyber Pilot through four main surfaces in the repository and toolchain:
+ 
+  | Surface | Form | Role |
+  |---|---|---|
+  | Primary AI surface | `cypilot <workflow>: <request>` | Main chat entry point for `plan`, `generate`, and `analyze` requests |
+  | Deterministic CLI | `cpt <command>` | Setup, validation, updates, and repeatable local or CI checks |
+  | Generated AI coding tool integration files | generated files in the repository | Connect the repository or workspace to supported tools without manual setup in each host |
  | Optional kit content | installed kit content | Add domain-specific templates, rules, workflows, and validation material |
 
  ## Fit and non-fit
