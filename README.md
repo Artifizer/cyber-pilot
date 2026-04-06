@@ -14,21 +14,17 @@
 
 **Audience**: Developers using AI coding tools, technical leads, engineering teams
 
-## Cyber Pilot — tooling for traceable, reviewable AI-assisted software changes
+## Overview
 
-It adds bounded phases, stable identifiers, and verifiable checks to AI-assisted work that has outgrown a single chat. It is **not** another coding model, IDE, or AI coding tool.
+Cyber Pilot is a traceable delivery system for requirements, design, plans, and code.
 
-It works alongside tools such as Claude Code, Cursor, GitHub Copilot, OpenAI Codex, and Windsurf to keep larger changes reviewable and traceable to approved requirements and design.
+Stable identifiers and references connect requirements, design, plans, and implementation so drift is surfaced early instead of being reconstructed ad hoc during review and delivery.
 
-Use it when a change spans multiple AI-assisted steps and you need evidence that the final code still lines up with approved requirements, design, tasks, and constraints.
+For teams already using an AI coding tool, Cyber Pilot provides the operating controls needed to keep requirements, design, plans, and code traceable, reviewable, and enforceable as artifacts and implementation change:
 
-It adds three controls that plain prompting does not preserve well at larger scope:
-
-- **reuse the same stable identifiers from requirements and design through tasks, code, and checks so drift and missing links become visible**
-- **break large or risky work into bounded, reviewable phases**
-- **run deterministic checks on structure, references, consistency, and traceability**
-
-The model itself is still **non-deterministic**. Cyber Pilot does not try to change that. Instead, it adds structure and checks around the parts of the workflow that *can* be made explicit and verifiable.
+- **stable identifiers and cross-link validation** to prove alignment across requirements, design, plans, and code
+- **deterministic `cpt` validation** to check structure, references, consistency, and traceability locally and in CI
+- **templates, checklists, and staged workflows** to gate generation, review, and validation through explicit stages with defined inputs, outputs, and checks
 
 ### Who this is for
 
