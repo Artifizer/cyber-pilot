@@ -241,53 +241,70 @@ In practice, this creates clearer boundaries, earlier drift detection, and more 
  If you are unsure where to start, **Claude Code** currently gives the clearest first experience for the full Cyber Pilot workflow because it best preserves workflow separation, orchestration control, and subagent-assisted isolation.
  
  For host-specific setup guidance, deeper tradeoffs, and the full support matrix, use **[guides/AGENT-TOOLS.md](guides/AGENT-TOOLS.md)**.
-
-## Evaluate Cyber Pilot
-
-Use this path if you are evaluating Cyber Pilot in a real repository and want one concrete result quickly.
-
-### Minimal evaluation path
-
-1. **Pick one real repository and one real input** such as a requirement, design note, or change request.
-2. **Install and initialize once** with 🖥️ `pipx install git+https://github.com/cyberfabric/cyber-pilot.git`, 🖥️ `cpt init`, and 🖥️ `cpt generate-agents`.
-3. **Activate Cyber Pilot in chat** with 💬 `cypilot on` in the AI coding tool attached to that repository.
-4. **Run one focused request** with 💬 `cypilot analyze: ...` or 💬 `cypilot plan: ...` against that real input.
-
-### Validation checkpoint
-
-- **Run one deterministic check** with 🖥️ `cpt validate --local-only` when you want to verify only the current repository, or 🖥️ `cpt validate` when cross-repo or workspace resolution is part of the trial.
-- **Treat either a clean pass or an actionable failure as useful evidence**; the point is to see whether Cyber Pilot makes drift visible operationally instead of leaving it implicit in chat.
-
-### What success looks like
-
-- **Activation is confirmed** in the repository attached to the AI coding tool chat.
-- **One useful output appears** such as a bounded plan, clearer system summary, or validation surface you could act on immediately.
-- **One deterministic validation signal appears** as either a clean local pass or a concrete failure you can inspect and act on.
-- **The next step is clearer** than it was before the trial, even if you stop after one pass.
-
- ### What to inspect after the trial
-
- - **Scope anchoring** — whether the output stayed tied to the real requirement, design note, or change request.
- - **Reviewability** — whether the resulting artifacts, plans, or validation outputs are easier to inspect than one long mixed-purpose chat.
- - **Trust signal** — whether you would trust the resulting surface enough to continue with a larger change.
-
- **Jump to:** [Installation and setup reference](#installation-and-setup-reference) | [Configuration files](#configuration-files) | [Extended operating modes](#extended-operating-modes) | [Project extensibility](#project-extensibility) | [Further reading](#further-reading)
+ 
+ ## Evaluate Cyber Pilot
+  
+  Use this path if you are evaluating Cyber Pilot in a real repository and want one concrete result quickly.
+ 
+  ### Minimal evaluation path
+ 
+  1. **Pick one real repository and one narrow real input** such as a requirement, design note, or change request that should produce a bounded, reviewable output.
+  2. **Complete the one-time setup for that repository** using the installation and setup reference below so the repo is initialized and ready for Cyber Pilot.
+  3. **Activate Cyber Pilot in chat** with 💬 `cypilot on` in the AI coding tool attached to that repository.
+  4. **Run one focused request** with 💬 `cypilot analyze: ...` when you want an inspectable assessment of the input, or 💬 `cypilot plan: ...` when you want bounded execution steps before implementation.
+ 
+  ### Validation checkpoint
+ 
+  - **Run one deterministic check** with 🖥️ `cpt validate --local-only` when you want to verify only the current repository, or 🖥️ `cpt validate` when cross-repo or workspace resolution is part of the trial.
+  - **Use that validation step as the proof surface of the trial**; this is where Cyber Pilot shows that it produced deterministic, validator-visible signals instead of only conversational output.
+  - **Treat either a clean pass or an actionable failure as useful evidence**; the most useful failures are localized, inspectable, and actionable rather than vague.
+ 
+  ### What success looks like
+ 
+  - **The output stays anchored** to the real requirement, design note, or change request you started from.
+  - **One bounded and reviewable output appears** such as a plan, inspectable summary, or validation surface you could act on immediately.
+  - **One deterministic validation signal appears** as either a clean local pass or a concrete failure you can inspect and act on.
+  - **The next decision is clearer** than it was before the trial, whether that means continue, narrow scope, or stop.
+ 
+  ### What to inspect after the trial
+ 
+  - **Scope anchoring** — whether the output stayed tied to the real requirement, design note, or change request.
+  - **Reviewability** — whether the resulting artifacts, plans, or validation outputs are easier to inspect than one long mixed-purpose chat.
+  - **Evidence quality** — whether the outputs or failures are localized, inspectable, and usable by someone other than the original chat author.
+  - **Signal-to-effort** — whether the trial produced enough useful signal to justify the setup and process overhead.
+  - **Trust signal** — whether you would trust the resulting surface enough to continue with a larger change.
+ 
+  **Jump to:** [Installation and setup reference](#installation-and-setup-reference) | [Configuration files](#configuration-files) | [Extended operating modes](#extended-operating-modes) | [Project extensibility](#project-extensibility) | [Further reading](#further-reading)
 
  ## Installation and setup reference
 
-### Prerequisites
+ ### Prerequisites
+ For a first trial, you need Python 3.11+, Git, and one supported AI coding tool such as Claude Code, Cursor, Windsurf, GitHub Copilot, or OpenAI Codex.
 
-For a first trial, you need Python 3.11+, Git, and one supported AI coding tool such as Claude Code, Cursor, Windsurf, GitHub Copilot, or OpenAI Codex.
+ Python 3.11+ is the runtime for Cyber Pilot's repository-local scripts and CI, even when you do not install `cpt` globally yourself.
+ 
+ `pipx` is recommended when you want to install the `cpt` CLI globally and run it yourself. `gh` is optional for PR review and PR status workflows.
+ 
+ > **Convention**: 💬 = paste into AI coding tool chat. 🖥️ = run in terminal.
+ 
+ ### Setup paths and commands
+ 
+ Choose the path that matches the repository state.
 
-`pipx` is recommended for installing the CLI globally. `gh` is optional for PR review and PR status workflows.
+ - **If the repository already includes Cyber Pilot**
+   - ensure Python 3.11+ is available for the repository-local scripts and CI
+   - clone or open the repository in your supported AI coding tool
+   - activate Cyber Pilot in chat with 💬 `cypilot on`
+   - send one focused request with 💬 `cypilot analyze: ...` or 💬 `cypilot plan: ...`
 
-> **Convention**: 💬 = paste into AI coding tool chat. 🖥️ = run in terminal.
-
-### Setup commands
-
-Use this section as the exact procedural path after the evaluation section above.
-
-1. **Install the CLI**
+ - **If the repository does not yet include Cyber Pilot**
+   - install `cpt` globally if you want to bootstrap the repository yourself
+   - run the one-time repository setup steps below
+   - then activate Cyber Pilot in chat and send the first focused request
+ 
+ If you need to bootstrap the repository yourself, use this one-time path:
+ 
+ 1. **Install the CLI**
 
     🖥️ **Terminal**:
     ```bash
@@ -295,13 +312,15 @@ Use this section as the exact procedural path after the evaluation section above
     cpt --version
     ```
 
-2. **Initialize the repository**
+ 2. **Initialize the repository**
 
     🖥️ **Terminal**:
     ```bash
     cpt init
     cpt generate-agents
     ```
+
+    `cpt init` and `cpt generate-agents` are one-time repository bootstrap steps, not steps every downstream user must repeat.
 
     This creates a setup directory such as `cypilot/` or `.cpt/`, generated AI coding tool integration files, and user-editable configuration under `config/` inside the chosen setup directory.
 
@@ -316,23 +335,23 @@ Use this section as the exact procedural path after the evaluation section above
 
 For detailed host-specific setup, troubleshooting, and operational walkthroughs, use **[guides/AGENT-TOOLS.md](guides/AGENT-TOOLS.md)** and **[guides/USAGE-GUIDE.md](guides/USAGE-GUIDE.md)**.
 
-## Configuration files
-
-All user-editable configuration lives under `config/` inside your Cyber Pilot setup directory.
-
-You do not need to understand all of this on day one. Most new users can start with 🖥️ `cpt init`, use the three Cyber Pilot workflows, and come back here later.
-
-| File | What it controls |
-|---|---|
-| `core.toml` | Project settings, installed kits, and workspace-level configuration |
-| `artifacts.toml` | How artifacts, systems, codebases, and traceability are mapped in the project |
-| `AGENTS.md` | Task navigation rules that tell the agent which files to load for each job |
-| `SKILL.md` | Always-on project instructions that apply across requests |
-| `rules/*.md` | Optional topic-specific rules the agent loads for relevant tasks |
-
-For full configuration details, see **[Configuration guide](guides/CONFIGURATION.md)**.
-
-## Extended operating modes
+ ## Configuration files
+ 
+ The main top-level user-editable configuration lives under `config/` inside your Cyber Pilot setup directory. Other parts of the setup directory may contain generated or supporting material, and installed kits can add their own editable surfaces.
+ 
+ You do not need full configuration mastery immediately. Treat these as the main top-level control files you can inspect, review, edit, and version in the repository.
+ 
+ | File | What it controls |
+ |---|---|
+ | `core.toml` | Top-level project settings, installed kits, and workspace registration |
+ | `artifacts.toml` | The project's artifact model, codebase mappings, and traceability structure |
+ | `AGENTS.md` | Task navigation rules that tell the agent which files to load for each job |
+ | `SKILL.md` | Always-on project instructions that apply across requests |
+ | `rules/*.md` | Optional topic-specific rules the agent loads for relevant tasks |
+ 
+ For full configuration details, advanced surfaces, and editing patterns, see **[Configuration guide](guides/CONFIGURATION.md)**.
+ 
+ ## Extended operating modes
 
 You do not need these on day one. Add them when your use case justifies the extra surface area.
 
