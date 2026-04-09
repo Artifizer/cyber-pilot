@@ -390,6 +390,15 @@ def cmd_validate(argv: List[str]) -> int:
                 rep["warnings"].append(issue)
     # @cpt-end:cpt-cypilot-flow-traceability-validation-validate:p1:inst-validate-helpers
 
+    # Content language check — runs after per-artifact structure validation.
+    # Skipped if structure has already failed (all_errors non-empty) so language
+    # issues never obscure structural errors.
+    if not all_errors:
+        _lang_errs = _run_content_language_check(artifacts_to_validate, ws_ctx, project_root)
+        for _le in _lang_errs:
+            all_errors.append(_le)
+            _attach_issue_to_artifact_report(_le, is_error=True)
+
     # @cpt-begin:cpt-cypilot-flow-traceability-validation-validate:p1:inst-if-structure-fail
     # Stop early: cross-artifact reference checks and code traceability checks are run only
     # after per-artifact structure/content checks pass.
@@ -896,6 +905,74 @@ def _suggest_path_from_autodetect(node: object, target_kind: str) -> Optional[st
 
     return None
 # @cpt-end:cpt-cypilot-flow-traceability-validation-validate:p1:inst-validate-helpers
+
+# ---------------------------------------------------------------------------
+# Content language check helper
+# ---------------------------------------------------------------------------
+
+def _run_content_language_check(
+    artifacts_to_validate: list,
+    ws_ctx: object,
+    project_root: "Path",
+) -> list:
+    """Return language-violation error dicts for all validated .md artifacts.
+
+    Uses ``ws_ctx.project_root`` when available, otherwise falls back to
+    ``project_root``, so the check works in both workspace mode and
+    single-repo mode.  Returns an empty list when
+    ``allowed_content_languages`` is not configured.  Returns a validation
+    error entry when the workspace config file exists but fails to load.
+    """
+    from ..utils.workspace import find_workspace_config as _find_ws
+    from ..utils.content_language import (
+        LangScanError as _LangScanError,
+        build_allowed_ranges,
+        scan_file as _scan_file,
+    )
+    from ..utils.constraints import error as _error
+    from ..utils import error_codes as _EC
+
+    root = getattr(ws_ctx, "project_root", None) or project_root
+    _ws_cfg, _ws_err = _find_ws(root)
+    if _ws_err is not None:
+        return [_error(
+            "workspace",
+            f"Failed to load workspace config for language check: {_ws_err}",
+            path=root,
+            code=_EC.FILE_LOAD_ERROR,
+        )]
+    if _ws_cfg is None or _ws_cfg.validation is None:
+        return []
+    allowed_langs = _ws_cfg.validation.allowed_content_languages
+    if not allowed_langs:
+        return []
+
+    allowed_ranges = build_allowed_ranges(allowed_langs)
+    results = []
+    for artifact_path, _template_path, _artifact_type, _traceability, _kit_id in artifacts_to_validate:
+        if artifact_path.suffix.lower() != ".md":
+            continue
+        try:
+            violations = _scan_file(artifact_path, allowed_ranges)
+        except _LangScanError as exc:
+            results.append(_error(
+                "language",
+                f"Cannot read file for language scan: {exc}",
+                path=artifact_path,
+                code=_EC.FILE_READ_ERROR,
+            ))
+            continue
+        for v in violations:
+            results.append(_error(
+                "language",
+                f"Non-allowed characters [{v.bad_chars_preview()}] — {v.line_preview()}",
+                path=artifact_path,
+                line=v.lineno,
+                code=_EC.CONTENT_LANGUAGE_VIOLATION,
+                allowed_languages=allowed_langs,
+            ))
+    return results
+
 
 # ---------------------------------------------------------------------------
 # Human-friendly formatter

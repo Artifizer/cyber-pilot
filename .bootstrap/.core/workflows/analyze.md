@@ -187,6 +187,14 @@ Code:
 - MUST NOT proceed to Phase 3 until `{cpt_cmd} --json validate` returns `"status": "PASS"`; if FAIL, report issues and STOP.
 - MUST NOT produce a validation summary without first showing actual validator output; doing so is `SIMULATED_VALIDATION`.
 
+Language content check (run when `[validation] allowed_content_languages` is configured in `.cypilot-workspace.toml`):
+
+```bash
+{cpt_cmd} --json check-language {PATH}
+```
+
+If `check-language` returns violations (`LANG001`): report flagged lines as deterministic issues. Language violations are errors, not warnings; do not proceed to Phase 3 until resolved.
+
 If FAIL:
 ```
 ═══════════════════════════════════════════════

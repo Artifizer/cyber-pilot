@@ -29,6 +29,7 @@ from cypilot.utils.workspace import (
     TraceabilityConfig,
     NamespaceRule,
     ResolveConfig,
+    ValidationConfig,
     WorkspaceConfig,
     find_workspace_config,
     validate_source_name,
@@ -3628,3 +3629,87 @@ class TestGetExpandedMetaNone:
         sc.adapter_context = adapter_ctx
         result = get_expanded_meta(sc)
         assert result is adapter_meta
+
+
+# =========================================================================
+# ValidationConfig
+# =========================================================================
+
+class TestValidationConfig:
+    """ValidationConfig dataclass — parsing, serializing, defaults."""
+
+    def test_from_dict_basic(self):
+        cfg = ValidationConfig.from_dict({"allowed_content_languages": ["en", "ru"]})
+        assert cfg.allowed_content_languages == ["en", "ru"]
+
+    def test_from_dict_empty_languages_list(self):
+        cfg = ValidationConfig.from_dict({"allowed_content_languages": []})
+        assert cfg.allowed_content_languages == []
+
+    def test_from_dict_missing_key_defaults_to_empty(self):
+        cfg = ValidationConfig.from_dict({})
+        assert cfg.allowed_content_languages == []
+
+    def test_from_dict_none_input(self):
+        cfg = ValidationConfig.from_dict(None)
+        assert cfg.allowed_content_languages == []
+
+    def test_from_dict_non_list_value_ignored(self):
+        cfg = ValidationConfig.from_dict({"allowed_content_languages": "en"})
+        assert cfg.allowed_content_languages == []
+
+    def test_from_dict_normalizes_to_lowercase(self):
+        cfg = ValidationConfig.from_dict({"allowed_content_languages": ["EN", "Ru"]})
+        assert "en" in cfg.allowed_content_languages
+        assert "ru" in cfg.allowed_content_languages
+
+    def test_to_dict_with_languages(self):
+        cfg = ValidationConfig(allowed_content_languages=["en", "ru"])
+        d = cfg.to_dict()
+        assert d == {"allowed_content_languages": ["en", "ru"]}
+
+    def test_to_dict_empty_returns_empty_dict(self):
+        cfg = ValidationConfig(allowed_content_languages=[])
+        assert cfg.to_dict() == {}
+
+    def test_default_factory_produces_empty_list(self):
+        cfg = ValidationConfig()
+        assert cfg.allowed_content_languages == []
+
+
+class TestWorkspaceConfigValidationField:
+    """WorkspaceConfig correctly parses the [validation] section."""
+
+    def _make_config(self, extra_toml: str = "") -> WorkspaceConfig:
+        import tomllib as _toml
+        raw = _toml.loads(
+            'version = "1.0"\n'
+            "[sources.local]\npath = \".\"\nrole = \"full\"\n"
+            + extra_toml
+        )
+        return WorkspaceConfig.from_dict(raw)
+
+    def test_no_validation_section_gives_none(self):
+        cfg = self._make_config()
+        assert cfg.validation is None
+
+    def test_validation_section_parsed(self):
+        cfg = self._make_config('[validation]\nallowed_content_languages = ["en"]\n')
+        assert cfg.validation is not None
+        assert cfg.validation.allowed_content_languages == ["en"]
+
+    def test_validation_included_in_to_dict(self):
+        cfg = self._make_config('[validation]\nallowed_content_languages = ["en", "ru"]\n')
+        d = cfg.to_dict()
+        assert "validation" in d
+        assert d["validation"]["allowed_content_languages"] == ["en", "ru"]
+
+    def test_validate_rejects_unknown_language_codes(self):
+        cfg = self._make_config('[validation]\nallowed_content_languages = ["en", "xx_FAKE"]\n')
+        errors = cfg.validate()
+        assert any("xx_fake" in e.lower() for e in errors)
+
+    def test_validate_accepts_known_language_codes(self):
+        cfg = self._make_config('[validation]\nallowed_content_languages = ["en", "ru"]\n')
+        errors = cfg.validate()
+        assert not any("allowed_content_languages" in e for e in errors)
